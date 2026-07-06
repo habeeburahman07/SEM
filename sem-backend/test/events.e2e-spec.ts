@@ -11,6 +11,10 @@ describe('Events & Competitions Controller (e2e)', () => {
   let eventId: string;
   let sportId: string;
   let competitionId: string;
+  let stageId: string;
+  let teamAId: string;
+  let teamBId: string;
+  let matchId: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -44,6 +48,22 @@ describe('Events & Competitions Controller (e2e)', () => {
       .expect(201);
 
     workspaceId = workspaceRes.body.id;
+
+    // Create Team A
+    const teamARes = await request(app.getHttpServer())
+      .post(`/workspaces/${workspaceId}/teams`)
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({ name: 'Team A', description: 'First Team' })
+      .expect(201);
+    teamAId = teamARes.body.id;
+
+    // Create Team B
+    const teamBRes = await request(app.getHttpServer())
+      .post(`/workspaces/${workspaceId}/teams`)
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({ name: 'Team B', description: 'Second Team' })
+      .expect(201);
+    teamBId = teamBRes.body.id;
   });
 
   afterAll(async () => {
@@ -111,6 +131,152 @@ describe('Events & Competitions Controller (e2e)', () => {
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body.length).toBe(1);
     expect(res.body[0].id).toBe(competitionId);
+  });
+
+  it('should create a group & knockout combined stage inside the competition', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages`)
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({
+        name: 'Combined Stage Play',
+        type: 'group_knockout',
+        sequence: 1,
+        config: {
+          winPoint: 3,
+          drawPoint: 1,
+          twoLegged: true,
+          groupsCount: 4,
+          advancingCount: 2,
+          gamesPerTeam: 3,
+        },
+      })
+      .expect(201);
+
+    expect(res.body).toHaveProperty('id');
+    expect(res.body.name).toBe('Combined Stage Play');
+    expect(res.body.type).toBe('group_knockout');
+    expect(res.body.config.winPoint).toBe(3);
+    expect(res.body.config.drawPoint).toBe(1);
+    expect(res.body.config.twoLegged).toBe(true);
+    expect(res.body.config.groupsCount).toBe(4);
+    expect(res.body.config.advancingCount).toBe(2);
+    expect(res.body.config.gamesPerTeam).toBe(3);
+    stageId = res.body.id;
+  });
+
+  it('should retrieve list of stages for the competition', async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages`)
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .expect(200);
+
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBe(1);
+    expect(res.body[0].id).toBe(stageId);
+  });
+
+  it('should update the stage configuration', async () => {
+    const res = await request(app.getHttpServer())
+      .patch(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}`)
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({
+        name: 'Group Play v2',
+        config: {
+          winPoint: 4,
+          drawPoint: 2,
+          gamesPerTeam: 5,
+        },
+      })
+      .expect(200);
+
+    expect(res.body.name).toBe('Group Play v2');
+    expect(res.body.config.winPoint).toBe(4);
+    expect(res.body.config.drawPoint).toBe(2);
+    expect(res.body.config.gamesPerTeam).toBe(5);
+  });
+
+  it('should create a match in the stage', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`)
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({
+        homeTeamId: teamAId,
+        awayTeamId: teamBId,
+        config: {
+          timerDuration: 90,
+        },
+      })
+      .expect(201);
+
+    expect(res.body.homeTeamId).toBe(teamAId);
+    expect(res.body.awayTeamId).toBe(teamBId);
+    expect(res.body.config.timerDuration).toBe(90);
+    expect(res.body.liveData).toBeDefined();
+    matchId = res.body.id;
+  });
+
+  it('should retrieve list of matches for the stage', async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`)
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .expect(200);
+
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThanOrEqual(1);
+    expect(res.body[0].id).toBe(matchId);
+  });
+
+  it('should update match score and liveData', async () => {
+    const res = await request(app.getHttpServer())
+      .patch(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${matchId}`)
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({
+        homeScore: 2,
+        awayScore: 1,
+        status: 'live',
+        liveData: {
+          elapsedSeconds: 300,
+          timerRunning: true,
+          events: [
+            { type: 'goal', teamId: teamAId, playerUserId: 'some-id', minute: 5 }
+          ]
+        }
+      })
+      .expect(200);
+
+    expect(res.body.homeScore).toBe(2);
+    expect(res.body.awayScore).toBe(1);
+    expect(res.body.status).toBe('live');
+    expect(res.body.liveData.elapsedSeconds).toBe(300);
+  });
+
+  it('should delete the match', async () => {
+    await request(app.getHttpServer())
+      .delete(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${matchId}`)
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .expect(204);
+
+    const res = await request(app.getHttpServer())
+      .get(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`)
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .expect(200);
+
+    expect(res.body.length).toBe(0);
+  });
+
+  it('should delete the stage', async () => {
+    await request(app.getHttpServer())
+      .delete(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}`)
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .expect(204);
+
+    // Verify it is gone
+    const res = await request(app.getHttpServer())
+      .get(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages`)
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .expect(200);
+
+    expect(res.body.length).toBe(0);
   });
 
   it('should update the competition details', async () => {

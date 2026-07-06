@@ -8,6 +8,8 @@ import { Player } from './entities/player.entity';
 import { Event } from './entities/event.entity';
 import { Sport } from './entities/sport.entity';
 import { Competition } from './entities/competition.entity';
+import { CompetitionStage } from './entities/competition-stage.entity';
+import { Match } from './entities/match.entity';
 import { WorkspacesService } from './workspaces.service';
 import { WorkspacesController } from './workspaces.controller';
 import { SystemSettingsController } from './system-settings.controller';
@@ -15,7 +17,18 @@ import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Workspace, WorkspaceMember, Role, Team, Player, Event, Sport, Competition]),
+    TypeOrmModule.forFeature([
+      Workspace,
+      WorkspaceMember,
+      Role,
+      Team,
+      Player,
+      Event,
+      Sport,
+      Competition,
+      CompetitionStage,
+      Match,
+    ]),
     UsersModule,
   ],
 

@@ -15,6 +15,8 @@ import { Player } from './entities/player.entity';
 import { Event } from './entities/event.entity';
 import { Sport } from './entities/sport.entity';
 import { Competition } from './entities/competition.entity';
+import { CompetitionStage } from './entities/competition-stage.entity';
+import { Match } from './entities/match.entity';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import { UsersService } from '../users/users.service';
@@ -29,6 +31,10 @@ import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { CreateCompetitionDto } from './dto/create-competition.dto';
 import { UpdateCompetitionDto } from './dto/update-competition.dto';
+import { CreateStageDto } from './dto/create-stage.dto';
+import { UpdateStageDto } from './dto/update-stage.dto';
+import { CreateMatchDto } from './dto/create-match.dto';
+import { UpdateMatchDto } from './dto/update-match.dto';
 
 @Injectable()
 export class WorkspacesService implements OnModuleInit {
@@ -49,6 +55,10 @@ export class WorkspacesService implements OnModuleInit {
     private readonly sportRepo: Repository<Sport>,
     @InjectRepository(Competition)
     private readonly competitionRepo: Repository<Competition>,
+    @InjectRepository(CompetitionStage)
+    private readonly stageRepo: Repository<CompetitionStage>,
+    @InjectRepository(Match)
+    private readonly matchRepo: Repository<Match>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -728,5 +738,273 @@ export class WorkspacesService implements OnModuleInit {
     }
 
     await this.competitionRepo.remove(competition);
+  }
+
+  // ─── Competition Stages ───────────────────────────────────────────────────
+
+  async getStages(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    userId: string,
+  ): Promise<CompetitionStage[]> {
+    await this.ensureMember(workspaceId, userId);
+    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    if (!event) {
+      throw new NotFoundException(`Event "${eventId}" not found in workspace`);
+    }
+    const competition = await this.competitionRepo.findOne({ where: { id: competitionId, eventId } });
+    if (!competition) {
+      throw new NotFoundException(`Competition "${competitionId}" not found in event`);
+    }
+
+    return this.stageRepo.find({
+      where: { competitionId },
+      order: { sequence: 'ASC', createdAt: 'ASC' },
+    });
+  }
+
+  async createStage(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    dto: CreateStageDto,
+    userId: string,
+  ): Promise<CompetitionStage> {
+    await this.ensureAdminOrOwner(workspaceId, userId);
+    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    if (!event) {
+      throw new NotFoundException(`Event "${eventId}" not found in workspace`);
+    }
+    const competition = await this.competitionRepo.findOne({ where: { id: competitionId, eventId } });
+    if (!competition) {
+      throw new NotFoundException(`Competition "${competitionId}" not found in event`);
+    }
+
+    const sequence = dto.sequence ?? (await this.stageRepo.count({ where: { competitionId } })) + 1;
+
+    const stage = this.stageRepo.create({
+      name: dto.name,
+      type: dto.type,
+      sequence,
+      competitionId,
+      config: dto.config ?? {},
+    });
+
+    return this.stageRepo.save(stage);
+  }
+
+  async updateStage(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string,
+    dto: UpdateStageDto,
+    userId: string,
+  ): Promise<CompetitionStage> {
+    await this.ensureAdminOrOwner(workspaceId, userId);
+    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    if (!event) {
+      throw new NotFoundException(`Event "${eventId}" not found in workspace`);
+    }
+    const competition = await this.competitionRepo.findOne({ where: { id: competitionId, eventId } });
+    if (!competition) {
+      throw new NotFoundException(`Competition "${competitionId}" not found in event`);
+    }
+
+    const stage = await this.stageRepo.findOne({ where: { id: stageId, competitionId } });
+    if (!stage) {
+      throw new NotFoundException(`Stage "${stageId}" not found in competition`);
+    }
+
+    if (dto.name !== undefined) stage.name = dto.name;
+    if (dto.type !== undefined) stage.type = dto.type;
+    if (dto.sequence !== undefined) stage.sequence = dto.sequence;
+    if (dto.config !== undefined) {
+      stage.config = { ...stage.config, ...dto.config };
+    }
+
+    return this.stageRepo.save(stage);
+  }
+
+  async removeStage(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.ensureAdminOrOwner(workspaceId, userId);
+    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    if (!event) {
+      throw new NotFoundException(`Event "${eventId}" not found in workspace`);
+    }
+    const competition = await this.competitionRepo.findOne({ where: { id: competitionId, eventId } });
+    if (!competition) {
+      throw new NotFoundException(`Competition "${competitionId}" not found in event`);
+    }
+
+    const stage = await this.stageRepo.findOne({ where: { id: stageId, competitionId } });
+    if (!stage) {
+      throw new NotFoundException(`Stage "${stageId}" not found in competition`);
+    }
+
+    await this.stageRepo.remove(stage);
+  }
+
+  // ─── Matches ──────────────────────────────────────────────────────────────
+
+  async getMatches(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string,
+    userId: string,
+  ): Promise<Match[]> {
+    await this.ensureMember(workspaceId, userId);
+    const stage = await this.stageRepo.findOne({ where: { id: stageId, competitionId } });
+    if (!stage) {
+      throw new NotFoundException(`Stage "${stageId}" not found in competition`);
+    }
+
+    return this.matchRepo.find({
+      where: { stageId },
+      relations: { homeTeam: true, awayTeam: true },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  async createMatch(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string,
+    dto: CreateMatchDto,
+    userId: string,
+  ): Promise<Match> {
+    await this.ensureAdminOrOwner(workspaceId, userId);
+    const stage = await this.stageRepo.findOne({ where: { id: stageId, competitionId } });
+    if (!stage) {
+      throw new NotFoundException(`Stage "${stageId}" not found in competition`);
+    }
+
+    const comp = await this.competitionRepo.findOne({
+      where: { id: competitionId },
+      relations: { sport: true },
+    });
+    if (!comp) {
+      throw new NotFoundException(`Competition "${competitionId}" not found`);
+    }
+
+    const sportCode = comp.sport?.code ?? 'football';
+
+    // Set defaults based on sport
+    const config = dto.config ?? {};
+    let liveData: any = {};
+
+    if (sportCode === 'football') {
+      if (!config.timerDuration) config.timerDuration = 90;
+      liveData = {
+        elapsedSeconds: 0,
+        timerRunning: false,
+        events: [],
+      };
+    } else if (sportCode === 'cricket') {
+      if (!config.overs) config.overs = 20;
+      liveData = {
+        tossWinnerId: null,
+        tossChoice: null,
+        currentInnings: 1,
+        inningsData: [
+          {
+            battingTeamId: dto.homeTeamId,
+            bowlingTeamId: dto.awayTeamId,
+            runs: 0,
+            wickets: 0,
+            overs: 0,
+            balls: 0,
+            batsmanStats: {},
+            bowlerStats: {},
+            extraRuns: 0,
+            completed: false,
+          },
+        ],
+      };
+    } else if (sportCode === 'badminton') {
+      if (!config.setsToWin) config.setsToWin = 2; // Best of 3
+      liveData = {
+        currentSet: 1,
+        setsScore: [{ home: 0, away: 0 }],
+        homeSetsWon: 0,
+        awaySetsWon: 0,
+      };
+    }
+
+    const match = this.matchRepo.create({
+      stageId,
+      homeTeamId: dto.homeTeamId,
+      awayTeamId: dto.awayTeamId,
+      homeScore: 0,
+      awayScore: 0,
+      status: 'scheduled',
+      config,
+      liveData,
+    });
+
+    const saved = await this.matchRepo.save(match);
+    return (await this.matchRepo.findOne({
+      where: { id: saved.id },
+      relations: { homeTeam: true, awayTeam: true },
+    }))!;
+  }
+
+  async updateMatch(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string,
+    matchId: string,
+    dto: UpdateMatchDto,
+    userId: string,
+  ): Promise<Match> {
+    await this.ensureAdminOrOwner(workspaceId, userId);
+    const match = await this.matchRepo.findOne({ where: { id: matchId, stageId } });
+    if (!match) {
+      throw new NotFoundException(`Match "${matchId}" not found in stage`);
+    }
+
+    if (dto.homeTeamId !== undefined) match.homeTeamId = dto.homeTeamId;
+    if (dto.awayTeamId !== undefined) match.awayTeamId = dto.awayTeamId;
+    if (dto.homeScore !== undefined) match.homeScore = dto.homeScore;
+    if (dto.awayScore !== undefined) match.awayScore = dto.awayScore;
+    if (dto.status !== undefined) match.status = dto.status;
+    if (dto.config !== undefined) {
+      match.config = { ...match.config, ...dto.config };
+    }
+    if (dto.liveData !== undefined) {
+      match.liveData = { ...match.liveData, ...dto.liveData };
+    }
+
+    const saved = await this.matchRepo.save(match);
+    return (await this.matchRepo.findOne({
+      where: { id: saved.id },
+      relations: { homeTeam: true, awayTeam: true },
+    }))!;
+  }
+
+  async removeMatch(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string,
+    matchId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.ensureAdminOrOwner(workspaceId, userId);
+    const match = await this.matchRepo.findOne({ where: { id: matchId, stageId } });
+    if (!match) {
+      throw new NotFoundException(`Match "${matchId}" not found in stage`);
+    }
+    await this.matchRepo.remove(match);
   }
 }

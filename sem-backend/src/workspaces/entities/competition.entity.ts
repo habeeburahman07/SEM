@@ -5,10 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { Event } from './event.entity';
 import { Sport } from './sport.entity';
+import { CompetitionStage } from './competition-stage.entity';
 
 @Entity('competitions')
 export class Competition {
@@ -34,6 +36,9 @@ export class Competition {
 
   @Column({ type: 'varchar', length: 20, default: 'upcoming' })
   status: string; // 'upcoming' | 'ongoing' | 'completed' | 'cancelled'
+
+  @OneToMany(() => CompetitionStage, (stage) => stage.competition, { cascade: true })
+  stages: CompetitionStage[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

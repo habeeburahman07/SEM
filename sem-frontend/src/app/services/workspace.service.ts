@@ -80,6 +80,44 @@ export interface Competition {
   updatedAt: string;
 }
 
+export interface CompetitionStage {
+  id: string;
+  name: string;
+  type: 'group' | 'knockout' | 'group_knockout';
+  sequence: number;
+  competitionId: string;
+  config: {
+    winPoint?: number;
+    drawPoint?: number;
+    twoLegged?: boolean;
+    groupsCount?: number;
+    advancingCount?: number;
+    gamesPerTeam?: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Match {
+  id: string;
+  stageId: string;
+  homeTeamId: string | null;
+  homeTeam?: Team | null;
+  awayTeamId: string | null;
+  awayTeam?: Team | null;
+  homeScore: number;
+  awayScore: number;
+  status: 'scheduled' | 'live' | 'completed';
+  config: {
+    timerDuration?: number;
+    overs?: number;
+    setsToWin?: number;
+  };
+  liveData: any;
+  createdAt: string;
+  updatedAt: string;
+}
+
 
 export interface WorkspaceMember {
   id: string;
@@ -354,6 +392,110 @@ export class WorkspaceService {
   removeCompetition(workspaceId: string, eventId: string, competitionId: string): Observable<void> {
     return this.http.delete<void>(
       `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}`,
+      { headers: this.headers }
+    );
+  }
+
+  // ─── Competition Stages ───────────────────────────────────────────────────
+
+  getStages(workspaceId: string, eventId: string, competitionId: string): Observable<CompetitionStage[]> {
+    return this.http.get<CompetitionStage[]>(
+      `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages`,
+      { headers: this.headers }
+    );
+  }
+
+  createStage(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    payload: { name: string; type: string; sequence?: number; config?: any }
+  ): Observable<CompetitionStage> {
+    return this.http.post<CompetitionStage>(
+      `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages`,
+      payload,
+      { headers: this.headers }
+    );
+  }
+
+  updateStage(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string,
+    payload: { name?: string; type?: string; sequence?: number; config?: any }
+  ): Observable<CompetitionStage> {
+    return this.http.patch<CompetitionStage>(
+      `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}`,
+      payload,
+      { headers: this.headers }
+    );
+  }
+
+  removeStage(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string
+  ): Observable<void> {
+    return this.http.delete<void>(
+      `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}`,
+      { headers: this.headers }
+    );
+  }
+
+  // ─── Matches ──────────────────────────────────────────────────────────────
+
+  getMatches(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string
+  ): Observable<Match[]> {
+    return this.http.get<Match[]>(
+      `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`,
+      { headers: this.headers }
+    );
+  }
+
+  createMatch(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string,
+    payload: { homeTeamId: string; awayTeamId: string; config?: any }
+  ): Observable<Match> {
+    return this.http.post<Match>(
+      `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`,
+      payload,
+      { headers: this.headers }
+    );
+  }
+
+  updateMatch(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string,
+    matchId: string,
+    payload: { homeTeamId?: string; awayTeamId?: string; homeScore?: number; awayScore?: number; status?: string; config?: any; liveData?: any }
+  ): Observable<Match> {
+    return this.http.patch<Match>(
+      `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${matchId}`,
+      payload,
+      { headers: this.headers }
+    );
+  }
+
+  removeMatch(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string,
+    matchId: string
+  ): Observable<void> {
+    return this.http.delete<void>(
+      `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${matchId}`,
       { headers: this.headers }
     );
   }

@@ -1,14 +1,14 @@
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { DatePipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { WorkspaceService, Workspace, WorkspaceMember, Role, Team, Player, WorkspaceEvent, Sport, Competition } from '../../services/workspace.service';
+import { WorkspaceService, Workspace, WorkspaceMember, Role, Team, Player, WorkspaceEvent, Sport, Competition, CompetitionStage, Match } from '../../services/workspace.service';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-workspace-detail',
   standalone: true,
-  imports: [RouterLink, DatePipe, FormsModule],
+  imports: [RouterLink, DatePipe, DecimalPipe, FormsModule],
   templateUrl: './workspace-detail.html',
   styleUrl: './workspace-detail.css',
 })
@@ -102,6 +102,53 @@ export class WorkspaceDetailComponent implements OnInit {
   isUpdatingCompetition = signal(false);
   competitionUpdateError = signal('');
   competitionUpdateSuccess = signal('');
+
+  // ── Stages State ───────────────────────────────────────────────────────────
+  selectedCompetition = signal<Competition | null>(null);
+  stages = signal<CompetitionStage[]>([]);
+  isLoadingStages = signal(false);
+
+  newStageName = signal('');
+  newStageType = signal<'group' | 'knockout' | 'group_knockout'>('group');
+  newStageWinPoint = signal<number>(3);
+  newStageDrawPoint = signal<number>(1);
+  newStageTwoLegged = signal<boolean>(false);
+  newStageGroupsCount = signal<number>(2);
+  newStageAdvancingCount = signal<number>(2);
+  newStageGamesPerTeam = signal<number>(3);
+
+  isCreatingStage = signal(false);
+  stageCreateError = signal('');
+  stageCreateSuccess = signal('');
+
+  editingStage = signal<CompetitionStage | null>(null);
+  editStageName = signal('');
+  editStageType = signal<'group' | 'knockout' | 'group_knockout'>('group');
+  editStageWinPoint = signal<number>(3);
+  editStageDrawPoint = signal<number>(1);
+  editStageTwoLegged = signal<boolean>(false);
+  editStageGroupsCount = signal<number>(2);
+  editStageAdvancingCount = signal<number>(2);
+  editStageGamesPerTeam = signal<number>(3);
+
+  isUpdatingStage = signal(false);
+  stageUpdateError = signal('');
+  stageUpdateSuccess = signal('');
+
+  // ── Matches State ──────────────────────────────────────────────────────────
+  selectedStage = signal<CompetitionStage | null>(null);
+  matches = signal<Match[]>([]);
+  selectedMatch = signal<Match | null>(null);
+  isCreatingMatch = signal(false);
+
+  newMatchHomeTeamId = signal('');
+  newMatchAwayTeamId = signal('');
+  newMatchTimerDuration = signal<number>(90);
+  newMatchOvers = signal<number>(20);
+  newMatchSetsToWin = signal<number>(2);
+
+  matchCreateError = signal('');
+  matchCreateSuccess = signal('');
 
   // ── Workspace Edit State ───────────────────────────────────────────────────
   editName = signal('');
@@ -803,6 +850,608 @@ export class WorkspaceDetailComponent implements OnInit {
       },
       error: (err) => {
         alert(err.error?.message ?? 'Failed to delete competition.');
+      }
+    });
+  }
+
+  // ── Stage Actions ─────────────────────────────────────────────────────────
+
+  onSelectCompetition(comp: Competition) {
+    this.selectedCompetition.set(comp);
+    this.editingStage.set(null);
+    this.stageCreateError.set('');
+    this.stageCreateSuccess.set('');
+    this.loadStages(comp.id);
+  }
+
+  onDeselectCompetition() {
+    this.selectedCompetition.set(null);
+    this.stages.set([]);
+  }
+
+  loadStages(competitionId: string) {
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    if (!ws || !event) return;
+    this.isLoadingStages.set(true);
+    this.workspaceService.getStages(ws.id, event.id, competitionId).subscribe({
+      next: (stages) => {
+        this.stages.set(stages);
+        this.isLoadingStages.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to load stages', err);
+        this.isLoadingStages.set(false);
+      }
+    });
+  }
+
+  onCreateStage() {
+    const name = this.newStageName().trim();
+    const type = this.newStageType();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    if (!ws || !event || !comp || !name) return;
+
+    this.isCreatingStage.set(true);
+    this.stageCreateError.set('');
+    this.stageCreateSuccess.set('');
+
+    const config: any = {};
+    if (type === 'group') {
+      config.winPoint = this.newStageWinPoint();
+      config.drawPoint = this.newStageDrawPoint();
+      config.gamesPerTeam = this.newStageGamesPerTeam();
+    } else if (type === 'knockout') {
+      config.twoLegged = this.newStageTwoLegged();
+    } else if (type === 'group_knockout') {
+      config.groupsCount = this.newStageGroupsCount();
+      config.advancingCount = this.newStageAdvancingCount();
+      config.winPoint = this.newStageWinPoint();
+      config.drawPoint = this.newStageDrawPoint();
+      config.twoLegged = this.newStageTwoLegged();
+      config.gamesPerTeam = this.newStageGamesPerTeam();
+    }
+
+    const payload = {
+      name,
+      type,
+      config,
+    };
+
+    this.workspaceService.createStage(ws.id, event.id, comp.id, payload).subscribe({
+      next: (stage) => {
+        this.isCreatingStage.set(false);
+        this.stageCreateSuccess.set(`Stage "${stage.name}" created successfully!`);
+        this.newStageName.set('');
+        this.newStageType.set('group');
+        this.newStageWinPoint.set(3);
+        this.newStageDrawPoint.set(1);
+        this.newStageTwoLegged.set(false);
+        this.newStageGroupsCount.set(2);
+        this.newStageAdvancingCount.set(2);
+        this.newStageGamesPerTeam.set(3);
+        this.stages.update(prev => [...prev, stage]);
+      },
+      error: (err) => {
+        this.isCreatingStage.set(false);
+        this.stageCreateError.set(err.error?.message ?? 'Failed to create stage.');
+      }
+    });
+  }
+
+  onEditStage(stage: CompetitionStage) {
+    this.editingStage.set(stage);
+    this.editStageName.set(stage.name);
+    this.editStageType.set(stage.type);
+    
+    // Prefill config values based on type
+    const config = stage.config || {};
+    this.editStageWinPoint.set(config.winPoint ?? 3);
+    this.editStageDrawPoint.set(config.drawPoint ?? 1);
+    this.editStageTwoLegged.set(config.twoLegged ?? false);
+    this.editStageGroupsCount.set(config.groupsCount ?? 2);
+    this.editStageAdvancingCount.set(config.advancingCount ?? 2);
+    this.editStageGamesPerTeam.set(config.gamesPerTeam ?? 3);
+
+    this.stageUpdateError.set('');
+    this.stageUpdateSuccess.set('');
+  }
+
+  onCancelEditStage() {
+    this.editingStage.set(null);
+  }
+
+  onUpdateStage() {
+    const name = this.editStageName().trim();
+    const type = this.editStageType();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.editingStage();
+    if (!ws || !event || !comp || !stage || !name) return;
+
+    this.isUpdatingStage.set(true);
+    this.stageUpdateError.set('');
+    this.stageUpdateSuccess.set('');
+
+    const config: any = {};
+    if (type === 'group') {
+      config.winPoint = this.editStageWinPoint();
+      config.drawPoint = this.editStageDrawPoint();
+      config.gamesPerTeam = this.editStageGamesPerTeam();
+    } else if (type === 'knockout') {
+      config.twoLegged = this.editStageTwoLegged();
+    } else if (type === 'group_knockout') {
+      config.groupsCount = this.editStageGroupsCount();
+      config.advancingCount = this.editStageAdvancingCount();
+      config.winPoint = this.editStageWinPoint();
+      config.drawPoint = this.editStageDrawPoint();
+      config.twoLegged = this.editStageTwoLegged();
+      config.gamesPerTeam = this.editStageGamesPerTeam();
+    }
+
+    const payload = {
+      name,
+      type,
+      config,
+    };
+
+    this.workspaceService.updateStage(ws.id, event.id, comp.id, stage.id, payload).subscribe({
+      next: (updated) => {
+        this.isUpdatingStage.set(false);
+        this.stageUpdateSuccess.set(`Stage updated successfully!`);
+        this.stages.update(prev => prev.map(s => s.id === stage.id ? updated : s));
+        setTimeout(() => this.editingStage.set(null), 1000);
+      },
+      error: (err) => {
+        this.isUpdatingStage.set(false);
+        this.stageUpdateError.set(err.error?.message ?? 'Failed to update stage.');
+      }
+    });
+  }
+
+  onDeleteStage(stage: CompetitionStage) {
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    if (!ws || !event || !comp) return;
+    if (!confirm(`Delete stage "${stage.name}"? This cannot be undone.`)) return;
+
+    this.workspaceService.removeStage(ws.id, event.id, comp.id, stage.id).subscribe({
+      next: () => {
+        this.stages.update(prev => prev.filter(s => s.id !== stage.id));
+      },
+      error: (err) => {
+        alert(err.error?.message ?? 'Failed to delete stage.');
+      }
+    });
+  }
+
+  // ─── Matches Operations ────────────────────────────────────────────────────
+  footballTimerInterval: any = null;
+
+  onSelectStage(stage: CompetitionStage | null) {
+    this.selectedStage.set(stage);
+    this.selectedMatch.set(null);
+    if (!stage) {
+      this.matches.set([]);
+      return;
+    }
+
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    if (!ws || !event || !comp) return;
+
+    this.workspaceService.getMatches(ws.id, event.id, comp.id, stage.id).subscribe({
+      next: (data) => {
+        this.matches.set(data);
+      },
+      error: (err) => {
+        alert(err.error?.message ?? 'Failed to load matches.');
+      }
+    });
+  }
+
+  onCreateMatch() {
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!ws || !event || !comp || !stage) return;
+
+    const homeId = this.newMatchHomeTeamId();
+    const awayId = this.newMatchAwayTeamId();
+    if (!homeId || !awayId) {
+      this.matchCreateError.set('Please select both teams.');
+      return;
+    }
+    if (homeId === awayId) {
+      this.matchCreateError.set('Home and Away teams must be different.');
+      return;
+    }
+
+    const sportCode = comp.sport?.code ?? 'football';
+    const config: any = {};
+    if (sportCode === 'football') {
+      config.timerDuration = this.newMatchTimerDuration();
+    } else if (sportCode === 'cricket') {
+      config.overs = this.newMatchOvers();
+    } else if (sportCode === 'badminton') {
+      config.setsToWin = this.newMatchSetsToWin();
+    }
+
+    this.matchCreateError.set('');
+    this.matchCreateSuccess.set('');
+
+    this.workspaceService.createMatch(ws.id, event.id, comp.id, stage.id, {
+      homeTeamId: homeId,
+      awayTeamId: awayId,
+      config,
+    }).subscribe({
+      next: (created) => {
+        this.matches.update(prev => [...prev, created]);
+        this.matchCreateSuccess.set('Match scheduled successfully!');
+        this.newMatchHomeTeamId.set('');
+        this.newMatchAwayTeamId.set('');
+        setTimeout(() => {
+          this.isCreatingMatch.set(false);
+          this.matchCreateSuccess.set('');
+        }, 1000);
+      },
+      error: (err) => {
+        this.matchCreateError.set(err.error?.message ?? 'Failed to schedule match.');
+      }
+    });
+  }
+
+  onDeleteMatch(match: Match) {
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!ws || !event || !comp || !stage) return;
+    if (!confirm('Delete this match? This cannot be undone.')) return;
+
+    this.workspaceService.removeMatch(ws.id, event.id, comp.id, stage.id, match.id).subscribe({
+      next: () => {
+        this.matches.update(prev => prev.filter(m => m.id !== match.id));
+        if (this.selectedMatch()?.id === match.id) {
+          this.selectedMatch.set(null);
+        }
+      },
+      error: (err) => {
+        alert(err.error?.message ?? 'Failed to delete match.');
+      }
+    });
+  }
+
+  onSelectMatch(match: Match | null) {
+    this.selectedMatch.set(match);
+    if (match && match.status === 'live' && this.selectedCompetition()?.sport?.code === 'football') {
+      this.startFootballTimer();
+    } else {
+      this.stopFootballTimer();
+    }
+  }
+
+  getPlayersForTeam(teamId: string | null): Player[] {
+    if (!teamId) return [];
+    return this.players().filter(p => p.teamId === teamId);
+  }
+
+  // ─── Football Live Actions ─────────────────────────────────────────────────
+  startFootballTimer() {
+    if (this.footballTimerInterval) return;
+    this.footballTimerInterval = setInterval(() => {
+      const match = this.selectedMatch();
+      if (match && match.status === 'live' && match.liveData?.timerRunning) {
+        const live = { ...match.liveData };
+        live.elapsedSeconds = (live.elapsedSeconds ?? 0) + 1;
+        this.selectedMatch.update(m => m ? { ...m, liveData: live } : null);
+      }
+    }, 1000);
+  }
+
+  stopFootballTimer() {
+    if (this.footballTimerInterval) {
+      clearInterval(this.footballTimerInterval);
+      this.footballTimerInterval = null;
+    }
+  }
+
+  onToggleFootballTimer() {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!match || !ws || !event || !comp || !stage) return;
+
+    const live = { ...match.liveData };
+    live.timerRunning = !live.timerRunning;
+
+    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+      liveData: live,
+      status: 'live',
+    }).subscribe({
+      next: (updated) => {
+        this.selectedMatch.set(updated);
+        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+        if (live.timerRunning) this.startFootballTimer();
+        else this.stopFootballTimer();
+      }
+    });
+  }
+
+  onRecordFootballGoal(teamId: string, scorerId: string, assistId: string) {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!match || !ws || !event || !comp || !stage) return;
+
+    const live = { ...match.liveData };
+    const currentMin = Math.floor((live.elapsedSeconds ?? 0) / 60) + 1;
+
+    if (!live.events) live.events = [];
+    live.events.push({
+      type: 'goal',
+      teamId,
+      playerUserId: scorerId,
+      assistPlayerUserId: assistId || undefined,
+      minute: currentMin,
+    });
+
+    const isHome = teamId === match.homeTeamId;
+    const newHomeScore = isHome ? match.homeScore + 1 : match.homeScore;
+    const newAwayScore = !isHome ? match.awayScore + 1 : match.awayScore;
+
+    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+      homeScore: newHomeScore,
+      awayScore: newAwayScore,
+      liveData: live,
+    }).subscribe({
+      next: (updated) => {
+        this.selectedMatch.set(updated);
+        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+      }
+    });
+  }
+
+  onRecordFootballCard(teamId: string, playerId: string, cardType: 'yellow' | 'red') {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!match || !ws || !event || !comp || !stage) return;
+
+    const live = { ...match.liveData };
+    const currentMin = Math.floor((live.elapsedSeconds ?? 0) / 60) + 1;
+
+    if (!live.events) live.events = [];
+    live.events.push({
+      type: 'card',
+      teamId,
+      playerUserId: playerId,
+      cardType,
+      minute: currentMin,
+    });
+
+    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+      liveData: live,
+    }).subscribe({
+      next: (updated) => {
+        this.selectedMatch.set(updated);
+        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+      }
+    });
+  }
+
+  // ─── Cricket Live Actions ──────────────────────────────────────────────────
+  onRecordCricketToss(tossWinnerId: string, tossChoice: 'bat' | 'bowl') {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!match || !ws || !event || !comp || !stage) return;
+
+    const live = match.liveData ? { ...match.liveData } : {};
+    live.tossWinnerId = tossWinnerId;
+    live.tossChoice = tossChoice;
+
+    // Initialize inningsData based on choice
+    const battingTeamId = tossChoice === 'bat' ? tossWinnerId : (tossWinnerId === match.homeTeamId ? match.awayTeamId : match.homeTeamId);
+    const bowlingTeamId = battingTeamId === match.homeTeamId ? match.awayTeamId : match.homeTeamId;
+
+    live.inningsData = [
+      {
+        battingTeamId,
+        bowlingTeamId,
+        runs: 0,
+        wickets: 0,
+        overs: 0,
+        balls: 0,
+        batsmanStats: {},
+        bowlerStats: {},
+        extraRuns: 0,
+        completed: false,
+      }
+    ];
+    live.currentInnings = 1;
+
+    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+      liveData: live,
+      status: 'live',
+    }).subscribe({
+      next: (updated) => {
+        this.selectedMatch.set(updated);
+        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+      }
+    });
+  }
+
+  onRecordCricketBall(runs: number, extraRuns: number, wicket: boolean) {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!match || !ws || !event || !comp || !stage) return;
+
+    const live = { ...match.liveData };
+    const inningsIndex = (live.currentInnings ?? 1) - 1;
+    if (!live.inningsData || !live.inningsData[inningsIndex]) return;
+
+    const innings = { ...live.inningsData[inningsIndex] };
+
+    // Update Runs
+    innings.runs += runs + extraRuns;
+    innings.balls += 1;
+    if (innings.balls >= 6) {
+      innings.overs += 1;
+      innings.balls = 0;
+    }
+
+    // Update wickets
+    if (wicket) {
+      innings.wickets += 1;
+    }
+
+    live.inningsData[inningsIndex] = innings;
+
+    // Update main scores
+    const isHomeBatting = innings.battingTeamId === match.homeTeamId;
+    const homeScore = isHomeBatting ? innings.runs : (live.inningsData[0]?.runs ?? 0);
+    const awayScore = !isHomeBatting ? innings.runs : (live.inningsData[0]?.runs ?? 0);
+
+    // Check if innings completed (e.g. 10 wickets down, or overs reached)
+    const targetOvers = match.config.overs ?? 20;
+    if (innings.wickets >= 10 || innings.overs >= targetOvers) {
+      innings.completed = true;
+      if (live.currentInnings === 1) {
+        // Switch innings
+        live.currentInnings = 2;
+        live.inningsData.push({
+          battingTeamId: innings.bowlingTeamId,
+          bowlingTeamId: innings.battingTeamId,
+          runs: 0,
+          wickets: 0,
+          overs: 0,
+          balls: 0,
+          batsmanStats: {},
+          bowlerStats: {},
+          extraRuns: 0,
+          completed: false,
+        });
+      } else {
+        // Match completed
+        match.status = 'completed';
+      }
+    }
+
+    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+      homeScore,
+      awayScore,
+      status: match.status,
+      liveData: live,
+    }).subscribe({
+      next: (updated) => {
+        this.selectedMatch.set(updated);
+        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+      }
+    });
+  }
+
+  // ─── Badminton Live Actions ────────────────────────────────────────────────
+  onRecordBadmintonPoint(side: 'home' | 'away', change: number) {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!match || !ws || !event || !comp || !stage) return;
+
+    const live = match.liveData ? { ...match.liveData } : {};
+    if (!live.setsScore) {
+      live.setsScore = [{ home: 0, away: 0 }];
+      live.currentSet = 1;
+      live.homeSetsWon = 0;
+      live.awaySetsWon = 0;
+    }
+
+    const setIndex = (live.currentSet ?? 1) - 1;
+    if (!live.setsScore[setIndex]) {
+      live.setsScore[setIndex] = { home: 0, away: 0 };
+    }
+
+    const setScore = { ...live.setsScore[setIndex] };
+    if (side === 'home') {
+      setScore.home = Math.max(0, setScore.home + change);
+    } else {
+      setScore.away = Math.max(0, setScore.away + change);
+    }
+
+    live.setsScore[setIndex] = setScore;
+
+    // Check if set is won (typically first to 21 points, must lead by 2, or max 30)
+    const homeScore = setScore.home;
+    const awayScore = setScore.away;
+    const setsToWin = match.config.setsToWin ?? 2;
+
+    if ((homeScore >= 21 && homeScore - awayScore >= 2) || homeScore === 30) {
+      // Home wins set
+      live.homeSetsWon += 1;
+      if (live.homeSetsWon >= setsToWin) {
+        match.status = 'completed';
+      } else {
+        live.currentSet += 1;
+        live.setsScore.push({ home: 0, away: 0 });
+      }
+    } else if ((awayScore >= 21 && awayScore - homeScore >= 2) || awayScore === 30) {
+      // Away wins set
+      live.awaySetsWon += 1;
+      if (live.awaySetsWon >= setsToWin) {
+        match.status = 'completed';
+      } else {
+        live.currentSet += 1;
+        live.setsScore.push({ home: 0, away: 0 });
+      }
+    }
+
+    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+      homeScore: live.homeSetsWon,
+      awayScore: live.awaySetsWon,
+      status: match.status,
+      liveData: live,
+    }).subscribe({
+      next: (updated) => {
+        this.selectedMatch.set(updated);
+        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+      }
+    });
+  }
+
+  onEndMatch() {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!match || !ws || !event || !comp || !stage) return;
+
+    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+      status: 'completed',
+    }).subscribe({
+      next: (updated) => {
+        this.selectedMatch.set(updated);
+        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+        this.stopFootballTimer();
       }
     });
   }
