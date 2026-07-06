@@ -2,12 +2,20 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
+import { Role } from './entities/role.entity';
+import { Team } from './entities/team.entity';
 import { WorkspacesService } from './workspaces.service';
 import { WorkspacesController } from './workspaces.controller';
+import { SystemSettingsController } from './system-settings.controller';
+import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Workspace, WorkspaceMember])],
-  controllers: [WorkspacesController],
+  imports: [
+    TypeOrmModule.forFeature([Workspace, WorkspaceMember, Role, Team]),
+    UsersModule,
+  ],
+
+  controllers: [WorkspacesController, SystemSettingsController],
   providers: [WorkspacesService],
   exports: [WorkspacesService],
 })

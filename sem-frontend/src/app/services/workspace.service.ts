@@ -14,11 +14,31 @@ export interface Workspace {
   updatedAt: string;
 }
 
+export interface Role {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  isSystem: boolean;
+  workspaceId: string | null;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  description: string | null;
+  logoUrl: string | null;
+  workspaceId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+
 export interface WorkspaceMember {
   id: string;
   workspaceId: string;
   userId: string;
-  role: 'owner' | 'admin' | 'member';
+  role: Role;
   joinedAt: string;
   user: { id: string; username: string };
 }
@@ -74,16 +94,98 @@ export class WorkspaceService {
     });
   }
 
-  addMember(workspaceId: string, userId: string, role = 'member'): Observable<WorkspaceMember> {
+  inviteMember(workspaceId: string, username: string, role: string): Observable<WorkspaceMember> {
     return this.http.post<WorkspaceMember>(
       `${this.apiUrl}/${workspaceId}/members`,
-      { userId, role },
+      { username, role },
+      { headers: this.headers },
+    );
+  }
+
+  updateMemberRole(workspaceId: string, userId: string, role: string): Observable<WorkspaceMember> {
+    return this.http.patch<WorkspaceMember>(
+      `${this.apiUrl}/${workspaceId}/members/${userId}`,
+      { role },
       { headers: this.headers },
     );
   }
 
   removeMember(workspaceId: string, userId: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/${workspaceId}/members/${userId}`, {
+      headers: this.headers,
+    });
+  }
+
+  // ─── Roles ────────────────────────────────────────────────────────────────
+
+  getRoles(workspaceId: string): Observable<Role[]> {
+    return this.http.get<Role[]>(`${this.apiUrl}/${workspaceId}/roles`, {
+      headers: this.headers,
+    });
+  }
+
+  createRole(workspaceId: string, name: string, description?: string): Observable<Role> {
+    return this.http.post<Role>(
+      `${this.apiUrl}/${workspaceId}/roles`,
+      { name, description },
+      { headers: this.headers },
+    );
+  }
+
+  removeRole(workspaceId: string, roleId: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/${workspaceId}/roles/${roleId}`, {
+      headers: this.headers,
+    });
+  }
+
+  // ─── Global System Roles ──────────────────────────────────────────────────
+
+  getGlobalRoles(): Observable<Role[]> {
+    return this.http.get<Role[]>(`http://localhost:3001/api/system-settings/roles`, {
+      headers: this.headers,
+    });
+  }
+
+  createGlobalRole(name: string, description?: string): Observable<Role> {
+    return this.http.post<Role>(
+      `http://localhost:3001/api/system-settings/roles`,
+      { name, description },
+      { headers: this.headers },
+    );
+  }
+
+  removeGlobalRole(roleId: string): Observable<void> {
+    return this.http.delete<void>(`http://localhost:3001/api/system-settings/roles/${roleId}`, {
+      headers: this.headers,
+    });
+  }
+
+  // ─── Teams ────────────────────────────────────────────────────────────────
+
+  getTeams(workspaceId: string): Observable<Team[]> {
+    return this.http.get<Team[]>(`${this.apiUrl}/${workspaceId}/teams`, {
+      headers: this.headers,
+    });
+  }
+
+  createTeam(workspaceId: string, name: string, description?: string, logoUrl?: string): Observable<Team> {
+    return this.http.post<Team>(
+      `${this.apiUrl}/${workspaceId}/teams`,
+      { name, description, logoUrl },
+      { headers: this.headers },
+    );
+  }
+
+  updateTeam(workspaceId: string, teamId: string, name?: string, description?: string, logoUrl?: string): Observable<Team> {
+    return this.http.patch<Team>(
+      `${this.apiUrl}/${workspaceId}/teams/${teamId}`,
+      { name, description, logoUrl },
+      { headers: this.headers },
+    );
+  }
+
+  removeTeam(workspaceId: string, teamId: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/${workspaceId}/teams/${teamId}`, {
       headers: this.headers,
     });
   }

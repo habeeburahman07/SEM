@@ -9,12 +9,36 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Workspace } from './workspace.entity';
+import { Role } from './role.entity';
 
 export enum WorkspaceRole {
-  OWNER = 'owner',
-  ADMIN = 'admin',
-  MEMBER = 'member',
+  // ── System Roles Slugs ──────────────────────────────
+  OWNER              = 'owner',
+  ADMINISTRATOR      = 'administrator',
+  EVENT_MANAGER      = 'event_manager',
+  COMPETITION_MANAGER = 'competition_manager',
+  REFEREE            = 'referee',
+  STATISTICIAN       = 'statistician',
+  MEDIA_TEAM         = 'media_team',
+  VIEWER             = 'viewer',
 }
+
+/** Slugs of roles that have write/management privileges */
+export const MANAGEMENT_ROLES: string[] = [
+  WorkspaceRole.OWNER,
+  WorkspaceRole.ADMINISTRATOR,
+];
+
+/** Slugs of roles that can perform operational tasks */
+export const OPERATIONAL_ROLES: string[] = [
+  WorkspaceRole.OWNER,
+  WorkspaceRole.ADMINISTRATOR,
+  WorkspaceRole.EVENT_MANAGER,
+  WorkspaceRole.COMPETITION_MANAGER,
+  WorkspaceRole.REFEREE,
+  WorkspaceRole.STATISTICIAN,
+  WorkspaceRole.MEDIA_TEAM,
+];
 
 @Entity('workspace_members')
 @Unique(['workspaceId', 'userId'])
@@ -28,12 +52,12 @@ export class WorkspaceMember {
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
-  @Column({
-    type: 'enum',
-    enum: WorkspaceRole,
-    default: WorkspaceRole.MEMBER,
-  })
-  role: WorkspaceRole;
+  @Column({ name: 'role_id', type: 'uuid' })
+  roleId: string;
+
+  @ManyToOne(() => Role, { eager: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'role_id' })
+  role: Role;
 
   @ManyToOne(() => Workspace, (workspace) => workspace.members, {
     onDelete: 'CASCADE',

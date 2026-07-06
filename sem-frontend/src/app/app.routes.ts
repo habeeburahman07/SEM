@@ -5,6 +5,7 @@ import { DashboardComponent } from './components/dashboard/dashboard';
 import { WorkspacesComponent } from './components/workspaces/workspaces';
 import { CreateWorkspaceComponent } from './components/workspaces/create-workspace';
 import { WorkspaceDetailComponent } from './components/workspaces/workspace-detail';
+import { SystemSettingsComponent } from './components/system-settings/system-settings';
 import { authGuard, noAuthGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -19,6 +20,7 @@ export const routes: Routes = [
   { path: 'workspaces', component: WorkspacesComponent, canActivate: [authGuard] },
   { path: 'workspaces/new', component: CreateWorkspaceComponent, canActivate: [authGuard] },
   { path: 'workspaces/:id', component: WorkspaceDetailComponent, canActivate: [authGuard] },
+  { path: 'system-settings', component: SystemSettingsComponent, canActivate: [authGuard] },
 
   // Default redirect
   { path: '', redirectTo: '/workspaces', pathMatch: 'full' },

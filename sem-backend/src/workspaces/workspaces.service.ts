@@ -3,24 +3,73 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { Workspace } from './entities/workspace.entity';
-import { WorkspaceMember, WorkspaceRole } from './entities/workspace-member.entity';
+import { WorkspaceMember, WorkspaceRole, MANAGEMENT_ROLES } from './entities/workspace-member.entity';
+import { Role } from './entities/role.entity';
+import { Team } from './entities/team.entity';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
+import { UsersService } from '../users/users.service';
+import { InviteMemberDto } from './dto/invite-member.dto';
+import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
+import { CreateRoleDto } from './dto/create-role.dto';
+import { CreateTeamDto } from './dto/create-team.dto';
+import { UpdateTeamDto } from './dto/update-team.dto';
 
 @Injectable()
-export class WorkspacesService {
+export class WorkspacesService implements OnModuleInit {
   constructor(
     @InjectRepository(Workspace)
     private readonly workspaceRepo: Repository<Workspace>,
     @InjectRepository(WorkspaceMember)
     private readonly memberRepo: Repository<WorkspaceMember>,
+    @InjectRepository(Role)
+    private readonly roleRepo: Repository<Role>,
+    @InjectRepository(Team)
+    private readonly teamRepo: Repository<Team>,
+    private readonly usersService: UsersService,
   ) {}
 
+  async onModuleInit() {
+    const defaultRoles = [
+      { slug: 'owner', name: 'Owner', description: 'Full control — delete workspace, manage all', isSystem: true },
+      { slug: 'administrator', name: 'Administrator', description: 'Manage members, events, settings', isSystem: true },
+      { slug: 'event_manager', name: 'Event Manager', description: 'Create/edit events and competitions', isSystem: true },
+      { slug: 'competition_manager', name: 'Competition Manager', description: 'Manage brackets, fixtures, results', isSystem: true },
+      { slug: 'referee', name: 'Referee', description: 'Enter match scores, manage assigned fixtures', isSystem: true },
+      { slug: 'statistician', name: 'Statistician', description: 'Enter/edit player & match statistics', isSystem: true },
+      { slug: 'media_team', name: 'Media Team', description: 'Upload photos, announcements', isSystem: true },
+      { slug: 'viewer', name: 'Viewer', description: 'Read-only access to all workspace data', isSystem: true },
+    ];
+
+    for (const r of defaultRoles) {
+      const existing = await this.roleRepo.findOne({ where: { slug: r.slug, isSystem: true } });
+      if (!existing) {
+        await this.roleRepo.save(this.roleRepo.create(r));
+      }
+    }
+  }
+
+  async findRoleBySlug(slug: string, workspaceId: string | null): Promise<Role> {
+    let role = null;
+    if (workspaceId) {
+      role = await this.roleRepo.findOne({ where: { slug, workspaceId } });
+    }
+    if (!role) {
+      role = await this.roleRepo.findOne({ where: { slug, isSystem: true } });
+    }
+    if (!role) {
+      throw new NotFoundException(`Role "${slug}" not found`);
+    }
+    return role;
+  }
+
   // ─── Helpers ──────────────────────────────────────────────────────────────
+
 
   private generateSlug(name: string): string {
     return name
@@ -63,10 +112,11 @@ export class WorkspacesService {
     const savedWorkspace = await this.workspaceRepo.save(workspace);
 
     // Auto-add owner as a OWNER-role member
+    const ownerRole = await this.findRoleBySlug('owner', null);
     const ownerMember = this.memberRepo.create({
       workspaceId: savedWorkspace.id,
       userId: ownerId,
-      role: WorkspaceRole.OWNER,
+      roleId: ownerRole.id,
     });
     await this.memberRepo.save(ownerMember);
 
@@ -148,20 +198,68 @@ export class WorkspacesService {
     });
   }
 
-  async addMember(
+  async inviteMember(
     workspaceId: string,
-    targetUserId: string,
-    role: WorkspaceRole,
+    dto: InviteMemberDto,
     requesterId: string,
   ): Promise<WorkspaceMember> {
     await this.ensureAdminOrOwner(workspaceId, requesterId);
 
-    const existing = await this.memberRepo.findOne({
-      where: { workspaceId, userId: targetUserId },
-    });
-    if (existing) throw new ConflictException('User is already a member of this workspace');
+    const user = await this.usersService.findOneByUsername(dto.username);
+    if (!user) {
+      throw new NotFoundException(`User "${dto.username}" not found`);
+    }
 
-    const member = this.memberRepo.create({ workspaceId, userId: targetUserId, role });
+    const existing = await this.memberRepo.findOne({
+      where: { workspaceId, userId: user.id },
+    });
+    if (existing) {
+      throw new ConflictException('User is already a member of this workspace');
+    }
+
+    const role = await this.findRoleBySlug(dto.role, workspaceId);
+    if (role.slug === WorkspaceRole.OWNER) {
+      throw new ForbiddenException('Cannot invite a user as Owner');
+    }
+
+    const member = this.memberRepo.create({
+      workspaceId,
+      userId: user.id,
+      roleId: role.id,
+    });
+    const saved = await this.memberRepo.save(member);
+    saved.user = user;
+    saved.role = role;
+    return saved;
+  }
+
+  async updateMemberRole(
+    workspaceId: string,
+    targetUserId: string,
+    dto: UpdateMemberRoleDto,
+    requesterId: string,
+  ): Promise<WorkspaceMember> {
+    await this.ensureAdminOrOwner(workspaceId, requesterId);
+
+    const member = await this.memberRepo.findOne({
+      where: { workspaceId, userId: targetUserId },
+      relations: { user: true, role: true },
+    });
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    if (member.role.slug === WorkspaceRole.OWNER) {
+      throw new ForbiddenException('Cannot change the role of the workspace Owner');
+    }
+
+    const role = await this.findRoleBySlug(dto.role, workspaceId);
+    if (role.slug === WorkspaceRole.OWNER) {
+      throw new ForbiddenException('Cannot set a member role to Owner');
+    }
+
+    member.roleId = role.id;
+    member.role = role;
     return this.memberRepo.save(member);
   }
 
@@ -172,38 +270,192 @@ export class WorkspacesService {
   ): Promise<void> {
     await this.ensureAdminOrOwner(workspaceId, requesterId);
 
-    const ownerMembership = await this.memberRepo.findOne({
-      where: { workspaceId, userId: targetUserId, role: WorkspaceRole.OWNER },
-    });
-    if (ownerMembership) throw new ForbiddenException('Cannot remove the workspace owner');
-
     const member = await this.memberRepo.findOne({
       where: { workspaceId, userId: targetUserId },
+      relations: { role: true },
     });
-    if (!member) throw new NotFoundException('Member not found');
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    if (member.role.slug === WorkspaceRole.OWNER) {
+      throw new ForbiddenException('Cannot remove the workspace owner');
+    }
 
     await this.memberRepo.remove(member);
   }
 
+  // ─── Roles Management ──────────────────────────────────────────────────────
+
+  async getRoles(workspaceId: string, userId: string): Promise<Role[]> {
+    await this.ensureMember(workspaceId, userId);
+    return this.roleRepo.find({
+      where: [
+        { isSystem: true },
+        { workspaceId },
+      ],
+      order: { isSystem: 'DESC', name: 'ASC' },
+    });
+  }
+
+  async createRole(workspaceId: string, dto: CreateRoleDto, userId: string): Promise<Role> {
+    await this.ensureAdminOrOwner(workspaceId, userId);
+    const slug = this.generateSlug(dto.name);
+
+    // check slug conflict
+    const existing = await this.roleRepo.findOne({
+      where: [
+        { slug, workspaceId },
+        { slug, isSystem: true },
+      ],
+    });
+    if (existing) {
+      throw new ConflictException(`Role with name "${dto.name}" already exists`);
+    }
+
+    const role = this.roleRepo.create({
+      name: dto.name,
+      slug,
+      description: dto.description ?? null,
+      isSystem: false,
+      workspaceId,
+    });
+    return this.roleRepo.save(role);
+  }
+
+  async removeRole(workspaceId: string, roleId: string, userId: string): Promise<void> {
+    await this.ensureAdminOrOwner(workspaceId, userId);
+    const role = await this.roleRepo.findOne({ where: { id: roleId, workspaceId } });
+    if (!role) {
+      throw new NotFoundException('Role not found or is a system role');
+    }
+
+    // Check if any member has this role assigned
+    const assigned = await this.memberRepo.findOne({ where: { roleId } });
+    if (assigned) {
+      throw new ForbiddenException('Cannot delete role as it is assigned to members');
+    }
+
+    await this.roleRepo.remove(role);
+  }
+
+  // ─── Global System Roles Management ────────────────────────────────────────
+
+  async getGlobalRoles(): Promise<Role[]> {
+    return this.roleRepo.find({
+      where: { workspaceId: IsNull() },
+      order: { isSystem: 'DESC', name: 'ASC' },
+    });
+  }
+
+  async createGlobalRole(dto: CreateRoleDto): Promise<Role> {
+    const slug = this.generateSlug(dto.name);
+    const existing = await this.roleRepo.findOne({
+      where: { slug, workspaceId: IsNull() },
+    });
+    if (existing) {
+      throw new ConflictException(`Global role with name "${dto.name}" already exists`);
+    }
+
+    const role = this.roleRepo.create({
+      name: dto.name,
+      slug,
+      description: dto.description ?? null,
+      isSystem: true,
+      workspaceId: null,
+    });
+    return this.roleRepo.save(role);
+  }
+
+  async removeGlobalRole(roleId: string): Promise<void> {
+    const role = await this.roleRepo.findOne({ where: { id: roleId, workspaceId: IsNull() } });
+    if (!role) {
+      throw new NotFoundException('Global role not found');
+    }
+
+    // Check if any member has this role assigned
+    const assigned = await this.memberRepo.findOne({ where: { roleId } });
+    if (assigned) {
+      throw new ForbiddenException('Cannot delete role as it is assigned to members');
+    }
+
+    await this.roleRepo.remove(role);
+  }
+
   // ─── Access Guards ────────────────────────────────────────────────────────
 
+
   async ensureMember(workspaceId: string, userId: string): Promise<WorkspaceMember> {
-    const member = await this.memberRepo.findOne({ where: { workspaceId, userId } });
+    const member = await this.memberRepo.findOne({
+      where: { workspaceId, userId },
+      relations: { role: true },
+    });
     if (!member) throw new ForbiddenException('You are not a member of this workspace');
     return member;
   }
 
   private async ensureAdminOrOwner(workspaceId: string, userId: string): Promise<void> {
     const member = await this.ensureMember(workspaceId, userId);
-    if (![WorkspaceRole.OWNER, WorkspaceRole.ADMIN].includes(member.role)) {
-      throw new ForbiddenException('Only admins and owners can perform this action');
+    if (!MANAGEMENT_ROLES.includes(member.role.slug)) {
+      throw new ForbiddenException('Only administrators and owners can perform this action');
     }
   }
 
   private async ensureOwner(workspaceId: string, userId: string): Promise<void> {
     const member = await this.ensureMember(workspaceId, userId);
-    if (member.role !== WorkspaceRole.OWNER) {
+    if (member.role.slug !== WorkspaceRole.OWNER) {
       throw new ForbiddenException('Only the workspace owner can perform this action');
     }
+  }
+
+  // ─── Teams Management ──────────────────────────────────────────────────────
+
+  async getTeams(workspaceId: string, userId: string): Promise<Team[]> {
+    await this.ensureMember(workspaceId, userId);
+    return this.teamRepo.find({
+      where: { workspaceId },
+      order: { name: 'ASC' },
+    });
+  }
+
+  async createTeam(workspaceId: string, dto: CreateTeamDto, userId: string): Promise<Team> {
+    await this.ensureMember(workspaceId, userId);
+    const team = this.teamRepo.create({
+      name: dto.name,
+      description: dto.description ?? null,
+      logoUrl: dto.logoUrl ?? null,
+      workspaceId,
+    });
+    return this.teamRepo.save(team);
+  }
+
+  async updateTeam(
+    workspaceId: string,
+    teamId: string,
+    dto: UpdateTeamDto,
+    userId: string,
+  ): Promise<Team> {
+    await this.ensureMember(workspaceId, userId);
+    const team = await this.teamRepo.findOne({ where: { id: teamId, workspaceId } });
+    if (!team) {
+      throw new NotFoundException('Team not found in this workspace');
+    }
+
+    Object.assign(team, {
+      ...(dto.name !== undefined && { name: dto.name }),
+      ...(dto.description !== undefined && { description: dto.description }),
+      ...(dto.logoUrl !== undefined && { logoUrl: dto.logoUrl }),
+    });
+
+    return this.teamRepo.save(team);
+  }
+
+  async removeTeam(workspaceId: string, teamId: string, userId: string): Promise<void> {
+    await this.ensureAdminOrOwner(workspaceId, userId);
+    const team = await this.teamRepo.findOne({ where: { id: teamId, workspaceId } });
+    if (!team) {
+      throw new NotFoundException('Team not found in this workspace');
+    }
+    await this.teamRepo.remove(team);
   }
 }
