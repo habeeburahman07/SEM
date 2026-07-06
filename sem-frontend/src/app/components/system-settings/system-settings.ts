@@ -1,7 +1,7 @@
 import { Component, signal, inject, OnInit } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { WorkspaceService, Role } from '../../services/workspace.service';
+import { WorkspaceService, Role, Permission } from '../../services/workspace.service';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -19,6 +19,7 @@ export class SystemSettingsComponent implements OnInit {
   activeSection = signal<string | null>(null);
 
   roles = signal<Role[]>([]);
+  permissions = signal<Permission[]>([]);
   isLoading = signal(false);
   error = signal('');
 
@@ -29,8 +30,14 @@ export class SystemSettingsComponent implements OnInit {
   roleCreateSuccess = signal('');
   roleCreateError = signal('');
 
+  // Permission Modal State
+  selectedRole = signal<Role | null>(null);
+  selectedRolePermissionIds = signal<string[]>([]);
+  isSavingPermissions = signal(false);
+
   ngOnInit() {
     this.loadGlobalRoles();
+    this.loadGlobalPermissions();
   }
 
   loadGlobalRoles() {
@@ -44,6 +51,17 @@ export class SystemSettingsComponent implements OnInit {
         console.error('Failed to load global roles', err);
         this.error.set('Failed to load global roles.');
         this.isLoading.set(false);
+      },
+    });
+  }
+
+  loadGlobalPermissions() {
+    this.workspaceService.getGlobalPermissions().subscribe({
+      next: (perms) => {
+        this.permissions.set(perms);
+      },
+      error: (err) => {
+        console.error('Failed to load global permissions', err);
       },
     });
   }
@@ -63,6 +81,8 @@ export class SystemSettingsComponent implements OnInit {
         this.roleCreateSuccess.set(`Global role "${role.name}" created successfully!`);
         this.newRoleName.set('');
         this.newRoleDescription.set('');
+        // Initialize role permissions as empty array
+        role.permissions = [];
         this.roles.update((prev) => [...prev, role]);
       },
       error: (err) => {
@@ -85,6 +105,54 @@ export class SystemSettingsComponent implements OnInit {
     });
   }
 
+  openPermissionModal(role: Role) {
+    this.selectedRole.set(role);
+    const ids = role.permissions?.map((p) => p.id) || [];
+    this.selectedRolePermissionIds.set(ids);
+  }
+
+  closePermissionModal() {
+    this.selectedRole.set(null);
+    this.selectedRolePermissionIds.set([]);
+  }
+
+  togglePermission(permId: string) {
+    const current = this.selectedRolePermissionIds();
+    if (current.includes(permId)) {
+      this.selectedRolePermissionIds.set(current.filter((id) => id !== permId));
+    } else {
+      this.selectedRolePermissionIds.set([...current, permId]);
+    }
+  }
+
+  saveRolePermissions() {
+    const role = this.selectedRole();
+    if (!role) return;
+
+    this.isSavingPermissions.set(true);
+    const permIds = this.selectedRolePermissionIds();
+
+    this.workspaceService.updateRolePermissions(role.id, permIds).subscribe({
+      next: (updatedRole) => {
+        this.isSavingPermissions.set(false);
+        this.roles.update((prev) =>
+          prev.map((r) => (r.id === updatedRole.id ? { ...r, permissions: updatedRole.permissions } : r))
+        );
+        this.closePermissionModal();
+      },
+      error: (err) => {
+        this.isSavingPermissions.set(false);
+        alert(err.error?.message ?? 'Failed to update permissions.');
+      },
+    });
+  }
+
+  getRolesForPermission(permission: Permission): Role[] {
+    return this.roles().filter((role) =>
+      role.permissions?.some((p) => p.id === permission.id || p.slug === permission.slug)
+    );
+  }
+
   roleBadgeClass(slug: string): string {
     const map: Record<string, string> = {
       owner:               'bg-violet-500/20 text-violet-300 border-violet-500/30',
@@ -94,8 +162,9 @@ export class SystemSettingsComponent implements OnInit {
       referee:             'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
       statistician:        'bg-orange-500/20 text-orange-300 border-orange-500/30',
       media_team:          'bg-pink-500/20 text-pink-300 border-pink-500/30',
-      viewer:              'bg-slate-700 text-slate-300 border-slate-600',
+      viewer:              'bg-slate-500/20 text-slate-300 border-slate-500/30',
     };
-    return map[slug] ?? 'bg-slate-700 text-slate-300 border-slate-600';
+    return map[slug] ?? 'bg-slate-500/20 text-slate-300 border-slate-500/30';
   }
 }
+

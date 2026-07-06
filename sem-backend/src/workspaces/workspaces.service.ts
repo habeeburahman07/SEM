@@ -11,6 +11,7 @@ import { Repository, IsNull } from 'typeorm';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember, WorkspaceRole, MANAGEMENT_ROLES } from './entities/workspace-member.entity';
 import { Role } from './entities/role.entity';
+import { Permission } from './entities/permission.entity';
 import { Team } from './entities/team.entity';
 import { Player } from './entities/player.entity';
 import { Event } from './entities/event.entity';
@@ -47,6 +48,8 @@ export class WorkspacesService implements OnModuleInit {
     private readonly memberRepo: Repository<WorkspaceMember>,
     @InjectRepository(Role)
     private readonly roleRepo: Repository<Role>,
+    @InjectRepository(Permission)
+    private readonly permissionRepo: Repository<Permission>,
     @InjectRepository(Team)
     private readonly teamRepo: Repository<Team>,
     @InjectRepository(Player)
@@ -79,6 +82,31 @@ export class WorkspacesService implements OnModuleInit {
         await this.sportRepo.save(this.sportRepo.create(s));
       }
     }
+
+    const defaultPermissions = [
+      { slug: 'workspace.read', name: 'Read Workspace', description: 'View workspace details, events, and members' },
+      { slug: 'workspace.update', name: 'Update Workspace', description: 'Modify workspace name, description, and configurations' },
+      { slug: 'workspace.delete', name: 'Delete Workspace', description: 'Permanently remove the workspace and all its data' },
+      { slug: 'member.invite', name: 'Invite Members', description: 'Send invitations to new users to join the workspace' },
+      { slug: 'member.update', name: 'Update Members', description: 'Update workspace member roles' },
+      { slug: 'member.remove', name: 'Remove Members', description: 'Remove members from the workspace' },
+      { slug: 'role.manage', name: 'Manage Roles', description: 'Create, modify, and delete custom workspace roles and map permissions' },
+      { slug: 'team.manage', name: 'Manage Teams', description: 'Create, edit, and delete teams inside the workspace' },
+      { slug: 'player.manage', name: 'Manage Players', description: 'Add, update, or remove players in teams' },
+      { slug: 'event.manage', name: 'Manage Events', description: 'Create, update, and close events' },
+      { slug: 'competition.manage', name: 'Manage Competitions', description: 'Create and configure competitions for events' },
+      { slug: 'match.score', name: 'Score Matches', description: 'Record, edit, and finalise scores for match fixtures' },
+    ];
+
+    const seededPermissions: Record<string, Permission> = {};
+    for (const p of defaultPermissions) {
+      let existing = await this.permissionRepo.findOne({ where: { slug: p.slug } });
+      if (!existing) {
+        existing = await this.permissionRepo.save(this.permissionRepo.create(p));
+      }
+      seededPermissions[p.slug] = existing;
+    }
+
     const defaultRoles = [
       { slug: 'owner', name: 'Owner', description: 'Full control — delete workspace, manage all', isSystem: true },
       { slug: 'administrator', name: 'Administrator', description: 'Manage members, events, settings', isSystem: true },
@@ -90,10 +118,31 @@ export class WorkspacesService implements OnModuleInit {
       { slug: 'viewer', name: 'Viewer', description: 'Read-only access to all workspace data', isSystem: true },
     ];
 
+    const rolePermissionMapping: Record<string, string[]> = {
+      owner: ['workspace.read', 'workspace.update', 'workspace.delete', 'member.invite', 'member.update', 'member.remove', 'role.manage', 'team.manage', 'player.manage', 'event.manage', 'competition.manage', 'match.score'],
+      administrator: ['workspace.read', 'workspace.update', 'member.invite', 'member.update', 'member.remove', 'role.manage', 'team.manage', 'player.manage', 'event.manage', 'competition.manage', 'match.score'],
+      event_manager: ['workspace.read', 'team.manage', 'player.manage', 'event.manage', 'competition.manage'],
+      competition_manager: ['workspace.read', 'competition.manage', 'match.score'],
+      referee: ['workspace.read', 'match.score'],
+      statistician: ['workspace.read', 'match.score'],
+      media_team: ['workspace.read'],
+      viewer: ['workspace.read'],
+    };
+
     for (const r of defaultRoles) {
-      const existing = await this.roleRepo.findOne({ where: { slug: r.slug, isSystem: true } });
+      let existing = await this.roleRepo.findOne({ where: { slug: r.slug, isSystem: true }, relations: { permissions: true } });
       if (!existing) {
-        await this.roleRepo.save(this.roleRepo.create(r));
+        existing = await this.roleRepo.save(this.roleRepo.create(r));
+        existing.permissions = [];
+      }
+
+      const requiredSlugs = rolePermissionMapping[r.slug] || [];
+      const currentSlugs = existing.permissions?.map(p => p.slug) || [];
+      const needsUpdate = requiredSlugs.some(slug => !currentSlugs.includes(slug)) || currentSlugs.some(slug => !requiredSlugs.includes(slug));
+
+      if (needsUpdate || !existing.permissions) {
+        existing.permissions = requiredSlugs.map(slug => seededPermissions[slug]).filter(Boolean);
+        await this.roleRepo.save(existing);
       }
     }
   }
@@ -371,6 +420,7 @@ export class WorkspacesService implements OnModuleInit {
         { isSystem: true },
         { workspaceId },
       ],
+      relations: { permissions: true },
       order: { isSystem: 'DESC', name: 'ASC' },
     });
   }
@@ -421,6 +471,7 @@ export class WorkspacesService implements OnModuleInit {
   async getGlobalRoles(): Promise<Role[]> {
     return this.roleRepo.find({
       where: { workspaceId: IsNull() },
+      relations: { permissions: true },
       order: { isSystem: 'DESC', name: 'ASC' },
     });
   }
@@ -457,6 +508,35 @@ export class WorkspacesService implements OnModuleInit {
     }
 
     await this.roleRepo.remove(role);
+  }
+
+  // ─── Global System Permissions Management ──────────────────────────────────
+
+  async getGlobalPermissions(): Promise<Permission[]> {
+    return this.permissionRepo.find({
+      order: { name: 'ASC' },
+    });
+  }
+
+  async updateRolePermissions(roleId: string, permissionIds: string[]): Promise<Role> {
+    const role = await this.roleRepo.findOne({
+      where: { id: roleId },
+      relations: { permissions: true },
+    });
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+
+    if (!permissionIds || permissionIds.length === 0) {
+      role.permissions = [];
+    } else {
+      const permissions = await this.permissionRepo.find({
+        where: permissionIds.map(id => ({ id })),
+      });
+      role.permissions = permissions;
+    }
+
+    return this.roleRepo.save(role);
   }
 
   // ─── Access Guards ────────────────────────────────────────────────────────

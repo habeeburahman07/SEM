@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique, ManyToMany, JoinTable } from 'typeorm';
 import { Workspace } from './workspace.entity';
+import { Permission } from './permission.entity';
 
 @Entity('roles')
 @Unique(['slug', 'workspaceId'])
@@ -25,4 +26,12 @@ export class Role {
   @ManyToOne(() => Workspace, { onDelete: 'CASCADE', nullable: true })
   @JoinColumn({ name: 'workspace_id' })
   workspace: Workspace | null;
+
+  @ManyToMany(() => Permission, (permission) => permission.roles)
+  @JoinTable({
+    name: 'role_permissions',
+    joinColumn: { name: 'role_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'permission_id', referencedColumnName: 'id' },
+  })
+  permissions: Permission[];
 }

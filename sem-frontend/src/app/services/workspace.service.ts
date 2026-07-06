@@ -14,6 +14,13 @@ export interface Workspace {
   updatedAt: string;
 }
 
+export interface Permission {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+}
+
 export interface Role {
   id: string;
   name: string;
@@ -21,6 +28,7 @@ export interface Role {
   description: string | null;
   isSystem: boolean;
   workspaceId: string | null;
+  permissions?: Permission[];
 }
 
 export interface Team {
@@ -259,6 +267,20 @@ export class WorkspaceService {
     return this.http.delete<void>(`http://localhost:3001/api/system-settings/roles/${roleId}`, {
       headers: this.headers,
     });
+  }
+
+  getGlobalPermissions(): Observable<Permission[]> {
+    return this.http.get<Permission[]>(`http://localhost:3001/api/system-settings/permissions`, {
+      headers: this.headers,
+    });
+  }
+
+  updateRolePermissions(roleId: string, permissionIds: string[]): Observable<Role> {
+    return this.http.post<Role>(
+      `http://localhost:3001/api/system-settings/roles/${roleId}/permissions`,
+      { permissionIds },
+      { headers: this.headers }
+    );
   }
 
   // ─── Teams ────────────────────────────────────────────────────────────────

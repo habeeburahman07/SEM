@@ -308,9 +308,9 @@ export class WorkspaceDetailComponent implements OnInit {
       referee:             'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
       statistician:        'bg-orange-500/20 text-orange-300 border-orange-500/30',
       media_team:          'bg-pink-500/20 text-pink-300 border-pink-500/30',
-      viewer:              'bg-slate-700 text-slate-300 border-slate-600',
+      viewer:              'bg-slate-500/20 text-slate-300 border-slate-500/30',
     };
-    return map[slug] ?? 'bg-slate-700 text-slate-300 border-slate-600';
+    return map[slug] ?? 'bg-slate-500/20 text-slate-300 border-slate-500/30';
   }
 
   memberCountForRole(roleId: string): number {

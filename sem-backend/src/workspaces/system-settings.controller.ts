@@ -33,4 +33,17 @@ export class SystemSettingsController {
   removeGlobalRole(@Param('roleId') roleId: string) {
     return this.workspacesService.removeGlobalRole(roleId);
   }
+
+  @Get('permissions')
+  getGlobalPermissions() {
+    return this.workspacesService.getGlobalPermissions();
+  }
+
+  @Post('roles/:roleId/permissions')
+  updateRolePermissions(
+    @Param('roleId') roleId: string,
+    @Body('permissionIds') permissionIds: string[],
+  ) {
+    return this.workspacesService.updateRolePermissions(roleId, permissionIds);
+  }
 }
