@@ -24,6 +24,7 @@ export class WorkspaceDetailComponent implements OnInit {
   isLoading = signal(true);
   error = signal('');
   activeTab = signal<'overview' | 'members' | 'settings' | 'teams' | 'players' | 'events'>('overview');
+  isSidebarOpen = signal(false);
 
   // ── Teams State ────────────────────────────────────────────────────────────
   teams = signal<Team[]>([]);
@@ -273,6 +274,11 @@ export class WorkspaceDetailComponent implements OnInit {
   canManageMembers(): boolean {
     const slug = this.getCurrentUserRoleSlug();
     return slug === 'owner' || slug === 'administrator';
+  }
+
+  onSignOut(): void {
+    this.authService.logout();
+    this.router.navigate(['/login']);
   }
 
   // ── Role Helpers ────────────────────────────────────────────────────────────

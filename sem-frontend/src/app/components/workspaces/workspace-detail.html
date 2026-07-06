@@ -29,158 +29,258 @@
   }
 
   @if (!isLoading() && !error() && workspace()) {
-    <!-- Top Nav -->
-    <nav class="border-b border-white/10 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
-      <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+    <!-- Flex Container for Sidebar + Main Content -->
+    <div class="flex flex-col lg:flex-row min-h-screen bg-slate-950 text-white w-full">
+
+      <!-- Mobile Header / Navbar -->
+      <div class="lg:hidden flex items-center justify-between px-6 h-16 border-b border-white/10 bg-slate-900 sticky top-0 z-40">
         <div class="flex items-center gap-3">
-          <a routerLink="/workspaces" class="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition cursor-pointer">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-            </svg>
-            Workspaces
-          </a>
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-700" viewBox="0 0 24 24" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
-          <span class="text-sm font-semibold text-white">{{ workspace()!.name }}</span>
+          <button (click)="isSidebarOpen.set(!isSidebarOpen())" class="text-white text-xl p-1 cursor-pointer">
+            <i class="fi fi-rr-menu-burger"></i>
+          </button>
+          <span class="font-extrabold text-sm text-white truncate">{{ workspace()!.name }}</span>
         </div>
         <div class="flex items-center gap-3">
           <span class="text-xs text-slate-500 font-mono">/{{ workspace()!.slug }}</span>
-          @if (isOwner()) {
-            <button (click)="deleteWorkspace()"
-              class="text-xs text-rose-400 hover:text-rose-300 border border-rose-500/20 hover:border-rose-500/40 px-3 py-1.5 rounded-lg transition cursor-pointer">
-              Delete
+        </div>
+      </div>
+
+      <!-- Sidebar Backdrop (Mobile Only) -->
+      @if (isSidebarOpen()) {
+        <div (click)="isSidebarOpen.set(false)" class="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-all duration-300"></div>
+      }
+
+      <!-- Sidebar -->
+      <aside [class]="isSidebarOpen() ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
+        class="fixed inset-y-0 left-0 w-64 bg-slate-900 border-r border-white/10 flex flex-col z-50 lg:z-10 lg:static lg:h-screen transition-transform duration-300 ease-in-out shrink-0">
+        
+        <!-- Sidebar Workspace Header -->
+        <div class="p-6 border-b border-white/5 flex flex-col gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white text-base font-extrabold shadow-md shrink-0"
+              [style.background]="avatarColor(workspace()!.name)">
+              {{ initials(workspace()!.name) }}
+            </div>
+            <div class="min-w-0">
+              <h2 class="text-sm font-extrabold text-white truncate">{{ workspace()!.name }}</h2>
+              <p class="text-[10px] text-slate-500 font-mono truncate">/{{ workspace()!.slug }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Navigation Menu -->
+        <div class="flex-1 overflow-y-auto px-4 py-6 flex flex-col gap-1">
+          <button (click)="activeTab.set('overview'); isSidebarOpen.set(false)"
+            [class]="activeTab() === 'overview' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
+            class="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
+            <i class="fi fi-rr-apps text-base"></i> Overview
+          </button>
+          
+          <button (click)="activeTab.set('members'); isSidebarOpen.set(false)"
+            [class]="activeTab() === 'members' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
+            class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
+            <span class="flex items-center gap-3">
+              <i class="fi fi-rr-users text-base"></i> Members
+            </span>
+            <span class="px-2 py-0.5 text-[10px] bg-slate-800 text-slate-400 rounded-md border border-white/5">{{ members().length }}</span>
+          </button>
+
+          <button (click)="activeTab.set('teams'); isSidebarOpen.set(false)"
+            [class]="activeTab() === 'teams' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
+            class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
+            <span class="flex items-center gap-3">
+              <i class="fi fi-rr-users-alt text-base"></i> Teams
+            </span>
+            <span class="px-2 py-0.5 text-[10px] bg-slate-800 text-slate-400 rounded-md border border-white/5">{{ teams().length }}</span>
+          </button>
+
+          <button (click)="activeTab.set('players'); isSidebarOpen.set(false)"
+            [class]="activeTab() === 'players' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
+            class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
+            <span class="flex items-center gap-3">
+              <i class="fi fi-rr-running text-base"></i> Players
+            </span>
+            <span class="px-2 py-0.5 text-[10px] bg-slate-800 text-slate-400 rounded-md border border-white/5">{{ players().length }}</span>
+          </button>
+
+          <button (click)="activeTab.set('events'); isSidebarOpen.set(false)"
+            [class]="activeTab() === 'events' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
+            class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
+            <span class="flex items-center gap-3">
+              <i class="fi fi-rr-trophy text-base"></i> Events
+            </span>
+            <span class="px-2 py-0.5 text-[10px] bg-slate-800 text-slate-400 rounded-md border border-white/5">{{ events().length }}</span>
+          </button>
+
+          @if (canManageMembers()) {
+            <button (click)="activeTab.set('settings'); isSidebarOpen.set(false)"
+              [class]="activeTab() === 'settings' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
+              class="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
+              <i class="fi fi-rr-settings text-base"></i> Settings
             </button>
           }
         </div>
-      </div>
-    </nav>
 
-    <div class="max-w-6xl mx-auto px-6 py-10">
-
-      <!-- Workspace Hero -->
-      <div class="flex items-start gap-6 mb-10">
-        <div class="w-16 h-16 rounded-2xl flex-shrink-0 flex items-center justify-center text-white text-xl font-extrabold shadow-xl"
-          [style.background]="avatarColor(workspace()!.name)">
-          {{ initials(workspace()!.name) }}
-        </div>
-        <div>
-          <h1 class="text-3xl font-extrabold text-white tracking-tight">{{ workspace()!.name }}</h1>
-          @if (workspace()!.description) {
-            <p class="text-slate-400 mt-1 text-sm max-w-xl">{{ workspace()!.description }}</p>
-          }
-          <p class="text-xs text-slate-600 mt-2">Created {{ workspace()!.createdAt | date:'MMMM d, y' }}</p>
-        </div>
-      </div>
-
-      <!-- Tabs -->
-      <div class="flex gap-1 border-b border-white/10 mb-8">
-        <button (click)="activeTab.set('overview')"
-          class="px-4 py-2.5 text-sm font-semibold transition cursor-pointer border-b-2"
-          [class]="activeTab() === 'overview' ? 'text-violet-400 border-violet-500' : 'text-slate-400 hover:text-white border-transparent'">
-          Overview
-        </button>
-        <button (click)="activeTab.set('members')"
-          class="px-4 py-2.5 text-sm font-semibold transition cursor-pointer border-b-2"
-          [class]="activeTab() === 'members' ? 'text-violet-400 border-violet-500' : 'text-slate-400 hover:text-white border-transparent'">
-          Members ({{ members().length }})
-        </button>
-        <button (click)="activeTab.set('teams')"
-          class="px-4 py-2.5 text-sm font-semibold transition cursor-pointer border-b-2"
-          [class]="activeTab() === 'teams' ? 'text-violet-400 border-violet-500' : 'text-slate-400 hover:text-white border-transparent'">
-          Teams ({{ teams().length }})
-        </button>
-        <button (click)="activeTab.set('players')"
-          class="px-4 py-2.5 text-sm font-semibold transition cursor-pointer border-b-2"
-          [class]="activeTab() === 'players' ? 'text-violet-400 border-violet-500' : 'text-slate-400 hover:text-white border-transparent'">
-          Players ({{ players().length }})
-        </button>
-        <button (click)="activeTab.set('events')"
-          class="px-4 py-2.5 text-sm font-semibold transition cursor-pointer border-b-2"
-          [class]="activeTab() === 'events' ? 'text-violet-400 border-violet-500' : 'text-slate-400 hover:text-white border-transparent'">
-          Events ({{ events().length }})
-        </button>
-      </div>
-
-      <!-- ═══════════════ OVERVIEW TAB ═══════════════ -->
-      @if (activeTab() === 'overview') {
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          <!-- Teams Card -->
-          <div (click)="activeTab.set('teams')"
-            class="bg-slate-900 border border-white/10 hover:border-violet-500/50 hover:bg-slate-900/80 rounded-2xl p-6 flex flex-col gap-3 transition-all duration-300 cursor-pointer group">
-            <div class="text-2xl group-hover:scale-110 transition-transform duration-300"><i class="fi fi-rr-users"></i></div>
-            <div>
-              <div class="flex items-center gap-2">
-                <h3 class="font-bold text-white text-sm group-hover:text-violet-400 transition-colors">Teams</h3>
-              </div>
-              <p class="text-xs text-slate-500 mt-1">Register and organize teams</p>
-            </div>
-          </div>
-
-          <!-- Players Card -->
-          <div (click)="activeTab.set('players')"
-            class="bg-slate-900 border border-white/10 hover:border-violet-500/50 hover:bg-slate-900/80 rounded-2xl p-6 flex flex-col gap-3 transition-all duration-300 cursor-pointer group">
-            <div class="text-2xl group-hover:scale-110 transition-transform duration-300"><i class="fi fi-rr-running"></i></div>
-            <div>
-              <div class="flex items-center gap-2">
-                <h3 class="font-bold text-white text-sm group-hover:text-violet-400 transition-colors">Players</h3>
-              </div>
-              <p class="text-xs text-slate-500 mt-1">Player profiles and statistics</p>
-            </div>
-          </div>
-
-          <!-- Events Card -->
-          <div (click)="activeTab.set('events')"
-            class="bg-slate-900 border border-white/10 hover:border-violet-500/50 hover:bg-slate-900/80 rounded-2xl p-6 flex flex-col gap-3 transition-all duration-300 cursor-pointer group">
-            <div class="text-2xl group-hover:scale-110 transition-transform duration-300"><i class="fi fi-rr-trophy"></i></div>
-            <div>
-              <div class="flex items-center gap-2">
-                <h3 class="font-bold text-white text-sm group-hover:text-violet-400 transition-colors">Events</h3>
-              </div>
-              <p class="text-xs text-slate-500 mt-1">Manage sports festivals and competitions</p>
-            </div>
-          </div>
-
-          <!-- Other Coming Soon Modules -->
-          @for (module of [
-            { icon: 'fi-rr-chart-histogram', label: 'Reports', desc: 'Analytics and event reports', soon: true },
-          ]; track module.label) {
-            <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex flex-col gap-3 opacity-60">
-              <div class="text-2xl"><i class="fi {{ module.icon }}"></i></div>
-              <div>
-                <div class="flex items-center gap-2">
-                  <h3 class="font-bold text-white text-sm">{{ module.label }}</h3>
-                  <span class="text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded">Coming soon</span>
-                </div>
-                <p class="text-xs text-slate-500 mt-1">{{ module.desc }}</p>
-              </div>
-            </div>
-          }
-
-          <!-- Settings Module Card -->
-          @if (canManageMembers()) {
-            <div (click)="activeTab.set('settings')"
-              class="bg-slate-900 border border-white/10 hover:border-violet-500/50 hover:bg-slate-900/80 rounded-2xl p-6 flex flex-col gap-3 transition-all duration-300 cursor-pointer group">
-              <div class="text-2xl group-hover:scale-110 transition-transform duration-300"><i class="fi fi-rr-settings"></i></div>
-              <div>
-                <div class="flex items-center gap-2">
-                  <h3 class="font-bold text-white text-sm group-hover:text-violet-400 transition-colors">Settings</h3>
-                </div>
-                <p class="text-xs text-slate-500 mt-1">Workspace configuration</p>
-              </div>
-            </div>
-          } @else {
-            <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex flex-col gap-3 opacity-60">
-              <div class="text-2xl"><i class="fi fi-rr-settings"></i></div>
-              <div>
-                <div class="flex items-center gap-2">
-                  <h3 class="font-bold text-white text-sm">Settings</h3>
-                  <span class="text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded">Coming soon</span>
-                </div>
-                <p class="text-xs text-slate-500 mt-1">Workspace configuration</p>
-              </div>
-            </div>
+        <!-- Sidebar Footer -->
+        <div class="p-4 border-t border-white/5 flex flex-col gap-1">
+          <a routerLink="/workspaces" class="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white transition cursor-pointer px-4 py-2.5 hover:bg-white/5 rounded-xl">
+            <i class="fi fi-rr-angle-small-left text-base"></i> Back to Workspaces
+          </a>
+          @if (isOwner()) {
+            <button (click)="deleteWorkspace()"
+              class="w-full text-left flex items-center gap-2 text-xs font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/5 px-4 py-2.5 rounded-xl transition cursor-pointer">
+              <i class="fi fi-rr-trash text-base"></i> Delete Workspace
+            </button>
           }
         </div>
-      }
+      </aside>
+
+      <!-- Main Content Area -->
+      <main class="flex-1 overflow-y-auto min-w-0 p-6 lg:p-10">
+
+        <!-- Top Bar -->
+        <header class="flex items-center justify-between border-b border-white/5 pb-5 mb-8">
+          <div>
+            <h1 class="text-lg font-extrabold text-white flex items-center gap-2">
+              <span class="text-slate-400 font-normal">Workspace /</span>
+              {{ workspace()!.name }}
+            </h1>
+          </div>
+
+          <!-- Global Search Bar Mockup -->
+          <div class="hidden md:flex items-center flex-1 max-w-md mx-8 relative">
+            <span class="absolute left-4 text-slate-500 text-sm">
+              <i class="fi fi-rr-search"></i>
+            </span>
+            <input type="text" placeholder="Search matches, teams, players..." readonly
+              class="w-full bg-slate-900 border border-white/5 focus:border-violet-500/50 rounded-xl pl-11 pr-10 py-2.5 text-xs text-slate-400 placeholder-slate-500 outline-none transition-all cursor-not-allowed select-none animate-pulse" />
+            <span class="absolute right-4 px-1.5 py-0.5 text-[9px] font-bold bg-slate-800 text-slate-500 rounded border border-white/5 font-mono select-none">⌘K</span>
+          </div>
+          
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-3 bg-slate-900 border border-white/5 rounded-xl px-4 py-2">
+              <!-- Profile Icon (Avatar) -->
+              <div class="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center text-white font-bold text-sm shadow-sm select-none">
+                {{ initials(authService.currentUser()?.username || 'U') }}
+              </div>
+              <div class="text-left leading-none">
+                <p class="text-xs font-bold text-white">{{ authService.currentUser()?.username }}</p>
+                <p class="text-[9px] text-slate-500 font-mono mt-0.5 capitalize">{{ getCurrentUserRoleSlug() }}</p>
+              </div>
+            </div>
+            
+            <button (click)="onSignOut()"
+              class="flex items-center gap-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 px-4.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer">
+              <i class="fi fi-rr-sign-out-alt"></i>
+              Sign Out
+            </button>
+          </div>
+        </header>
+
+        <!-- ═══════════════ OVERVIEW TAB ═══════════════ -->
+        @if (activeTab() === 'overview') {
+          <div class="space-y-8 animate-fadeIn">
+            <!-- Hero banner -->
+            <div class="flex items-start justify-between gap-6 pb-6 border-b border-white/10">
+              <div>
+                <h1 class="text-2xl font-extrabold text-white tracking-tight">Dashboard</h1>
+                @if (workspace()!.description) {
+                  <p class="text-slate-400 mt-1 text-xs max-w-xl">{{ workspace()!.description }}</p>
+                }
+                <p class="text-[10px] text-slate-600 mt-1.5">Workspace created {{ workspace()!.createdAt | date:'MMMM d, y' }}</p>
+              </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex items-center justify-between shadow-lg relative overflow-hidden group">
+                <div class="absolute top-0 left-0 h-full w-[3px] bg-gradient-to-b from-violet-500 to-indigo-500"></div>
+                <div>
+                  <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Registered Teams</p>
+                  <h3 class="text-3xl font-extrabold text-white mt-1">{{ teams().length }}</h3>
+                </div>
+                <div class="text-3xl text-violet-500/20 group-hover:text-violet-500/40 transition-colors duration-300"><i class="fi fi-rr-users-alt"></i></div>
+              </div>
+
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex items-center justify-between shadow-lg relative overflow-hidden group">
+                <div class="absolute top-0 left-0 h-full w-[3px] bg-gradient-to-b from-indigo-500 to-blue-500"></div>
+                <div>
+                  <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Active Players</p>
+                  <h3 class="text-3xl font-extrabold text-white mt-1">{{ players().length }}</h3>
+                </div>
+                <div class="text-3xl text-indigo-500/20 group-hover:text-indigo-500/40 transition-colors duration-300"><i class="fi fi-rr-running"></i></div>
+              </div>
+
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex items-center justify-between shadow-lg relative overflow-hidden group">
+                <div class="absolute top-0 left-0 h-full w-[3px] bg-gradient-to-b from-emerald-500 to-teal-500"></div>
+                <div>
+                  <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sports Festivals</p>
+                  <h3 class="text-3xl font-extrabold text-white mt-1">{{ events().length }}</h3>
+                </div>
+                <div class="text-3xl text-emerald-500/20 group-hover:text-emerald-500/40 transition-colors duration-300"><i class="fi fi-rr-trophy"></i></div>
+              </div>
+
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex items-center justify-between shadow-lg relative overflow-hidden group">
+                <div class="absolute top-0 left-0 h-full w-[3px] bg-gradient-to-b from-amber-500 to-orange-500"></div>
+                <div>
+                  <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Collaborators</p>
+                  <h3 class="text-3xl font-extrabold text-white mt-1">{{ members().length }}</h3>
+                </div>
+                <div class="text-3xl text-amber-500/20 group-hover:text-amber-500/40 transition-colors duration-300"><i class="fi fi-rr-users"></i></div>
+              </div>
+            </div>
+
+            <!-- Welcome / Quick Guide -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div class="lg:col-span-2 bg-slate-900/60 border border-white/5 rounded-2xl p-6 flex flex-col gap-4">
+                <h2 class="text-base font-bold text-white flex items-center gap-2">
+                  <i class="fi fi-rr-bolt text-violet-400"></i>
+                  Tournament Management Console
+                </h2>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                  Welcome to the workspace! Use the sidebar navigation on the left to navigate through your sports tournaments.
+                  From here you can register participating teams, manage player rosters, set up sports festivals/events, and auto-generate matchups, round-robins, and knockout fixtures.
+                </p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                  <div class="bg-slate-900 border border-white/10 rounded-xl p-4 flex gap-3 items-start">
+                    <span class="text-violet-400 text-sm mt-0.5"><i class="fi fi-rr-play"></i></span>
+                    <div>
+                      <h4 class="text-xs font-bold text-white">Get Started</h4>
+                      <p class="text-[10px] text-slate-500 mt-1">Register teams under the Teams tab, and link players to them.</p>
+                    </div>
+                  </div>
+                  <div class="bg-slate-900 border border-white/10 rounded-xl p-4 flex gap-3 items-start">
+                    <span class="text-emerald-400 text-sm mt-0.5"><i class="fi fi-rr-magic-wand"></i></span>
+                    <div>
+                      <h4 class="text-xs font-bold text-white">Generate Fixtures</h4>
+                      <p class="text-[10px] text-slate-500 mt-1">Configure stages under Events, enroll teams, and generate random pairings.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
+                <h2 class="text-base font-bold text-white">Workspace Info</h2>
+                <div class="flex flex-col gap-3.5 divide-y divide-white/5">
+                  <div class="flex justify-between items-center text-xs pt-1">
+                    <span class="text-slate-500">Identifier Slug</span>
+                    <span class="font-mono text-slate-300">/{{ workspace()!.slug }}</span>
+                  </div>
+                  <div class="flex justify-between items-center text-xs pt-3.5">
+                    <span class="text-slate-500">Your Role</span>
+                    <span class="px-2 py-0.5 bg-violet-500/10 text-violet-400 rounded-md border border-violet-500/20 text-[10px] font-bold uppercase tracking-wider">
+                      {{ isOwner() ? 'Owner' : 'Member' }}
+                    </span>
+                  </div>
+                  <div class="flex justify-between items-center text-xs pt-3.5">
+                    <span class="text-slate-500">Created At</span>
+                    <span class="text-slate-300">{{ workspace()!.createdAt | date:'mediumDate' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        }
 
       <!-- ═══════════════ MEMBERS TAB ═══════════════ -->
       @if (activeTab() === 'members') {
@@ -2331,6 +2431,7 @@
         }
       }
 
+      </main>
     </div>
   }
 </div>
