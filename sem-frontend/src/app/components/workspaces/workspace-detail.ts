@@ -877,6 +877,10 @@ export class WorkspaceDetailComponent implements OnInit {
     this.addTeamError.set('');
     this.addTeamSuccess.set('');
     this.addTeamId.set('');
+    this.selectedStage.set(null);
+    this.selectedMatch.set(null);
+    this.matches.set([]);
+    this.competitionTeams.set([]);
     this.loadStages(comp.id);
     this.loadCompetitionTeams(comp.id);
   }
@@ -884,6 +888,10 @@ export class WorkspaceDetailComponent implements OnInit {
   onDeselectCompetition() {
     this.selectedCompetition.set(null);
     this.stages.set([]);
+    this.selectedStage.set(null);
+    this.selectedMatch.set(null);
+    this.matches.set([]);
+    this.competitionTeams.set([]);
   }
 
   loadStages(competitionId: string) {
