@@ -11,6 +11,8 @@ import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember, WorkspaceRole, MANAGEMENT_ROLES } from './entities/workspace-member.entity';
 import { Role } from './entities/role.entity';
 import { Team } from './entities/team.entity';
+import { Player } from './entities/player.entity';
+import { Event } from './entities/event.entity';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import { UsersService } from '../users/users.service';
@@ -19,6 +21,10 @@ import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
+import { CreatePlayerDto } from './dto/create-player.dto';
+import { UpdatePlayerDto } from './dto/update-player.dto';
+import { CreateEventDto } from './dto/create-event.dto';
+import { UpdateEventDto } from './dto/update-event.dto';
 
 @Injectable()
 export class WorkspacesService implements OnModuleInit {
@@ -31,6 +37,10 @@ export class WorkspacesService implements OnModuleInit {
     private readonly roleRepo: Repository<Role>,
     @InjectRepository(Team)
     private readonly teamRepo: Repository<Team>,
+    @InjectRepository(Player)
+    private readonly playerRepo: Repository<Player>,
+    @InjectRepository(Event)
+    private readonly eventRepo: Repository<Event>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -457,5 +467,141 @@ export class WorkspacesService implements OnModuleInit {
       throw new NotFoundException('Team not found in this workspace');
     }
     await this.teamRepo.remove(team);
+  }
+
+  async getPlayers(workspaceId: string, userId: string): Promise<Player[]> {
+    await this.ensureMember(workspaceId, userId);
+    return this.playerRepo.find({
+      where: { workspaceId },
+      relations: { team: true, user: true },
+      order: { user: { username: 'ASC' } },
+    });
+  }
+
+  async createPlayer(workspaceId: string, dto: CreatePlayerDto, userId: string): Promise<Player> {
+    await this.ensureMember(workspaceId, userId);
+    const team = await this.teamRepo.findOne({ where: { id: dto.teamId, workspaceId } });
+    if (!team) {
+      throw new NotFoundException('Team not found in this workspace');
+    }
+
+    const user = await this.usersService.findOneById(dto.userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const existing = await this.playerRepo.findOne({ where: { teamId: dto.teamId, userId: dto.userId } });
+    if (existing) {
+      throw new ConflictException('This user is already registered as a player in this team');
+    }
+
+    const player = this.playerRepo.create({
+      userId: dto.userId,
+      jerseyNumber: dto.jerseyNumber ?? null,
+      teamId: dto.teamId,
+      workspaceId,
+    });
+    const saved = await this.playerRepo.save(player);
+    saved.team = team;
+    saved.user = user;
+    return saved;
+  }
+
+  async updatePlayer(
+    workspaceId: string,
+    playerId: string,
+    dto: UpdatePlayerDto,
+    userId: string,
+  ): Promise<Player> {
+    await this.ensureMember(workspaceId, userId);
+    const player = await this.playerRepo.findOne({ where: { id: playerId, workspaceId }, relations: { team: true, user: true } });
+    if (!player) {
+      throw new NotFoundException('Player not found in this workspace');
+    }
+
+    if (dto.teamId !== undefined) {
+      const team = await this.teamRepo.findOne({ where: { id: dto.teamId, workspaceId } });
+      if (!team) {
+        throw new NotFoundException('Team not found in this workspace');
+      }
+
+      const existing = await this.playerRepo.findOne({ where: { teamId: dto.teamId, userId: player.userId } });
+      if (existing && existing.id !== player.id) {
+        throw new ConflictException('This user is already registered as a player in the target team');
+      }
+
+      player.teamId = dto.teamId;
+      player.team = team;
+    }
+
+    Object.assign(player, {
+      ...(dto.jerseyNumber !== undefined && { jerseyNumber: dto.jerseyNumber }),
+    });
+
+    return this.playerRepo.save(player);
+  }
+
+  async removePlayer(workspaceId: string, playerId: string, userId: string): Promise<void> {
+    await this.ensureAdminOrOwner(workspaceId, userId);
+    const player = await this.playerRepo.findOne({ where: { id: playerId, workspaceId } });
+    if (!player) {
+      throw new NotFoundException('Player not found in this workspace');
+    }
+    await this.playerRepo.remove(player);
+  }
+
+  // ─── Events Management ─────────────────────────────────────────────────────
+
+  async getEvents(workspaceId: string, userId: string): Promise<Event[]> {
+    await this.ensureMember(workspaceId, userId);
+    return this.eventRepo.find({
+      where: { workspaceId },
+      order: { name: 'ASC' },
+    });
+  }
+
+  async createEvent(workspaceId: string, dto: CreateEventDto, userId: string): Promise<Event> {
+    await this.ensureAdminOrOwner(workspaceId, userId);
+    const event = this.eventRepo.create({
+      name: dto.name,
+      description: dto.description ?? null,
+      startDate: dto.startDate ? new Date(dto.startDate) : null,
+      endDate: dto.endDate ? new Date(dto.endDate) : null,
+      status: dto.status ?? 'upcoming',
+      workspaceId,
+    });
+    return this.eventRepo.save(event);
+  }
+
+  async updateEvent(
+    workspaceId: string,
+    eventId: string,
+    dto: UpdateEventDto,
+    userId: string,
+  ): Promise<Event> {
+    await this.ensureAdminOrOwner(workspaceId, userId);
+    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    if (!event) {
+      throw new NotFoundException('Event not found in this workspace');
+    }
+
+    Object.assign(event, {
+      ...(dto.name !== undefined && { name: dto.name }),
+      ...(dto.description !== undefined && { description: dto.description }),
+      ...(dto.startDate !== undefined && { startDate: dto.startDate ? new Date(dto.startDate) : null }),
+      ...(dto.endDate !== undefined && { endDate: dto.endDate ? new Date(dto.endDate) : null }),
+      ...(dto.status !== undefined && { status: dto.status }),
+    });
+
+    return this.eventRepo.save(event);
+  }
+
+  async removeEvent(workspaceId: string, eventId: string, userId: string): Promise<void> {
+    await this.ensureAdminOrOwner(workspaceId, userId);
+    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    if (!event) {
+      throw new NotFoundException('Event not found in this workspace');
+    }
+    await this.eventRepo.remove(event);
   }
 }

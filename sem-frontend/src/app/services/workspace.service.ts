@@ -33,6 +33,33 @@ export interface Team {
   updatedAt: string;
 }
 
+export interface Player {
+  id: string;
+  userId: string;
+  user: {
+    id: string;
+    username: string;
+  };
+  jerseyNumber: string | null;
+  teamId: string;
+  team: Team;
+  workspaceId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceEvent {
+  id: string;
+  name: string;
+  description: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  status: string; // 'upcoming' | 'ongoing' | 'completed' | 'cancelled'
+  workspaceId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 
 export interface WorkspaceMember {
   id: string;
@@ -186,6 +213,80 @@ export class WorkspaceService {
 
   removeTeam(workspaceId: string, teamId: string): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/${workspaceId}/teams/${teamId}`, {
+      headers: this.headers,
+    });
+  }
+
+  // ─── Players ──────────────────────────────────────────────────────────────
+
+  getPlayers(workspaceId: string): Observable<Player[]> {
+    return this.http.get<Player[]>(`${this.apiUrl}/${workspaceId}/players`, {
+      headers: this.headers,
+    });
+  }
+
+  createPlayer(
+    workspaceId: string,
+    payload: { userId: string; jerseyNumber?: string; teamId: string }
+  ): Observable<Player> {
+    return this.http.post<Player>(
+      `${this.apiUrl}/${workspaceId}/players`,
+      payload,
+      { headers: this.headers }
+    );
+  }
+
+  updatePlayer(
+    workspaceId: string,
+    playerId: string,
+    payload: { jerseyNumber?: string; teamId?: string }
+  ): Observable<Player> {
+    return this.http.patch<Player>(
+      `${this.apiUrl}/${workspaceId}/players/${playerId}`,
+      payload,
+      { headers: this.headers }
+    );
+  }
+
+  removePlayer(workspaceId: string, playerId: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/${workspaceId}/players/${playerId}`, {
+      headers: this.headers,
+    });
+  }
+
+  // ─── Events ───────────────────────────────────────────────────────────────
+
+  getEvents(workspaceId: string): Observable<WorkspaceEvent[]> {
+    return this.http.get<WorkspaceEvent[]>(`${this.apiUrl}/${workspaceId}/events`, {
+      headers: this.headers,
+    });
+  }
+
+  createEvent(
+    workspaceId: string,
+    payload: { name: string; description?: string; startDate?: string; endDate?: string; status?: string }
+  ): Observable<WorkspaceEvent> {
+    return this.http.post<WorkspaceEvent>(
+      `${this.apiUrl}/${workspaceId}/events`,
+      payload,
+      { headers: this.headers }
+    );
+  }
+
+  updateEvent(
+    workspaceId: string,
+    eventId: string,
+    payload: { name?: string; description?: string; startDate?: string | null; endDate?: string | null; status?: string }
+  ): Observable<WorkspaceEvent> {
+    return this.http.patch<WorkspaceEvent>(
+      `${this.apiUrl}/${workspaceId}/events/${eventId}`,
+      payload,
+      { headers: this.headers }
+    );
+  }
+
+  removeEvent(workspaceId: string, eventId: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/${workspaceId}/events/${eventId}`, {
       headers: this.headers,
     });
   }

@@ -2,7 +2,7 @@ import { Component, OnInit, signal, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { WorkspaceService, Workspace, WorkspaceMember, Role, Team } from '../../services/workspace.service';
+import { WorkspaceService, Workspace, WorkspaceMember, Role, Team, Player, WorkspaceEvent } from '../../services/workspace.service';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -23,7 +23,7 @@ export class WorkspaceDetailComponent implements OnInit {
   roles = signal<Role[]>([]);
   isLoading = signal(true);
   error = signal('');
-  activeTab = signal<'overview' | 'members' | 'settings' | 'teams'>('overview');
+  activeTab = signal<'overview' | 'members' | 'settings' | 'teams' | 'players' | 'events'>('overview');
 
   // ── Teams State ────────────────────────────────────────────────────────────
   teams = signal<Team[]>([]);
@@ -42,6 +42,45 @@ export class WorkspaceDetailComponent implements OnInit {
   isUpdatingTeam = signal(false);
   teamUpdateError = signal('');
   teamUpdateSuccess = signal('');
+
+  // ── Players State ──────────────────────────────────────────────────────────
+  players = signal<Player[]>([]);
+  newPlayerUserId = signal('');
+  newPlayerJerseyNumber = signal('');
+  newPlayerTeamId = signal('');
+  isCreatingPlayer = signal(false);
+  playerCreateError = signal('');
+  playerCreateSuccess = signal('');
+
+  // Editing state for Players
+  editingPlayer = signal<Player | null>(null);
+  editPlayerJerseyNumber = signal('');
+  editPlayerTeamId = signal('');
+  isUpdatingPlayer = signal(false);
+  playerUpdateError = signal('');
+  playerUpdateSuccess = signal('');
+
+  // ── Events State ────────────────────────────────────────────────────────────
+  events = signal<WorkspaceEvent[]>([]);
+  newEventName = signal('');
+  newEventDescription = signal('');
+  newEventStartDate = signal('');
+  newEventEndDate = signal('');
+  newEventStatus = signal('upcoming');
+  isCreatingEvent = signal(false);
+  eventCreateError = signal('');
+  eventCreateSuccess = signal('');
+
+  // Editing state for Events
+  editingEvent = signal<WorkspaceEvent | null>(null);
+  editEventName = signal('');
+  editEventDescription = signal('');
+  editEventStartDate = signal('');
+  editEventEndDate = signal('');
+  editEventStatus = signal('upcoming');
+  isUpdatingEvent = signal(false);
+  eventUpdateError = signal('');
+  eventUpdateSuccess = signal('');
 
   // ── Workspace Edit State ───────────────────────────────────────────────────
   editName = signal('');
@@ -79,6 +118,8 @@ export class WorkspaceDetailComponent implements OnInit {
         this.loadMembers(id);
         this.loadRoles(id);
         this.loadTeams(id);
+        this.loadPlayers(id);
+        this.loadEvents(id);
       },
       error: (err) => {
         console.error(err);
@@ -360,6 +401,105 @@ export class WorkspaceDetailComponent implements OnInit {
     });
   }
 
+  // ── Players CRUD ───────────────────────────────────────────────────────────
+
+  loadPlayers(workspaceId: string) {
+    this.workspaceService.getPlayers(workspaceId).subscribe({
+      next: (players) => this.players.set(players),
+      error: (err) => console.error('Failed to load players', err),
+    });
+  }
+
+  onCreatePlayer() {
+    const userId = this.newPlayerUserId();
+    const jerseyNumber = this.newPlayerJerseyNumber().trim();
+    const teamId = this.newPlayerTeamId();
+    const ws = this.workspace();
+    if (!ws || !userId || !teamId) return;
+
+    this.isCreatingPlayer.set(true);
+    this.playerCreateError.set('');
+    this.playerCreateSuccess.set('');
+
+    const payload = {
+      userId,
+      teamId,
+      ...(jerseyNumber && { jerseyNumber }),
+    };
+
+    this.workspaceService.createPlayer(ws.id, payload).subscribe({
+      next: (player) => {
+        this.isCreatingPlayer.set(false);
+        this.playerCreateSuccess.set(`Player "${player.user.username}" registered successfully!`);
+        this.newPlayerUserId.set('');
+        this.newPlayerJerseyNumber.set('');
+        this.newPlayerTeamId.set('');
+        this.players.update(prev => [...prev, player]);
+      },
+      error: (err) => {
+        this.isCreatingPlayer.set(false);
+        this.playerCreateError.set(err.error?.message ?? 'Failed to register player.');
+      }
+    });
+  }
+
+  onEditPlayer(player: Player) {
+    this.editingPlayer.set(player);
+    this.editPlayerJerseyNumber.set(player.jerseyNumber ?? '');
+    this.editPlayerTeamId.set(player.teamId);
+    this.playerUpdateError.set('');
+    this.playerUpdateSuccess.set('');
+  }
+
+  onCancelEditPlayer() {
+    this.editingPlayer.set(null);
+  }
+
+  onUpdatePlayer() {
+    const jerseyNumber = this.editPlayerJerseyNumber().trim();
+    const teamId = this.editPlayerTeamId();
+    const ws = this.workspace();
+    const player = this.editingPlayer();
+    if (!ws || !player || !teamId) return;
+
+    this.isUpdatingPlayer.set(true);
+    this.playerUpdateError.set('');
+    this.playerUpdateSuccess.set('');
+
+    const payload = {
+      teamId,
+      jerseyNumber: jerseyNumber || undefined,
+    };
+
+    this.workspaceService.updatePlayer(ws.id, player.id, payload).subscribe({
+      next: (updated) => {
+        this.isUpdatingPlayer.set(false);
+        this.playerUpdateSuccess.set(`Player updated successfully!`);
+        this.players.update(prev => prev.map(p => p.id === player.id ? updated : p));
+        setTimeout(() => this.editingPlayer.set(null), 1000);
+      },
+      error: (err) => {
+        this.isUpdatingPlayer.set(false);
+        this.playerUpdateError.set(err.error?.message ?? 'Failed to update player.');
+      }
+    });
+  }
+
+  onDeletePlayer(player: Player) {
+    const ws = this.workspace();
+    if (!ws) return;
+    if (!confirm(`Delete player "${player.user.username}"? This cannot be undone.`)) return;
+
+    this.workspaceService.removePlayer(ws.id, player.id).subscribe({
+      next: () => {
+        this.players.update(prev => prev.filter(p => p.id !== player.id));
+      },
+      error: (err) => {
+        alert(err.error?.message ?? 'Failed to delete player.');
+      }
+    });
+  }
+
   // ── Avatars ────────────────────────────────────────────────────────────────
 
   avatarColor(name: string): string {
@@ -370,6 +510,144 @@ export class WorkspaceDetailComponent implements OnInit {
   }
 
   initials(name: string): string {
-    return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    if (!name) return '';
+    const parts = name.split(' ');
+    if (parts.length > 1) {
+      return parts.slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  }
+
+  // ── Events CRUD ────────────────────────────────────────────────────────────
+
+  loadEvents(workspaceId: string) {
+    this.workspaceService.getEvents(workspaceId).subscribe({
+      next: (events) => this.events.set(events),
+      error: (err) => console.error('Failed to load events', err),
+    });
+  }
+
+  showDatePicker(event: any) {
+    if (event.target && typeof event.target.showPicker === 'function') {
+      try {
+        event.target.showPicker();
+      } catch (e) {
+        console.warn('showPicker is not supported or blocked:', e);
+      }
+    }
+  }
+
+  private formatToLocalDatetime(dateStr: string | null | undefined): string {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '';
+    const offset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - offset * 60 * 1000);
+    return localDate.toISOString().substring(0, 16);
+  }
+
+  onCreateEvent() {
+    const name = this.newEventName().trim();
+    const description = this.newEventDescription().trim();
+    const startDate = this.newEventStartDate();
+    const endDate = this.newEventEndDate();
+    const status = this.newEventStatus();
+    const ws = this.workspace();
+    if (!ws || !name) return;
+
+    this.isCreatingEvent.set(true);
+    this.eventCreateError.set('');
+    this.eventCreateSuccess.set('');
+
+    const payload = {
+      name,
+      ...(description && { description }),
+      ...(startDate && { startDate: new Date(startDate).toISOString() }),
+      ...(endDate && { endDate: new Date(endDate).toISOString() }),
+      ...(status && { status }),
+    };
+
+    this.workspaceService.createEvent(ws.id, payload).subscribe({
+      next: (event) => {
+        this.isCreatingEvent.set(false);
+        this.eventCreateSuccess.set(`Event "${event.name}" created successfully!`);
+        this.newEventName.set('');
+        this.newEventDescription.set('');
+        this.newEventStartDate.set('');
+        this.newEventEndDate.set('');
+        this.newEventStatus.set('upcoming');
+        this.events.update(prev => [...prev, event]);
+      },
+      error: (err) => {
+        this.isCreatingEvent.set(false);
+        this.eventCreateError.set(err.error?.message ?? 'Failed to create event.');
+      }
+    });
+  }
+
+  onEditEvent(event: WorkspaceEvent) {
+    this.editingEvent.set(event);
+    this.editEventName.set(event.name);
+    this.editEventDescription.set(event.description ?? '');
+    this.editEventStartDate.set(this.formatToLocalDatetime(event.startDate));
+    this.editEventEndDate.set(this.formatToLocalDatetime(event.endDate));
+    this.editEventStatus.set(event.status);
+    this.eventUpdateError.set('');
+    this.eventUpdateSuccess.set('');
+  }
+
+  onCancelEditEvent() {
+    this.editingEvent.set(null);
+  }
+
+  onUpdateEvent() {
+    const name = this.editEventName().trim();
+    const description = this.editEventDescription().trim();
+    const startDate = this.editEventStartDate();
+    const endDate = this.editEventEndDate();
+    const status = this.editEventStatus();
+    const ws = this.workspace();
+    const event = this.editingEvent();
+    if (!ws || !event || !name) return;
+
+    this.isUpdatingEvent.set(true);
+    this.eventUpdateError.set('');
+    this.eventUpdateSuccess.set('');
+
+    const payload = {
+      name,
+      description: description || undefined,
+      startDate: startDate ? new Date(startDate).toISOString() : null,
+      endDate: endDate ? new Date(endDate).toISOString() : null,
+      status,
+    };
+
+    this.workspaceService.updateEvent(ws.id, event.id, payload).subscribe({
+      next: (updated) => {
+        this.isUpdatingEvent.set(false);
+        this.eventUpdateSuccess.set(`Event updated successfully!`);
+        this.events.update(prev => prev.map(e => e.id === event.id ? updated : e));
+        setTimeout(() => this.editingEvent.set(null), 1000);
+      },
+      error: (err) => {
+        this.isUpdatingEvent.set(false);
+        this.eventUpdateError.set(err.error?.message ?? 'Failed to update event.');
+      }
+    });
+  }
+
+  onDeleteEvent(event: WorkspaceEvent) {
+    const ws = this.workspace();
+    if (!ws) return;
+    if (!confirm(`Delete event "${event.name}"? This cannot be undone.`)) return;
+
+    this.workspaceService.removeEvent(ws.id, event.id).subscribe({
+      next: () => {
+        this.events.update(prev => prev.filter(e => e.id !== event.id));
+      },
+      error: (err) => {
+        alert(err.error?.message ?? 'Failed to delete event.');
+      }
+    });
   }
 }
