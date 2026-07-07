@@ -1603,7 +1603,7 @@
                 <div
                   class="mt-2 bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-transparent border border-amber-500/30 rounded-xl p-2.5 flex items-center justify-between shadow-lg shadow-amber-500/5">
                   <div class="flex items-center gap-2">
-                    <span class="text-lg">🏆</span>
+                    <i class="fi fi-rr-trophy text-amber-400 text-base"></i>
                     <div class="text-left">
                       <div class="text-[9px] uppercase font-black tracking-widest text-amber-400">CHAMPIONS</div>
                       <div class="text-xs font-black text-white">{{ result.winner }}</div>
@@ -1871,8 +1871,8 @@
                   class="bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-transparent border border-amber-500/30 rounded-2xl p-5 flex items-center justify-between shadow-lg shadow-amber-500/5 animate-pulse">
                   <div class="flex items-center gap-3">
                     <div
-                      class="h-11 w-11 rounded-xl bg-amber-500/25 border border-amber-500/30 flex items-center justify-center text-xl shadow-inner">
-                      🏆
+                      class="h-11 w-11 rounded-xl bg-amber-500/25 border border-amber-500/30 flex items-center justify-center text-xl shadow-inner text-amber-400">
+                      <i class="fi fi-rr-trophy"></i>
                     </div>
                     <div class="text-left">
                       <div class="text-[9px] uppercase font-black tracking-widest text-amber-400">CHAMPIONS</div>
@@ -1884,8 +1884,8 @@
                   @if (leagueTable().length > 1) {
                   <div class="text-right border-l border-white/10 pl-5">
                     <div class="text-[9px] uppercase font-bold tracking-widest text-slate-400">RUNNER-UP</div>
-                    <div class="text-xs font-black text-white/90 leading-tight mt-0.5">
-                      🥈 {{ leagueTable()[1].teamName }}
+                    <div class="text-xs font-black text-white/90 leading-tight mt-0.5 flex items-center justify-end gap-1">
+                      <i class="fi fi-rr-medal text-slate-400"></i> {{ leagueTable()[1].teamName }}
                     </div>
                   </div>
                   }
@@ -1998,8 +1998,8 @@
                   class="bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-transparent border border-amber-500/30 rounded-2xl p-5 flex items-center justify-between shadow-lg shadow-amber-500/5 mb-6 animate-pulse">
                   <div class="flex items-center gap-3">
                     <div
-                      class="h-11 w-11 rounded-xl bg-amber-500/25 border border-amber-500/30 flex items-center justify-center text-xl shadow-inner">
-                      🏆
+                      class="h-11 w-11 rounded-xl bg-amber-500/25 border border-amber-500/30 flex items-center justify-center text-xl shadow-inner text-amber-400">
+                      <i class="fi fi-rr-trophy"></i>
                     </div>
                     <div class="text-left">
                       <div class="text-[9px] uppercase font-black tracking-widest text-amber-400">CHAMPIONS</div>
@@ -2011,8 +2011,8 @@
                   @if (result.runnerUp) {
                   <div class="text-right border-l border-white/10 pl-5">
                     <div class="text-[9px] uppercase font-bold tracking-widest text-slate-400">RUNNER-UP</div>
-                    <div class="text-xs font-black text-white/90 leading-tight mt-0.5">
-                      🥈 {{ result.runnerUp }}
+                    <div class="text-xs font-black text-white/90 leading-tight mt-0.5 flex items-center justify-end gap-1">
+                      <i class="fi fi-rr-medal text-slate-400"></i> {{ result.runnerUp }}
                     </div>
                   </div>
                   }
