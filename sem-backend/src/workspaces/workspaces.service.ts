@@ -7,7 +7,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, IsNull, In } from 'typeorm';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember, WorkspaceRole, MANAGEMENT_ROLES } from './entities/workspace-member.entity';
 import { Role } from './entities/role.entity';
@@ -803,11 +803,31 @@ export class WorkspacesService implements OnModuleInit {
     if (!event) {
       throw new NotFoundException(`Event "${eventId}" not found in workspace`);
     }
-    return await this.competitionRepo.find({
+    const competitions = await this.competitionRepo.find({
       where: { eventId },
-      relations: { sport: true },
+      relations: { sport: true, stages: true },
       order: { name: 'ASC' },
     });
+
+    const result: any[] = [];
+    for (const comp of competitions) {
+      const compJson = JSON.parse(JSON.stringify(comp));
+      if (compJson.stages && compJson.stages.length > 0) {
+        const stageIds = compJson.stages.map((s: any) => s.id);
+        const matches = await this.matchRepo.find({
+          where: { stageId: In(stageIds) },
+          relations: { homeTeam: true, awayTeam: true },
+        });
+        
+        for (const stage of compJson.stages) {
+          stage.matches = matches.filter(m => m.stageId === stage.id);
+        }
+      } else {
+        compJson.stages = [];
+      }
+      result.push(compJson);
+    }
+    return result;
   }
 
   async createCompetition(
@@ -1425,7 +1445,7 @@ export class WorkspacesService implements OnModuleInit {
           stageId: stage.id,
           homeTeamId: f.homeTeamId,
           awayTeamId: f.awayTeamId,
-          venueId: stage.config?.venueId || null,
+          venueId: (stage.config as any)?.venueId || null,
           homeScore: 0,
           awayScore: 0,
           status: 'scheduled',

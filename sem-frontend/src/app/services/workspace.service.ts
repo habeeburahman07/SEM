@@ -106,6 +106,7 @@ export interface Competition {
   pointsConfig: PointsConfigEntry[] | null;
   createdAt: string;
   updatedAt: string;
+  stages?: any[];
 }
 
 export interface CompetitionStage {

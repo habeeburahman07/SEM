@@ -191,6 +191,32 @@ export class WorkspaceDetailComponent implements OnInit {
   selectedMatch = signal<Match | null>(null);
   selectedPointsTableGroup = signal<string>('Group A');
 
+  isStageCompleted = computed(() => {
+    const stage = this.selectedStage();
+    if (!stage) return false;
+    const matchesList = this.matches();
+    if (matchesList.length === 0) return false;
+
+    if (stage.type === 'league') {
+      return matchesList.every(m => m.status === 'completed');
+    }
+    if (stage.type === 'group' || stage.type === 'group_knockout') {
+      const currentGroup = this.selectedPointsTableGroup();
+      const isMultipleGroups = stage.type === 'group_knockout' && stage.config?.groupKnockoutSubtype === 'multiple_groups';
+      
+      const targetMatches = isMultipleGroups
+        ? matchesList.filter(m => m.config?.round === currentGroup)
+        : matchesList.filter(m => !m.config?.round || m.config.round.toLowerCase().includes('group') || m.config.round.toLowerCase().includes('stage'));
+
+      if (targetMatches.length === 0) return false;
+      return targetMatches.every(m => m.status === 'completed');
+    }
+    if (stage.type === 'knockout') {
+      return matchesList.every(m => m.status === 'completed');
+    }
+    return false;
+  });
+
   availableGroups = computed(() => {
     const stage = this.selectedStage();
     if (!stage) return [];
@@ -2077,6 +2103,133 @@ export class WorkspaceDetailComponent implements OnInit {
         this.uiService.error(err.error?.message ?? 'Failed to delete competition.');
       }
     });
+  }
+
+  getCompetitionWinnerAndRunnerUp(comp: Competition): { winner?: string; runnerUp?: string } | null {
+    if (!comp.stages || comp.stages.length === 0) return null;
+
+    // Sort stages by sequence asc to find the last stage
+    const sortedStages = [...comp.stages].sort((a, b) => a.sequence - b.sequence);
+    const lastStage = sortedStages[sortedStages.length - 1];
+
+    if (!lastStage.matches || lastStage.matches.length === 0) return null;
+
+    // Check if all matches in the last stage are completed
+    const allMatchesCompleted = lastStage.matches.every((m: any) => m.status === 'completed');
+    if (!allMatchesCompleted) return null;
+
+    if (lastStage.type === 'knockout') {
+      // Find the final match: round is 'Final'
+      const finalMatch = lastStage.matches.find((m: any) => m.config?.round === 'Final');
+      if (finalMatch && finalMatch.status === 'completed') {
+        const homeScore = finalMatch.homeScore ?? 0;
+        const awayScore = finalMatch.awayScore ?? 0;
+        if (homeScore > awayScore) {
+          return {
+            winner: finalMatch.homeTeam?.name || 'Home Team',
+            runnerUp: finalMatch.awayTeam?.name || 'Away Team',
+          };
+        } else if (awayScore > homeScore) {
+          return {
+            winner: finalMatch.awayTeam?.name || 'Away Team',
+            runnerUp: finalMatch.homeTeam?.name || 'Home Team',
+          };
+        }
+      }
+    } else if (lastStage.type === 'league' || lastStage.type === 'group' || lastStage.type === 'group_knockout') {
+      const winPts = lastStage.config?.winPoint ?? 3;
+      const drawPts = lastStage.config?.drawPoint ?? 1;
+
+      const statsMap = new Map<string, { teamName: string; pts: number; gd: number; gf: number; ga: number }>();
+
+      for (const m of lastStage.matches) {
+        if (!m.homeTeamId || !m.awayTeamId) continue;
+        if (m.status !== 'completed') continue;
+
+        if (!statsMap.has(m.homeTeamId) && m.homeTeam) {
+          statsMap.set(m.homeTeamId, { teamName: m.homeTeam.name, pts: 0, gd: 0, gf: 0, ga: 0 });
+        }
+        if (!statsMap.has(m.awayTeamId) && m.awayTeam) {
+          statsMap.set(m.awayTeamId, { teamName: m.awayTeam.name, pts: 0, gd: 0, gf: 0, ga: 0 });
+        }
+
+        const h = statsMap.get(m.homeTeamId);
+        const a = statsMap.get(m.awayTeamId);
+        if (!h || !a) continue;
+
+        const homeScore = m.homeScore ?? 0;
+        const awayScore = m.awayScore ?? 0;
+
+        h.gf += homeScore;
+        h.ga += awayScore;
+        a.gf += awayScore;
+        a.ga += homeScore;
+
+        if (homeScore > awayScore) {
+          h.pts += winPts;
+        } else if (awayScore > homeScore) {
+          a.pts += winPts;
+        } else {
+          h.pts += drawPts;
+          a.pts += drawPts;
+        }
+        h.gd = h.gf - h.ga;
+        a.gd = a.gf - a.ga;
+      }
+
+      const table = Array.from(statsMap.values()).sort((a, b) => {
+        if (b.pts !== a.pts) return b.pts - a.pts;
+        if (b.gd !== a.gd) return b.gd - a.gd;
+        return b.gf - a.gf;
+      });
+
+      if (table.length > 0) {
+        return {
+          winner: table[0].teamName,
+          runnerUp: table[1]?.teamName,
+        };
+      }
+    }
+
+    return null;
+  }
+
+  getStageWinnerAndRunnerUp(): { winner?: string; runnerUp?: string } | null {
+    const stage = this.selectedStage();
+    if (!stage) return null;
+    const matchesList = this.matches();
+    if (matchesList.length === 0) return null;
+
+    const allCompleted = matchesList.every(m => m.status === 'completed');
+    if (!allCompleted) return null;
+
+    if (stage.type === 'knockout' || stage.type === 'group_knockout') {
+      const finalMatch = matchesList.find(m => m.config?.round === 'Final');
+      if (finalMatch && finalMatch.status === 'completed') {
+        const homeScore = finalMatch.homeScore ?? 0;
+        const awayScore = finalMatch.awayScore ?? 0;
+        if (homeScore > awayScore) {
+          return {
+            winner: finalMatch.homeTeam?.name || 'Home Team',
+            runnerUp: finalMatch.awayTeam?.name || 'Away Team',
+          };
+        } else if (awayScore > homeScore) {
+          return {
+            winner: finalMatch.awayTeam?.name || 'Away Team',
+            runnerUp: finalMatch.homeTeam?.name || 'Home Team',
+          };
+        }
+      }
+    } else if (stage.type === 'league' || stage.type === 'group') {
+      const table = this.leagueTable();
+      if (table && table.length > 0) {
+        return {
+          winner: table[0].teamName,
+          runnerUp: table[1]?.teamName,
+        };
+      }
+    }
+    return null;
   }
 
   // ── Stage Actions ─────────────────────────────────────────────────────────
