@@ -429,6 +429,17 @@ export class WorkspacesController {
     return this.workspacesService.removeStage(id, eventId, competitionId, stageId, req.user.id);
   }
 
+  @Delete(':id/events/:eventId/competitions/:competitionId/reset-fixtures')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  resetStagesAndFixtures(
+    @Param('id') id: string,
+    @Param('eventId') eventId: string,
+    @Param('competitionId') competitionId: string,
+    @Request() req: any,
+  ) {
+    return this.workspacesService.resetStagesAndFixtures(id, eventId, competitionId, req.user.id);
+  }
+
   // ─── Matches ──────────────────────────────────────────────────────────────
 
   @Get(':id/events/:eventId/competitions/:competitionId/stages/:stageId/matches')

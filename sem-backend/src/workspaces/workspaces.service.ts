@@ -1008,6 +1008,28 @@ export class WorkspacesService implements OnModuleInit {
     await this.stageRepo.remove(stage);
   }
 
+  async resetStagesAndFixtures(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.ensureAdminOrOwner(workspaceId, userId);
+    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    if (!event) {
+      throw new NotFoundException(`Event "${eventId}" not found in workspace`);
+    }
+    const competition = await this.competitionRepo.findOne({ where: { id: competitionId, eventId } });
+    if (!competition) {
+      throw new NotFoundException(`Competition "${competitionId}" not found in event`);
+    }
+
+    const stages = await this.stageRepo.find({ where: { competitionId } });
+    if (stages.length > 0) {
+      await this.stageRepo.remove(stages);
+    }
+  }
+
   // ─── Matches ──────────────────────────────────────────────────────────────
 
   async getMatches(
@@ -1258,46 +1280,156 @@ export class WorkspacesService implements OnModuleInit {
       const existing = await this.matchRepo.find({ where: { stageId: stage.id } });
       if (existing.length) await this.matchRepo.remove(existing);
 
-      const pairings: [string | null, string | null][] = [];
+      const fixtures: Array<{ homeTeamId: string | null; awayTeamId: string | null; config: any }> = [];
 
-      // ── Group / Group+Knockout group phase ──────────────────────────────
-      if (stage.type === 'group' || stage.type === 'group_knockout') {
-        const groupsCount = stage.config?.groupsCount ?? 2;
-        const twoLegged = stage.config?.twoLegged ?? false;
-
-        // Distribute teams snake-draft style
-        const groups: string[][] = Array.from({ length: groupsCount }, () => []);
-        teamIds.forEach((id, idx) => groups[idx % groupsCount].push(id));
-
-        for (const group of groups) {
-          if (group.length < 2) continue;
-          const roundRobin = this.generateRoundRobin(group, twoLegged);
-          pairings.push(...roundRobin);
+      // ── League / Group (Single Group Round Robin) ──────────────────────────
+      if (stage.type === 'league' || stage.type === 'group') {
+        const twoLegged = stage.config?.twoLegged || stage.config?.legs === 2;
+        const roundRobin = this.generateRoundRobin(teamIds, twoLegged);
+        for (const pair of roundRobin) {
+          fixtures.push({
+            homeTeamId: pair[0],
+            awayTeamId: pair[1],
+            config: { round: 'League Stage' },
+          });
         }
       }
 
-      // ── Pure Knockout first round ────────────────────────────────────────
-      if (stage.type === 'knockout') {
-        const twoLegged = stage.config?.twoLegged ?? false;
-        const bracket = this.generateKnockoutBracket(teamIds, twoLegged);
-        pairings.push(...bracket);
+      // ── Pure Knockout first round and subsequent skeleton rounds ───────────
+      else if (stage.type === 'knockout') {
+        const twoLegged = stage.config?.twoLegged || stage.config?.legs === 2;
+        const n = teamIds.length;
+        const bracketSize = Math.pow(2, Math.ceil(Math.log2(Math.max(n, 2))));
+        const padded: (string | null)[] = [...teamIds, ...Array(bracketSize - n).fill(null)];
+
+        // Generate First Round (could contain actual teams and byes)
+        const roundLabel = bracketSize === 2 ? 'Final' : bracketSize === 4 ? 'Semi-Final' : bracketSize === 8 ? 'Quarter-Final' : `Round of ${bracketSize}`;
+        for (let i = 0; i < padded.length; i += 2) {
+          const home = padded[i];
+          const away = padded[i + 1];
+          // Skip double-bye slots
+          if (home === null && away === null) continue;
+          fixtures.push({
+            homeTeamId: home,
+            awayTeamId: away,
+            config: { round: roundLabel, leg: 1 },
+          });
+          if (twoLegged && home !== null && away !== null) {
+            fixtures.push({
+              homeTeamId: away,
+              awayTeamId: home,
+              config: { round: roundLabel, leg: 2 },
+            });
+          }
+        }
+
+        // Generate subsequent rounds as TBD skeletons
+        let remainingTeams = bracketSize / 2;
+        while (remainingTeams >= 2) {
+          const subRoundLabel = remainingTeams === 2 ? 'Final' : remainingTeams === 4 ? 'Semi-Final' : remainingTeams === 8 ? 'Quarter-Final' : `Round of ${remainingTeams * 2}`;
+          const matchesInRound = remainingTeams / 2;
+          for (let m = 0; m < matchesInRound; m++) {
+            fixtures.push({
+              homeTeamId: null,
+              awayTeamId: null,
+              config: { round: subRoundLabel, leg: 1 },
+            });
+            if (twoLegged) {
+              fixtures.push({
+                homeTeamId: null,
+                awayTeamId: null,
+                config: { round: subRoundLabel, leg: 2 },
+              });
+            }
+          }
+          remainingTeams = remainingTeams / 2;
+        }
       }
 
-      // ── group_knockout: generate group fixtures + skeleton KO bracket ──
-      // KO bracket teams are TBD (null) — placeholders created once groups finish.
-      // We skip KO skeleton creation here; admin can generate after group phase.
+      // ── Group + Knockout Combined ──────────────────────────────────────────
+      else if (stage.type === 'group_knockout') {
+        const isSingleGroup = stage.config?.groupKnockoutSubtype === 'single_group';
+        const twoLeggedGroup = stage.config?.twoLegged || stage.config?.legs === 2;
+        const twoLeggedKO = stage.config?.twoLegged || stage.config?.legs === 2; // default same legs for KO
+        
+        let totalAdvancing = 2; // Default play final
 
-      if (pairings.length === 0) continue;
+        if (isSingleGroup) {
+          // 1. Group Stage: Single group, round robin
+          const roundRobin = this.generateRoundRobin(teamIds, twoLeggedGroup);
+          for (const pair of roundRobin) {
+            fixtures.push({
+              homeTeamId: pair[0],
+              awayTeamId: pair[1],
+              config: { round: 'Group Stage' },
+            });
+          }
+          // Get advancing setup
+          totalAdvancing = Number(stage.config?.singleGroupAdvancing ?? 2);
+        } else {
+          // 2. Group Stage: Multiple groups, round robin
+          const groupsCount = stage.config?.groupsCount ?? 2;
+          const groups: string[][] = Array.from({ length: groupsCount }, () => []);
+          teamIds.forEach((id, idx) => groups[idx % groupsCount].push(id));
 
-      const matchEntities = pairings.map((pair) =>
+          for (let gIndex = 0; gIndex < groups.length; gIndex++) {
+            const group = groups[gIndex];
+            const groupChar = String.fromCharCode(65 + gIndex); // A, B, C...
+            if (group.length < 2) continue;
+            const roundRobin = this.generateRoundRobin(group, twoLeggedGroup);
+            for (const pair of roundRobin) {
+              fixtures.push({
+                homeTeamId: pair[0],
+                awayTeamId: pair[1],
+                config: { round: `Group ${groupChar}` },
+              });
+            }
+          }
+
+          // Calculate advancing count
+          const isWinnerAndRunner = stage.config?.advancingType === 'winner_and_runner';
+          totalAdvancing = groupsCount * (isWinnerAndRunner ? 2 : 1);
+        }
+
+        // 3. Generate Knockout Stage Skeleton (TBD teams)
+        // Ensure totalAdvancing is at least 2 and power of 2
+        let koTeamsCount = totalAdvancing;
+        const bracketSize = Math.pow(2, Math.ceil(Math.log2(Math.max(koTeamsCount, 2))));
+        
+        let remainingTeams = bracketSize;
+        while (remainingTeams >= 2) {
+          const koRoundLabel = remainingTeams === 2 ? 'Final' : remainingTeams === 4 ? 'Semi-Final' : remainingTeams === 8 ? 'Quarter-Final' : `Round of ${remainingTeams}`;
+          const matchesInRound = remainingTeams / 2;
+          for (let m = 0; m < matchesInRound; m++) {
+            fixtures.push({
+              homeTeamId: null,
+              awayTeamId: null,
+              config: { round: koRoundLabel, leg: 1 },
+            });
+            if (twoLeggedKO) {
+              fixtures.push({
+                homeTeamId: null,
+                awayTeamId: null,
+                config: { round: koRoundLabel, leg: 2 },
+              });
+            }
+          }
+          remainingTeams = remainingTeams / 2;
+        }
+      }
+
+      if (fixtures.length === 0) continue;
+
+      const matchEntities = fixtures.map((f) =>
         this.matchRepo.create({
           stageId: stage.id,
-          homeTeamId: pair[0],
-          awayTeamId: pair[1],
+          homeTeamId: f.homeTeamId,
+          awayTeamId: f.awayTeamId,
+          venueId: stage.config?.venueId || null,
           homeScore: 0,
           awayScore: 0,
           status: 'scheduled',
-          config: {},
+          config: f.config,
           liveData: null,
         }),
       );

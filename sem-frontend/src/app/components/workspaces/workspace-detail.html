@@ -1484,61 +1484,6 @@
                   </div>
                 </div>
 
-                <!-- ═══════════════ POINTS STRUCTURE ═══════════════ -->
-                @if (!selectedStage() && !selectedMatch() && selectedCompetition()?.pointsConfig && selectedCompetition()!.pointsConfig!.length > 0) {
-                  <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 flex flex-col gap-4">
-                    <div class="flex items-center justify-between">
-                      <div>
-                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                          <i class="fi fi-rr-trophy text-amber-400"></i> Points Structure
-                        </h3>
-                        <p class="text-xs text-slate-500 mt-0.5">Ranking points configuration for this competition</p>
-                      </div>
-                      <button (click)="onEditCompetition(selectedCompetition()!)"
-                        class="text-[11px] font-bold text-violet-400 hover:text-white px-3 py-1.5 bg-violet-600/10 hover:bg-violet-600/20 border border-violet-500/20 rounded-lg transition-all cursor-pointer">
-                        Edit
-                      </button>
-                    </div>
-                    <div class="flex flex-col gap-1">
-                      <!-- Header row -->
-                      <div class="grid grid-cols-12 gap-3 text-[9px] font-bold text-slate-500 uppercase tracking-wider px-3 mb-1">
-                        <span class="col-span-2 text-center">Rank</span>
-                        <span class="col-span-7">Position</span>
-                        <span class="col-span-3 text-right">Points</span>
-                      </div>
-                      @for (pt of selectedCompetition()!.pointsConfig!; track pt.position) {
-                        <div class="grid grid-cols-12 gap-3 items-center px-3 py-2.5 rounded-xl"
-                          [class]="$first ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-slate-800/50 border border-white/5'">
-                          <!-- Rank badge -->
-                          <div class="col-span-2 flex justify-center">
-                            @if (pt.position === 1) {
-                              <span class="w-7 h-7 rounded-full bg-amber-400 flex items-center justify-center text-[11px] font-black text-slate-900 shadow-md shadow-amber-500/30">1</span>
-                            } @else if (pt.position === 2) {
-                              <span class="w-7 h-7 rounded-full bg-slate-400 flex items-center justify-center text-[11px] font-black text-slate-900">2</span>
-                            } @else if (pt.position === 3) {
-                              <span class="w-7 h-7 rounded-full bg-orange-700 flex items-center justify-center text-[11px] font-black text-white">3</span>
-                            } @else {
-                              <span class="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-[11px] font-bold text-slate-300">{{ pt.position }}</span>
-                            }
-                          </div>
-                          <!-- Label -->
-                          <span class="col-span-7 text-sm font-semibold"
-                            [class]="pt.position === 1 ? 'text-amber-300' : 'text-white'">
-                            {{ pt.label }}
-                          </span>
-                          <!-- Points -->
-                          <div class="col-span-3 flex justify-end">
-                            <span class="text-sm font-black tabular-nums"
-                              [class]="pt.position === 1 ? 'text-amber-400' : 'text-violet-300'">
-                              {{ pt.points }} <span class="text-[10px] font-normal text-slate-500">pts</span>
-                            </span>
-                          </div>
-                        </div>
-                      }
-                    </div>
-                  </div>
-                }
-
                 <!-- ═══════════════ STAGES & FIXTURES INITIAL SETUP ═══════════════ -->
                 @if (stages().length === 0) {
                   @if (isLoadingStages()) {
@@ -1567,249 +1512,307 @@
                   }
                 } @else if (!selectedMatch()) {
                   <!-- ─── 2. Matches List & Schedule ─── -->
-                  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <!-- Left: Matches List -->
-                    <div class="lg:col-span-2 flex flex-col gap-6">
-                      <div class="flex items-center justify-between">
-                        <h3 class="text-sm font-bold text-white uppercase tracking-wider">Scheduled Matches</h3>
-                      </div>
-
-                      @if (matches().length === 0) {
-                        <div class="rounded-2xl border border-dashed border-white/10 p-12 text-center flex flex-col items-center justify-center gap-3">
-                          <span class="text-3xl"><i class="fi fi-rr-football"></i></span>
-                          <div>
-                            <h3 class="text-sm font-semibold text-white">No matches scheduled for this stage</h3>
-                            <p class="text-xs text-slate-500 mt-1">Use the panel on the right to schedule a match.</p>
-                          </div>
-                        </div>
-                      } @else {
-                        <div class="grid grid-cols-1 gap-4">
-                          @for (match of matches(); track match.id) {
-                            <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-6 group transition-all duration-300">
-                              
-                              <!-- Scoreboard visual & Venue info -->
-                              <div class="flex-1 flex flex-col items-center">
-                                <div class="flex items-center justify-center gap-6 w-full">
-                                  <!-- Home Team -->
-                                  <div class="flex-1 text-right flex items-center justify-end gap-3">
-                                    <span class="text-sm font-bold text-white">{{ match.homeTeam?.name || 'Home' }}</span>
-                                  </div>
-
-                                  <!-- Score details -->
-                                  <div class="px-5 py-2 bg-slate-950 border border-white/10 rounded-2xl flex items-center justify-center gap-4 min-w-[100px] relative">
-                                    @if (match.status === 'live') {
-                                      <span class="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                                        <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-500 border border-slate-950"></span>
-                                      </span>
-                                    }
-                                    <span class="text-xl font-extrabold text-white">{{ match.homeScore }}</span>
-                                    <span class="text-xs text-slate-600 font-bold">VS</span>
-                                    <span class="text-xl font-extrabold text-white">{{ match.awayScore }}</span>
-                                  </div>
-
-                                  <!-- Away Team -->
-                                  <div class="flex-1 text-left flex items-center justify-start gap-3">
-                                    <span class="text-sm font-bold text-white">{{ match.awayTeam?.name || 'Away' }}</span>
-                                  </div>
-                                </div>
-                                @if (match.venue) {
-                                  <div class="text-[10px] text-slate-400 flex items-center gap-1 mt-2.5">
-                                    <i class="fi fi-rr-marker text-violet-400"></i>
-                                    <span>{{ match.venue.name }}</span>
-                                    @if (match.venue.location) {
-                                      <span class="text-slate-500">({{ match.venue.location }})</span>
-                                    }
-                                  </div>
-                                }
-                              </div>
-
-                              <!-- Status Badges & Controls -->
-                              <div class="flex items-center justify-end gap-3">
-                                @if (match.status === 'scheduled') {
-                                  <span class="text-[10px] font-bold px-2.5 py-1 bg-slate-800 text-slate-400 rounded-lg border border-white/5 uppercase tracking-wider">
-                                    Scheduled
-                                  </span>
-                                } @else if (match.status === 'live') {
-                                  <span class="text-[10px] font-bold px-2.5 py-1 bg-rose-500/10 text-rose-400 rounded-lg border border-rose-500/20 uppercase tracking-wider animate-pulse">
-                                    LIVE
-                                  </span>
-                                } @else {
-                                  <span class="text-[10px] font-bold px-2.5 py-1 bg-blue-500/10 text-blue-400 rounded-lg border border-blue-500/20 uppercase tracking-wider">
-                                    Completed
-                                  </span>
-                                }
-
-                                <button (click)="onSelectMatch(match)"
-                                  class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-lg transition-all cursor-pointer">
-                                  {{ match.status === 'completed' ? 'View Details' : 'Live Console' }}
-                                </button>
-
-                                @if (canManageMembers()) {
-                                  <button (click)="onDeleteMatch(match)"
-                                    class="p-2 text-rose-400 hover:text-white hover:bg-rose-600/20 border border-rose-500/10 hover:border-rose-500/30 rounded-lg transition-all cursor-pointer">
-                                    <i class="fi fi-rr-trash"></i>
-                                  </button>
-                                }
-                              </div>
-
-                            </div>
+                  <div class="flex flex-col gap-6">
+                    <!-- Full Width Header -->
+                    <div class="flex items-center justify-between border-b border-white/5 pb-4">
+                      <h3 class="text-sm font-bold text-white uppercase tracking-wider">Scheduled Matches</h3>
+                      
+                      @if (canManageMembers() && stages().length > 0) {
+                        <button (click)="onResetStagesAndFixtures()" [disabled]="isResettingStages()"
+                          class="px-4 py-2.5 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/20 hover:border-rose-500/40 text-rose-400 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                          @if (isResettingStages()) {
+                            <svg class="animate-spin w-3.5 h-3.5 text-rose-400" fill="none" viewBox="0 0 24 24">
+                              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            Resetting...
+                          } @else {
+                            <i class="fi fi-rr-trash text-xs"></i> Reset Stages & Fixtures
                           }
-                        </div>
+                        </button>
                       }
                     </div>
 
-                    <!-- Right: Stage Info, Enrolled Teams, and Schedule Match Form -->
-                    <div class="flex flex-col gap-6">
-                      <!-- Stage Info & Teams Card -->
-                      <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-xl flex flex-col gap-5">
-                        <div class="flex items-center justify-between border-b border-white/5 pb-3">
-                          <div>
-                            <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                              <i class="fi fi-rr-settings text-violet-400"></i> Stage Info
-                            </h3>
-                            <p class="text-xs text-slate-500 mt-0.5">{{ selectedStage()?.name }}</p>
+                    <!-- Split Grid layout below header -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                      <!-- Left: Matches List -->
+                      <div class="lg:col-span-2 flex flex-col gap-6">
+                        @if (matches().length === 0) {
+                          <div class="rounded-2xl border border-dashed border-white/10 p-12 text-center flex flex-col items-center justify-center gap-3">
+                            <span class="text-3xl"><i class="fi fi-rr-football"></i></span>
+                            <div>
+                              <h3 class="text-sm font-semibold text-white">No matches scheduled for this stage</h3>
+                            </div>
                           </div>
-                          <span class="text-[10px] font-bold px-2.5 py-1 bg-violet-500/10 text-violet-300 rounded-lg border border-violet-500/20 uppercase tracking-wider">
-                            {{ selectedStage()?.type === 'group' ? 'Group Play' : (selectedStage()?.type === 'knockout' ? 'Knockout' : 'Combined') }}
-                          </span>
-                        </div>
+                        } @else {
+                          <div class="grid grid-cols-1 gap-4">
+                            @for (match of matches(); track match.id) {
+                              <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-6 group transition-all duration-300">
+                                
+                                <!-- Scoreboard visual & Venue info -->
+                                <div class="flex-1 flex flex-col items-center">
+                                  <div class="flex items-center justify-center gap-6 w-full">
+                                    <!-- Home Team -->
+                                    <div class="flex-1 text-right flex items-center justify-end gap-3">
+                                      <span class="text-sm font-bold text-white">{{ match.homeTeam?.name || 'Home' }}</span>
+                                      <div class="w-6 h-6 rounded-md overflow-hidden bg-slate-950 border border-white/10 flex items-center justify-center flex-shrink-0">
+                                        @if (match.homeTeam; as homeTeam) {
+                                          @if (homeTeam.logoUrl) {
+                                            <img [src]="homeTeam.logoUrl" alt="Logo" class="w-full h-full object-cover" />
+                                          } @else {
+                                            <span class="text-[9px] font-bold text-slate-500">{{ (homeTeam.name || 'Home').substring(0, 2).toUpperCase() }}</span>
+                                          }
+                                        } @else {
+                                          <span class="text-[9px] font-bold text-slate-500">HM</span>
+                                        }
+                                      </div>
+                                    </div>
 
-                        <!-- Stage Details Summaries -->
-                        <div class="flex flex-col gap-2 text-xs">
-                          @if (selectedStage()?.type === 'group' || selectedStage()?.type === 'group_knockout') {
-                            <div class="flex justify-between py-1.5 border-b border-white/5">
-                              <span class="text-slate-400">Win / Draw Points</span>
-                              <span class="text-white font-semibold">{{ selectedStage()?.config?.winPoint ?? 3 }} / {{ selectedStage()?.config?.drawPoint ?? 1 }} pts</span>
-                            </div>
-                            <div class="flex justify-between py-1.5 border-b border-white/5">
-                              <span class="text-slate-400">Games per Team</span>
-                              <span class="text-white font-semibold">{{ selectedStage()?.config?.gamesPerTeam ?? 3 }}</span>
-                            </div>
-                          }
-                          @if (selectedStage()?.type === 'knockout' || selectedStage()?.type === 'group_knockout') {
-                            <div class="flex justify-between py-1.5 border-b border-white/5">
-                              <span class="text-slate-400">Format</span>
-                              <span class="text-white font-semibold">{{ selectedStage()?.config?.twoLegged ? '2-Legged' : 'Single KO' }}</span>
-                            </div>
-                          }
-                          @if (selectedStage()?.type === 'group_knockout') {
-                            <div class="flex justify-between py-1.5 border-b border-white/5">
-                              <span class="text-slate-400">Groups / Advancing</span>
-                              <span class="text-white font-semibold">{{ selectedStage()?.config?.groupsCount ?? 2 }} groups / {{ selectedStage()?.config?.advancingCount ?? 2 }} teams</span>
-                            </div>
-                          }
-                        </div>
+                                    <!-- Score details -->
+                                    <div class="px-5 py-2 bg-slate-950 border border-white/10 rounded-2xl flex items-center justify-center gap-4 min-w-[100px] relative">
+                                      @if (match.status === 'live') {
+                                        <span class="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                                          <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-500 border border-slate-950"></span>
+                                        </span>
+                                      }
+                                      <span class="text-xl font-extrabold text-white">{{ match.homeScore }}</span>
+                                      <span class="text-xs text-slate-600 font-bold">VS</span>
+                                      <span class="text-xl font-extrabold text-white">{{ match.awayScore }}</span>
+                                    </div>
 
-                        <!-- Participating Teams List -->
-                        <div class="flex flex-col gap-2.5 mt-2">
-                          <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                            <span>Participating Teams</span>
-                            <span class="text-violet-400 font-semibold">{{ competitionTeams().length }} enrolled</span>
-                          </h4>
-                          
-                          <div class="max-h-[200px] overflow-y-auto pr-1 flex flex-col gap-1.5 custom-scrollbar">
-                            @for (ct of competitionTeams(); track ct.id) {
-                              <div class="bg-slate-950/60 border border-white/5 rounded-xl px-3.5 py-2 flex items-center gap-2">
-                                <div class="w-5 h-5 rounded-md bg-violet-500/10 flex items-center justify-center flex-shrink-0">
-                                  <i class="fi fi-rr-shield text-violet-400 text-[10px]"></i>
+                                    <!-- Away Team -->
+                                    <div class="flex-1 text-left flex items-center justify-start gap-3">
+                                      <div class="w-6 h-6 rounded-md overflow-hidden bg-slate-950 border border-white/10 flex items-center justify-center flex-shrink-0">
+                                        @if (match.awayTeam; as awayTeam) {
+                                          @if (awayTeam.logoUrl) {
+                                            <img [src]="awayTeam.logoUrl" alt="Logo" class="w-full h-full object-cover" />
+                                          } @else {
+                                            <span class="text-[9px] font-bold text-slate-500">{{ (awayTeam.name || 'Away').substring(0, 2).toUpperCase() }}</span>
+                                          }
+                                        } @else {
+                                          <span class="text-[9px] font-bold text-slate-500">AW</span>
+                                        }
+                                      </div>
+                                      <span class="text-sm font-bold text-white">{{ match.awayTeam?.name || 'Away' }}</span>
+                                    </div>
+                                  </div>
+                                  @if (match.venue) {
+                                    <div class="text-[10px] text-slate-400 flex items-center gap-1 mt-2.5">
+                                      <i class="fi fi-rr-marker text-violet-400"></i>
+                                      <span>{{ match.venue.name }}</span>
+                                      @if (match.venue.location) {
+                                        <span class="text-slate-500">({{ match.venue.location }})</span>
+                                      }
+                                    </div>
+                                  }
                                 </div>
-                                <span class="text-xs font-medium text-white truncate">{{ ct.team.name }}</span>
+
+                                <!-- Status Badges & Controls -->
+                                <div class="flex items-center justify-end gap-3 font-semibold">
+                                  @if (match.config?.round) {
+                                    <span class="text-[9px] font-extrabold px-2 py-1 bg-violet-600/10 text-violet-400 rounded-lg border border-violet-500/20 uppercase tracking-wider">
+                                      {{ match.config.round }}
+                                      @if (match.config.leg) {
+                                        - Leg {{ match.config.leg }}
+                                      }
+                                    </span>
+                                  }
+                                  @if (match.status === 'scheduled') {
+                                    <span class="text-[10px] font-bold px-2.5 py-1 bg-slate-800 text-slate-400 rounded-lg border border-white/5 uppercase tracking-wider">
+                                      Scheduled
+                                    </span>
+                                  } @else if (match.status === 'live') {
+                                    <span class="text-[10px] font-bold px-2.5 py-1 bg-rose-500/10 text-rose-400 rounded-lg border border-rose-500/20 uppercase tracking-wider animate-pulse">
+                                      LIVE
+                                    </span>
+                                  } @else {
+                                    <span class="text-[10px] font-bold px-2.5 py-1 bg-blue-500/10 text-blue-400 rounded-lg border border-blue-500/20 uppercase tracking-wider">
+                                      Completed
+                                    </span>
+                                  }
+
+                                  <button (click)="onSelectMatch(match)"
+                                    class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-lg transition-all cursor-pointer">
+                                    {{ match.status === 'completed' ? 'View Details' : 'Live Console' }}
+                                  </button>
+                                </div>
+
                               </div>
                             }
                           </div>
-                        </div>
-
-                        <!-- Configure / Regenerate Action Button -->
-                        @if (canManageMembers()) {
-                          <button (click)="openGenerateFixturesModal()"
-                            class="w-full mt-2 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-violet-900/20">
-                            <i class="fi fi-rr-settings-sliders text-xs"></i> Configure Stage & Teams
-                          </button>
                         }
                       </div>
 
-                      <!-- Schedule Match Form -->
-                      @if (canManageMembers()) {
-                        <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-xl flex flex-col gap-5">
-                          <h3 class="text-sm font-bold text-white border-b border-white/5 pb-3">Schedule Match</h3>
-                          
-                          @if (matchCreateSuccess()) {
-                            <div class="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3 text-emerald-300 text-xs flex items-center gap-2">
-                              {{ matchCreateSuccess() }}
-                            </div>
-                          }
-                          @if (matchCreateError()) {
-                            <div class="rounded-xl bg-rose-500/10 border border-rose-500/30 p-3 text-rose-300 text-xs flex items-center gap-2">
-                              {{ matchCreateError() }}
-                            </div>
-                          }
+                      <!-- Right Column: Points Table and Coming Soon Card -->
+                      <div class="flex flex-col gap-6">
+                        <!-- Points Table (Only for League / Group stages) -->
+                        @if (selectedStage()?.type !== 'knockout') {
+                          <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-xl flex flex-col gap-4">
+                            <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-3">
+                              <i class="fi fi-rr-list-check text-violet-400"></i> Points Table
+                            </h3>
 
-                          <form (submit)="onCreateMatch(); $event.preventDefault()" class="flex flex-col gap-4">
-                            <div class="flex flex-col gap-1.5 text-left">
-                              <label for="home-team" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Home Team <span class="text-rose-400">*</span></label>
-                              <select id="home-team"
-                                class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none w-full"
-                                [ngModel]="newMatchHomeTeamId()" (ngModelChange)="newMatchHomeTeamId.set($event)" name="mHome" required>
-                                <option value="" disabled>Select Home Team</option>
-                                @for (ct of competitionTeams(); track ct.id) {
-                                  <option [value]="ct.teamId">{{ ct.team.name }}</option>
+                            @if (availableGroups().length > 0) {
+                              <div class="flex items-center gap-1.5 p-1 bg-slate-950/60 border border-white/5 rounded-xl w-full">
+                                @for (group of availableGroups(); track group) {
+                                  <button (click)="selectedPointsTableGroup.set(group)"
+                                    class="flex-1 text-center text-[10px] font-bold py-1.5 px-3 rounded-lg transition-all cursor-pointer"
+                                    [class]="selectedPointsTableGroup() === group 
+                                      ? 'bg-violet-600 text-white shadow-md shadow-violet-600/20' 
+                                      : 'text-slate-400 hover:text-white hover:bg-white/5'">
+                                    {{ group }}
+                                  </button>
                                 }
-                              </select>
-                            </div>
-
-                            <div class="flex flex-col gap-1.5 text-left">
-                              <label for="away-team" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Away Team <span class="text-rose-400">*</span></label>
-                              <select id="away-team"
-                                class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none w-full"
-                                [ngModel]="newMatchAwayTeamId()" (ngModelChange)="newMatchAwayTeamId.set($event)" name="mAway" required>
-                                <option value="" disabled>Select Away Team</option>
-                                @for (ct of competitionTeams(); track ct.id) {
-                                  <option [value]="ct.teamId">{{ ct.team.name }}</option>
-                                }
-                              </select>
-                            </div>
-
-                            <div class="flex flex-col gap-1.5 text-left">
-                              <label for="match-venue" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Venue</label>
-                              <select id="match-venue"
-                                class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none w-full"
-                                [ngModel]="newMatchVenueId()" (ngModelChange)="newMatchVenueId.set($event)" name="mVenue">
-                                <option value="">Select Venue (Optional)</option>
-                                @for (v of venues(); track v.id) {
-                                  <option [value]="v.id">{{ v.name }} @if(v.location){ ({{ v.location }}) }</option>
-                                }
-                              </select>
-                            </div>
-
-                            <!-- Sport-specific parameters -->
-                            @if (selectedCompetition()?.sport?.code === 'football') {
-                              <div class="flex flex-col gap-1.5 text-left">
-                                <label for="m-duration" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Match Timer Duration (mins)</label>
-                                <input id="m-duration" type="number" class="bg-slate-950 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white outline-none w-full"
-                                  [ngModel]="newMatchTimerDuration()" (ngModelChange)="newMatchTimerDuration.set($event)" name="mDuration" />
-                              </div>
-                            } @else if (selectedCompetition()?.sport?.code === 'cricket') {
-                              <div class="flex flex-col gap-1.5 text-left">
-                                <label for="m-overs" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Overs</label>
-                                <input id="m-overs" type="number" class="bg-slate-950 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white outline-none w-full"
-                                  [ngModel]="newMatchOvers()" (ngModelChange)="newMatchOvers.set($event)" name="mOvers" />
-                              </div>
-                            } @else if (selectedCompetition()?.sport?.code === 'badminton') {
-                              <div class="flex flex-col gap-1.5 text-left">
-                                <label for="m-sets" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sets to Win</label>
-                                <input id="m-sets" type="number" class="bg-slate-950 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white outline-none w-full"
-                                  [ngModel]="newMatchSetsToWin()" (ngModelChange)="newMatchSetsToWin.set($event)" name="mSets" />
                               </div>
                             }
 
-                            <button type="submit" [disabled]="!newMatchHomeTeamId() || !newMatchAwayTeamId() || newMatchHomeTeamId() === newMatchAwayTeamId()"
-                              class="w-full py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all cursor-pointer">
-                              Schedule Match
-                            </button>
-                          </form>
+                            <div class="overflow-x-auto">
+                              <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                  <tr class="text-slate-400 border-b border-white/5">
+                                    <th class="py-2.5 font-bold uppercase tracking-wider text-[10px]">#</th>
+                                    <th class="py-2.5 font-bold uppercase tracking-wider text-[10px] pl-2">Team</th>
+                                    <th class="py-2.5 font-bold uppercase tracking-wider text-[10px] text-center">P</th>
+                                    <th class="py-2.5 font-bold uppercase tracking-wider text-[10px] text-center">W</th>
+                                    <th class="py-2.5 font-bold uppercase tracking-wider text-[10px] text-center">D</th>
+                                    <th class="py-2.5 font-bold uppercase tracking-wider text-[10px] text-center">L</th>
+                                    <th class="py-2.5 font-bold uppercase tracking-wider text-[10px] text-center">GD</th>
+                                    <th class="py-2.5 font-bold uppercase tracking-wider text-[10px] text-right pr-2">Pts</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  @for (row of leagueTable(); track row.teamId; let idx = $index) {
+                                    <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                                      <td class="py-3 font-semibold text-slate-400">{{ idx + 1 }}</td>
+                                      <td class="py-3 font-medium text-white pl-2">
+                                        <div class="flex items-center gap-2">
+                                          <div class="w-5 h-5 rounded overflow-hidden bg-slate-950 border border-white/10 flex items-center justify-center flex-shrink-0">
+                                            @if (row.teamLogoUrl) {
+                                              <img [src]="row.teamLogoUrl" alt="Logo" class="w-full h-full object-cover" />
+                                            } @else {
+                                              <span class="text-[8px] font-bold text-slate-500">{{ row.teamName.substring(0, 2).toUpperCase() }}</span>
+                                            }
+                                          </div>
+                                          <span class="truncate max-w-[100px]" [title]="row.teamName">{{ row.teamName }}</span>
+                                        </div>
+                                      </td>
+                                      <td class="py-3 text-center text-slate-300 font-semibold">{{ row.played }}</td>
+                                      <td class="py-3 text-center text-emerald-400 font-medium">{{ row.won }}</td>
+                                      <td class="py-3 text-center text-slate-400 font-medium">{{ row.drawn }}</td>
+                                      <td class="py-3 text-center text-rose-400 font-medium">{{ row.lost }}</td>
+                                      <td class="py-3 text-center text-slate-300 font-semibold" [class.text-emerald-400]="row.gd > 0" [class.text-rose-400]="row.gd < 0">
+                                        {{ row.gd > 0 ? '+' : '' }}{{ row.gd }}
+                                      </td>
+                                      <td class="py-3 text-right pr-2 font-extrabold text-violet-400">{{ row.pts }}</td>
+                                    </tr>
+                                  } @empty {
+                                    <tr>
+                                      <td colspan="8" class="py-6 text-center text-slate-500">
+                                        No team data available
+                                      </td>
+                                    </tr>
+                                  }
+                                </tbody>
+                              </table>
+                            </div>
+
+                            <!-- Small Points Structure footer -->
+                            <div class="flex items-center justify-between text-[10px] text-slate-400 border-t border-white/5 pt-3 mt-1">
+                              <span>Points System</span>
+                              <div class="flex items-center gap-3">
+                                <span class="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded border border-emerald-500/20 font-semibold">Win: {{ selectedStage()?.config?.winPoint ?? 3 }} pts</span>
+                                <span class="px-2 py-0.5 bg-slate-800 text-slate-300 rounded border border-white/5 font-semibold">Draw: {{ selectedStage()?.config?.drawPoint ?? 1 }} pt</span>
+                              </div>
+                            </div>
+                          </div>
+                        }
+
+                        <!-- Bracket visual (Only for Knockout or Group Knockout stages) -->
+                        @if (selectedStage()?.type === 'knockout' || selectedStage()?.type === 'group_knockout') {
+                          <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-xl flex flex-col gap-4">
+                            <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-3">
+                              <i class="fi fi-rr-diagram-project text-violet-400"></i> Tournament Bracket
+                            </h3>
+
+                            <div class="flex flex-col gap-5">
+                              @for (roundName of getKnockoutRounds(); track roundName) {
+                                <div class="flex flex-col gap-2">
+                                  <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-violet-500"></span>
+                                    {{ roundName }}
+                                  </div>
+                                  <div class="flex flex-col gap-2 bg-slate-950/40 p-2.5 border border-white/5 rounded-xl">
+                                    @for (m of getMatchesForRound(roundName); track m.id) {
+                                      <div class="flex flex-col gap-1 w-full text-xs py-2 border-b border-white/5 last:border-b-0">
+                                        <!-- Home Team -->
+                                        <div class="flex items-center justify-between">
+                                          <div class="flex items-center gap-1.5">
+                                            <div class="w-4 h-4 rounded overflow-hidden bg-slate-900 border border-white/10 flex items-center justify-center flex-shrink-0">
+                                              @if (m.homeTeam; as homeTeam) {
+                                                @if (homeTeam.logoUrl) {
+                                                  <img [src]="homeTeam.logoUrl" alt="Logo" class="w-full h-full object-cover" />
+                                                } @else {
+                                                  <span class="text-[7px] font-bold text-slate-500">{{ homeTeam.name.substring(0, 2).toUpperCase() }}</span>
+                                                }
+                                              } @else {
+                                                <span class="text-[7px] font-bold text-slate-500">TB</span>
+                                              }
+                                            </div>
+                                            <span class="font-medium truncate max-w-[120px]" [class.text-slate-500]="!m.homeTeam" [class.text-white]="m.homeTeam">
+                                              {{ m.homeTeam?.name || 'TBD' }}
+                                            </span>
+                                          </div>
+                                          @if (m.status === 'completed') {
+                                            <span class="font-bold text-white pr-1">{{ m.homeScore }}</span>
+                                          }
+                                        </div>
+                                        <!-- Away Team -->
+                                        <div class="flex items-center justify-between">
+                                          <div class="flex items-center gap-1.5">
+                                            <div class="w-4 h-4 rounded overflow-hidden bg-slate-900 border border-white/10 flex items-center justify-center flex-shrink-0">
+                                              @if (m.awayTeam; as awayTeam) {
+                                                @if (awayTeam.logoUrl) {
+                                                  <img [src]="awayTeam.logoUrl" alt="Logo" class="w-full h-full object-cover" />
+                                                } @else {
+                                                  <span class="text-[7px] font-bold text-slate-500">{{ awayTeam.name.substring(0, 2).toUpperCase() }}</span>
+                                                }
+                                              } @else {
+                                                <span class="text-[7px] font-bold text-slate-500">TB</span>
+                                              }
+                                            </div>
+                                            <span class="font-medium truncate max-w-[120px]" [class.text-slate-500]="!m.awayTeam" [class.text-white]="m.awayTeam">
+                                              {{ m.awayTeam?.name || 'TBD' }}
+                                            </span>
+                                          </div>
+                                          @if (m.status === 'completed') {
+                                            <span class="font-bold text-white pr-1">{{ m.awayScore }}</span>
+                                          }
+                                        </div>
+                                      </div>
+                                    }
+                                  </div>
+                                </div>
+                              } @empty {
+                                <div class="text-center text-xs text-slate-500 py-6">
+                                  No knockout matches generated yet.
+                                </div>
+                              }
+                            </div>
+                          </div>
+                        }
+
+                        <!-- Coming Soon Card -->
+                        <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-xl flex flex-col gap-4 text-center justify-center items-center">
+                          <div class="w-10 h-10 rounded-full bg-violet-500/10 flex items-center justify-center text-violet-400">
+                            <i class="fi fi-rr-time-past text-lg"></i>
+                          </div>
+                          <div>
+                            <h4 class="text-xs font-bold text-white uppercase tracking-wider">Manual Management</h4>
+                            <p class="text-[11px] text-slate-400 mt-1">Manual fixture generation and custom match scheduling features are coming soon.</p>
+                          </div>
                         </div>
-                      }
+                      </div>
                     </div>
                   </div>
                 } @else {
@@ -1835,8 +1838,18 @@
                               <!-- List goals details -->
                               <div class="text-[10px] text-slate-400 mt-1 flex flex-col items-end">
                                 @for (ev of match.liveData?.events; track ev) {
-                                  @if (ev.type === 'goal' && ev.teamId === match.homeTeamId) {
-                                    <span><i class="fi fi-rr-football text-violet-400"></i> {{ ev.minute }}' ({{ getPlayersForTeam(match.homeTeamId).find(p => p.userId === ev.playerUserId)?.user?.username || 'Player' }})</span>
+                                  @if (ev.type === 'goal') {
+                                    @let isHomeGoal = (ev.goalType === 'own_goal') ? (ev.teamId === match.awayTeamId) : (ev.teamId === match.homeTeamId);
+                                    @if (isHomeGoal) {
+                                      <span>
+                                        <i class="fi fi-rr-football text-violet-400"></i> {{ ev.minute }}' 
+                                        @if (ev.goalType === 'own_goal') {
+                                          (OG - {{ ev.playerName || getPlayersForTeam(match.awayTeamId).find(p => p.userId === ev.playerUserId)?.user?.username || 'Opponent' }})
+                                        } @else {
+                                          {{ ev.playerName || getPlayersForTeam(match.homeTeamId).find(p => p.userId === ev.playerUserId)?.user?.username || 'Player' }}
+                                        }
+                                      </span>
+                                    }
                                   }
                                 }
                               </div>
@@ -1870,8 +1883,18 @@
                             @if (sport === 'football') {
                               <div class="text-[10px] text-slate-400 mt-1 flex flex-col items-start">
                                 @for (ev of match.liveData?.events; track ev) {
-                                  @if (ev.type === 'goal' && ev.teamId === match.awayTeamId) {
-                                    <span><i class="fi fi-rr-football text-violet-400"></i> {{ ev.minute }}' ({{ getPlayersForTeam(match.awayTeamId).find(p => p.userId === ev.playerUserId)?.user?.username || 'Player' }})</span>
+                                  @if (ev.type === 'goal') {
+                                    @let isAwayGoal = (ev.goalType === 'own_goal') ? (ev.teamId === match.homeTeamId) : (ev.teamId === match.awayTeamId);
+                                    @if (isAwayGoal) {
+                                      <span>
+                                        <i class="fi fi-rr-football text-violet-400"></i> {{ ev.minute }}' 
+                                        @if (ev.goalType === 'own_goal') {
+                                          (OG - {{ ev.playerName || getPlayersForTeam(match.homeTeamId).find(p => p.userId === ev.playerUserId)?.user?.username || 'Opponent' }})
+                                        } @else {
+                                          {{ ev.playerName || getPlayersForTeam(match.awayTeamId).find(p => p.userId === ev.playerUserId)?.user?.username || 'Player' }}
+                                        }
+                                      </span>
+                                    }
                                   }
                                 }
                               </div>
@@ -1924,110 +1947,168 @@
                               </button>
                             </div>
 
-                            <!-- Score Goal / Card forms for Home and Away Team -->
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              
-                              <!-- Home Team Panel -->
-                              <div class="flex flex-col gap-4 p-4 rounded-xl bg-slate-950 border border-white/5">
-                                <h5 class="text-xs font-bold text-violet-400 uppercase tracking-wider">{{ match.homeTeam?.name }} Events</h5>
-                                
-                                <!-- Goal log -->
-                                <div class="flex flex-col gap-2">
-                                  <label class="text-[10px] font-bold text-slate-400 uppercase">Log Goal</label>
-                                  <div class="flex gap-2">
-                                    <select #homeScorerSelect class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
-                                      <option value="">Select Scorer</option>
-                                      @for (p of getPlayersForTeam(match.homeTeamId); track p.id) {
-                                        <option [value]="p.userId">{{ p.user.username || p.id }}</option>
-                                      }
-                                    </select>
-                                    <select #homeAssistSelect class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
-                                      <option value="">Select Assist (Opt)</option>
-                                      @for (p of getPlayersForTeam(match.homeTeamId); track p.id) {
-                                        <option [value]="p.userId">{{ p.user.username || p.id }}</option>
-                                      }
-                                    </select>
-                                    <button (click)="onRecordFootballGoal(match.homeTeamId!, homeScorerSelect.value, homeAssistSelect.value); homeScorerSelect.value=''; homeAssistSelect.value=''"
-                                      [disabled]="!homeScorerSelect.value"
-                                      class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
-                                      Goal
-                                    </button>
-                                  </div>
-                                </div>
+                             <!-- Score Goal / Card forms for Home and Away Team -->
+                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                               
+                               <!-- Home Team Panel -->
+                               <div class="flex flex-col gap-4 p-4 rounded-xl bg-slate-950 border border-white/5">
+                                 <h5 class="text-xs font-bold text-violet-400 uppercase tracking-wider">{{ match.homeTeam?.name }} Events</h5>
+                                 
+                                 <!-- Goal log -->
+                                 <div class="flex flex-col gap-2">
+                                   <label class="text-[10px] font-bold text-slate-400 uppercase">Log Goal</label>
+                                   <div class="flex flex-col gap-2 bg-slate-900/40 p-2.5 rounded-xl border border-white/5">
+                                     <div class="flex gap-2">
+                                       <select #homeGoalType class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                                         <option value="regular">Regular Goal</option>
+                                         <option value="own_goal">Own Goal</option>
+                                       </select>
+                                     </div>
+                                     <div class="flex gap-2">
+                                       <select #homeScorerSelect class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none"
+                                         (change)="homeScorerCustomInput.value = ''">
+                                         <option value="">Select Scorer</option>
+                                         <option value="unregistered">Unregistered Player</option>
+                                         @for (p of getPlayersForTeam(match.homeTeamId); track p.id) {
+                                           <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                                         }
+                                       </select>
+                                       <input #homeScorerCustomInput type="text" placeholder="Scorer Name"
+                                         [class.hidden]="homeScorerSelect.value !== 'unregistered'"
+                                         class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none" />
+                                     </div>
+                                     <div class="flex gap-2" [class.hidden]="homeGoalType.value === 'own_goal'">
+                                       <select #homeAssistSelect class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none"
+                                         (change)="homeAssistCustomInput.value = ''">
+                                         <option value="">Select Assist (Opt)</option>
+                                         <option value="unregistered">Unregistered Player</option>
+                                         @for (p of getPlayersForTeam(match.homeTeamId); track p.id) {
+                                           <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                                         }
+                                       </select>
+                                       <input #homeAssistCustomInput type="text" placeholder="Assist Name"
+                                         [class.hidden]="homeAssistSelect.value !== 'unregistered'"
+                                         class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none" />
+                                     </div>
+                                     <div class="flex justify-end mt-1">
+                                       <button (click)="onRecordFootballGoal({
+                                         teamId: match.homeTeamId!,
+                                         goalType: homeGoalType.value,
+                                         scorerId: homeScorerSelect.value,
+                                         scorerCustomName: homeScorerSelect.value === 'unregistered' ? homeScorerCustomInput.value : '',
+                                         assistId: homeGoalType.value !== 'own_goal' ? homeAssistSelect.value : '',
+                                         assistCustomName: (homeGoalType.value !== 'own_goal' && homeAssistSelect.value === 'unregistered') ? homeAssistCustomInput.value : ''
+                                       }); homeScorerSelect.value=''; homeScorerCustomInput.value=''; homeAssistSelect.value=''; homeAssistCustomInput.value=''; homeGoalType.value='regular'"
+                                         [disabled]="homeGoalType.value !== 'own_goal' && (!homeScorerSelect.value || (homeScorerSelect.value === 'unregistered' && !homeScorerCustomInput.value))"
+                                         class="px-3.5 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
+                                         Goal
+                                       </button>
+                                     </div>
+                                   </div>
+                                 </div>
 
-                                <!-- Card log -->
-                                <div class="flex flex-col gap-2 pt-2 border-t border-white/5">
-                                  <label class="text-[10px] font-bold text-slate-400 uppercase">Log Card</label>
-                                  <div class="flex gap-2">
-                                    <select #homeCardPlayer class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
-                                      <option value="">Select Player</option>
-                                      @for (p of getPlayersForTeam(match.homeTeamId); track p.id) {
-                                        <option [value]="p.userId">{{ p.user.username || p.id }}</option>
-                                      }
-                                    </select>
-                                    <select #homeCardType class="bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
-                                      <option value="yellow">Yellow</option>
-                                      <option value="red">Red</option>
-                                    </select>
-                                    <button (click)="onRecordFootballCard(match.homeTeamId!, homeCardPlayer.value, homeCardType.value === 'red' ? 'red' : 'yellow'); homeCardPlayer.value=''"
-                                      [disabled]="!homeCardPlayer.value"
-                                      class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
-                                      Card
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
+                                 <!-- Card log -->
+                                 <div class="flex flex-col gap-2 pt-2 border-t border-white/5">
+                                   <label class="text-[10px] font-bold text-slate-400 uppercase">Log Card</label>
+                                   <div class="flex gap-2">
+                                     <select #homeCardPlayer class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                                       <option value="">Select Player</option>
+                                       @for (p of getPlayersForTeam(match.homeTeamId); track p.id) {
+                                         <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                                       }
+                                     </select>
+                                     <select #homeCardType class="bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                                       <option value="yellow">Yellow</option>
+                                       <option value="red">Red</option>
+                                     </select>
+                                     <button (click)="onRecordFootballCard(match.homeTeamId!, homeCardPlayer.value, homeCardType.value === 'red' ? 'red' : 'yellow'); homeCardPlayer.value=''"
+                                       [disabled]="!homeCardPlayer.value"
+                                       class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
+                                       Card
+                                     </button>
+                                   </div>
+                                 </div>
+                               </div>
 
-                              <!-- Away Team Panel -->
-                              <div class="flex flex-col gap-4 p-4 rounded-xl bg-slate-950 border border-white/5">
-                                <h5 class="text-xs font-bold text-violet-400 uppercase tracking-wider">{{ match.awayTeam?.name }} Events</h5>
-                                
-                                <!-- Goal log -->
-                                <div class="flex flex-col gap-2">
-                                  <label class="text-[10px] font-bold text-slate-400 uppercase">Log Goal</label>
-                                  <div class="flex gap-2">
-                                    <select #awayScorerSelect class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
-                                      <option value="">Select Scorer</option>
-                                      @for (p of getPlayersForTeam(match.awayTeamId); track p.id) {
-                                        <option [value]="p.userId">{{ p.user.username || p.id }}</option>
-                                      }
-                                    </select>
-                                    <select #awayAssistSelect class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
-                                      <option value="">Select Assist (Opt)</option>
-                                      @for (p of getPlayersForTeam(match.awayTeamId); track p.id) {
-                                        <option [value]="p.userId">{{ p.user.username || p.id }}</option>
-                                      }
-                                    </select>
-                                    <button (click)="onRecordFootballGoal(match.awayTeamId!, awayScorerSelect.value, awayAssistSelect.value); awayScorerSelect.value=''; awayAssistSelect.value=''"
-                                      [disabled]="!awayScorerSelect.value"
-                                      class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
-                                      Goal
-                                    </button>
-                                  </div>
-                                </div>
+                               <!-- Away Team Panel -->
+                               <div class="flex flex-col gap-4 p-4 rounded-xl bg-slate-950 border border-white/5">
+                                 <h5 class="text-xs font-bold text-violet-400 uppercase tracking-wider">{{ match.awayTeam?.name }} Events</h5>
+                                 
+                                 <!-- Goal log -->
+                                 <div class="flex flex-col gap-2">
+                                   <label class="text-[10px] font-bold text-slate-400 uppercase">Log Goal</label>
+                                   <div class="flex flex-col gap-2 bg-slate-900/40 p-2.5 rounded-xl border border-white/5">
+                                     <div class="flex gap-2">
+                                       <select #awayGoalType class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                                         <option value="regular">Regular Goal</option>
+                                         <option value="own_goal">Own Goal</option>
+                                       </select>
+                                     </div>
+                                     <div class="flex gap-2">
+                                       <select #awayScorerSelect class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none"
+                                         (change)="awayScorerCustomInput.value = ''">
+                                         <option value="">Select Scorer</option>
+                                         <option value="unregistered">Unregistered Player</option>
+                                         @for (p of getPlayersForTeam(match.awayTeamId); track p.id) {
+                                           <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                                         }
+                                       </select>
+                                       <input #awayScorerCustomInput type="text" placeholder="Scorer Name"
+                                         [class.hidden]="awayScorerSelect.value !== 'unregistered'"
+                                         class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none" />
+                                     </div>
+                                     <div class="flex gap-2" [class.hidden]="awayGoalType.value === 'own_goal'">
+                                       <select #awayAssistSelect class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none"
+                                         (change)="awayAssistCustomInput.value = ''">
+                                         <option value="">Select Assist (Opt)</option>
+                                         <option value="unregistered">Unregistered Player</option>
+                                         @for (p of getPlayersForTeam(match.awayTeamId); track p.id) {
+                                           <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                                         }
+                                       </select>
+                                       <input #awayAssistCustomInput type="text" placeholder="Assist Name"
+                                         [class.hidden]="awayAssistSelect.value !== 'unregistered'"
+                                         class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none" />
+                                     </div>
+                                     <div class="flex justify-end mt-1">
+                                       <button (click)="onRecordFootballGoal({
+                                         teamId: match.awayTeamId!,
+                                         goalType: awayGoalType.value,
+                                         scorerId: awayScorerSelect.value,
+                                         scorerCustomName: awayScorerSelect.value === 'unregistered' ? awayScorerCustomInput.value : '',
+                                         assistId: awayGoalType.value !== 'own_goal' ? awayAssistSelect.value : '',
+                                         assistCustomName: (awayGoalType.value !== 'own_goal' && awayAssistSelect.value === 'unregistered') ? awayAssistCustomInput.value : ''
+                                       }); awayScorerSelect.value=''; awayScorerCustomInput.value=''; awayAssistSelect.value=''; awayAssistCustomInput.value=''; awayGoalType.value='regular'"
+                                         [disabled]="awayGoalType.value !== 'own_goal' && (!awayScorerSelect.value || (awayScorerSelect.value === 'unregistered' && !awayScorerCustomInput.value))"
+                                         class="px-3.5 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
+                                         Goal
+                                       </button>
+                                     </div>
+                                   </div>
+                                 </div>
 
-                                <!-- Card log -->
-                                <div class="flex flex-col gap-2 pt-2 border-t border-white/5">
-                                  <label class="text-[10px] font-bold text-slate-400 uppercase">Log Card</label>
-                                  <div class="flex gap-2">
-                                    <select #awayCardPlayer class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
-                                      <option value="">Select Player</option>
-                                      @for (p of getPlayersForTeam(match.awayTeamId); track p.id) {
-                                        <option [value]="p.userId">{{ p.user.username || p.id }}</option>
-                                      }
-                                    </select>
-                                    <select #awayCardType class="bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
-                                      <option value="yellow">Yellow</option>
-                                      <option value="red">Red</option>
-                                    </select>
-                                    <button (click)="onRecordFootballCard(match.awayTeamId!, awayCardPlayer.value, awayCardType.value === 'red' ? 'red' : 'yellow'); awayCardPlayer.value=''"
-                                      [disabled]="!awayCardPlayer.value"
-                                      class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
-                                      Card
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
+                                 <!-- Card log -->
+                                 <div class="flex flex-col gap-2 pt-2 border-t border-white/5">
+                                   <label class="text-[10px] font-bold text-slate-400 uppercase">Log Card</label>
+                                   <div class="flex gap-2">
+                                     <select #awayCardPlayer class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                                       <option value="">Select Player</option>
+                                       @for (p of getPlayersForTeam(match.awayTeamId); track p.id) {
+                                         <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                                       }
+                                     </select>
+                                     <select #awayCardType class="bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                                       <option value="yellow">Yellow</option>
+                                       <option value="red">Red</option>
+                                     </select>
+                                     <button (click)="onRecordFootballCard(match.awayTeamId!, awayCardPlayer.value, awayCardType.value === 'red' ? 'red' : 'yellow'); awayCardPlayer.value=''"
+                                       [disabled]="!awayCardPlayer.value"
+                                       class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
+                                       Card
+                                     </button>
+                                   </div>
+                                 </div>
+                               </div>
 
                             </div>
                           </div>
@@ -2191,11 +2272,22 @@
                                 <span class="text-xs font-bold text-violet-400 w-8 flex-shrink-0">{{ e.minute }}'</span>
                                 <div class="flex-1 flex flex-col gap-0.5">
                                   @if (e.type === 'goal') {
-                                    <span class="text-xs font-bold text-white"><i class="fi fi-rr-football"></i> GOAL!</span>
+                                    <span class="text-xs font-bold text-white">
+                                      <i class="fi fi-rr-football"></i> 
+                                      @if (e.goalType === 'own_goal') {
+                                        OWN GOAL!
+                                      } @else {
+                                        GOAL!
+                                      }
+                                    </span>
                                     <span class="text-[10px] text-slate-400">
-                                      Scorer: {{ getPlayersForTeam(e.teamId).find(p => p.userId === e.playerUserId)?.user?.username || 'Player' }}
-                                      @if (e.assistPlayerUserId) {
-                                        (Assist: {{ getPlayersForTeam(e.teamId).find(p => p.userId === e.assistPlayerUserId)?.user?.username || 'Player' }})
+                                      @if (e.goalType === 'own_goal') {
+                                        Scorer: {{ e.playerName || getPlayersForTeam(e.teamId).find(p => p.userId === e.playerUserId)?.user?.username || 'Player' }} (OG)
+                                      } @else {
+                                        Scorer: {{ e.playerName || getPlayersForTeam(e.teamId).find(p => p.userId === e.playerUserId)?.user?.username || 'Player' }}
+                                        @if (e.assistPlayerUserId || e.assistPlayerName) {
+                                          (Assist: {{ e.assistPlayerName || getPlayersForTeam(e.teamId).find(p => p.userId === e.assistPlayerUserId)?.user?.username || 'Player' }})
+                                        }
                                       }
                                     </span>
                                   } @else if (e.type === 'card') {
@@ -3365,7 +3457,7 @@
           <div class="flex flex-col gap-4 border-t border-white/5 pt-5">
             <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">2. Stage Configuration</h3>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <!-- Stage Name -->
               <div class="flex flex-col gap-1.5 text-left">
                 <label for="modal-stage-name" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Stage Name <span class="text-rose-400">*</span></label>
@@ -3380,54 +3472,133 @@
                 <select id="modal-stage-type"
                   class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none w-full"
                   [ngModel]="newStageType()" (ngModelChange)="newStageType.set($event)" name="mStageType" required>
-                  <option value="group">Group Play (Round Robin)</option>
+                  <option value="league">League (Single Group)</option>
                   <option value="knockout">Knockout</option>
-                  <option value="group_knockout">Group & Knockout Combined</option>
+                  <option value="group_knockout">Group + Knockout</option>
+                </select>
+              </div>
+
+              <!-- Default Venue -->
+              <div class="flex flex-col gap-1.5 text-left">
+                <label for="modal-stage-venue" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Default Venue</label>
+                <select id="modal-stage-venue"
+                  class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none w-full"
+                  [ngModel]="newStageVenueId()" (ngModelChange)="newStageVenueId.set($event)" name="mStageVenue">
+                  <option value="">Select Venue (Optional)</option>
+                  @for (v of venues(); track v.id) {
+                    <option [value]="v.id">{{ v.name }} @if(v.location){ ({{ v.location }}) }</option>
+                  }
                 </select>
               </div>
             </div>
 
             <!-- Dynamic Config Parameters -->
-            @if (newStageType() === 'group' || newStageType() === 'group_knockout') {
-              <div class="grid grid-cols-3 gap-3 bg-slate-950/20 p-4 border border-white/5 rounded-2xl mt-1">
+            <!-- LEAGUE CONFIGURATION -->
+            @if (newStageType() === 'league') {
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-950/20 p-4 border border-white/5 rounded-2xl mt-1">
                 <div class="flex flex-col gap-1.5 text-left">
                   <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Win Point</label>
-                  <input type="number" class="bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white w-full"
+                  <input type="number" class="bg-slate-950 border border-white/10 focus:border-violet-500 rounded-xl px-3 py-2 text-xs text-white w-full"
                     [ngModel]="newStageWinPoint()" (ngModelChange)="newStageWinPoint.set($event)" name="mStageWin" />
                 </div>
                 <div class="flex flex-col gap-1.5 text-left">
                   <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Draw Point</label>
-                  <input type="number" class="bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white w-full"
+                  <input type="number" class="bg-slate-950 border border-white/10 focus:border-violet-500 rounded-xl px-3 py-2 text-xs text-white w-full"
                     [ngModel]="newStageDrawPoint()" (ngModelChange)="newStageDrawPoint.set($event)" name="mStageDraw" />
                 </div>
                 <div class="flex flex-col gap-1.5 text-left">
-                  <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Games / Team</label>
-                  <input type="number" class="bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white w-full"
-                    [ngModel]="newStageGamesPerTeam()" (ngModelChange)="newStageGamesPerTeam.set($event)" name="mStageGames" />
+                  <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Legs (Times Play)</label>
+                  <select class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3 py-2 text-xs text-white w-full"
+                    [ngModel]="newStageLegs()" (ngModelChange)="newStageLegs.set($event)" name="mStageLegs">
+                    <option [value]="1">1 Time (Single Leg)</option>
+                    <option [value]="2">2 Times (Double Leg)</option>
+                  </select>
                 </div>
               </div>
             }
 
-            @if (newStageType() === 'knockout' || newStageType() === 'group_knockout') {
-              <div class="flex items-center gap-2.5 text-left py-2 px-1">
-                <input type="checkbox" id="modal-stage-legged" class="w-4 h-4 rounded border-white/10 accent-violet-600 bg-slate-950"
-                  [ngModel]="newStageTwoLegged()" (ngModelChange)="newStageTwoLegged.set($event)" name="mStageLegged" />
-                <label for="modal-stage-legged" class="text-xs text-slate-300 font-bold select-none cursor-pointer">Two-Legged (Home/Away Legs)</label>
+            <!-- KNOCKOUT CONFIGURATION -->
+            @if (newStageType() === 'knockout') {
+              <div class="grid grid-cols-1 gap-3 bg-slate-950/20 p-4 border border-white/5 rounded-2xl mt-1">
+                <div class="flex flex-col gap-1.5 text-left">
+                  <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Legs Configuration</label>
+                  <select class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3 py-2.5 text-xs text-white w-full"
+                    [ngModel]="newStageLegs()" (ngModelChange)="newStageLegs.set($event)" name="mStageLegs">
+                    <option [value]="1">1 Leg (Single Match)</option>
+                    <option [value]="2">2 Legs (Home & Away)</option>
+                  </select>
+                </div>
               </div>
             }
 
+            <!-- GROUP + KNOCKOUT CONFIGURATION -->
             @if (newStageType() === 'group_knockout') {
-              <div class="grid grid-cols-2 gap-3 bg-slate-950/20 p-4 border border-white/5 rounded-2xl mt-1">
-                <div class="flex flex-col gap-1.5 text-left">
-                  <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Groups Count</label>
-                  <input type="number" class="bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white w-full"
-                    [ngModel]="newStageGroupsCount()" (ngModelChange)="newStageGroupsCount.set($event)" name="mStageGroups" />
+              <div class="flex flex-col gap-4 bg-slate-950/20 p-4 border border-white/5 rounded-2xl mt-1">
+                
+                <!-- Subtype: Single Group vs Multiple Groups -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div class="flex flex-col gap-1.5 text-left">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Group Format</label>
+                    <select class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3 py-2.5 text-xs text-white w-full"
+                      [ngModel]="newStageGroupKnockoutSubtype()" (ngModelChange)="newStageGroupKnockoutSubtype.set($event)" name="mGroupKoSubtype">
+                      <option value="multiple_groups">Multiple Groups</option>
+                      <option value="single_group">Single Group</option>
+                    </select>
+                  </div>
+                  
+                  <div class="flex flex-col gap-1.5 text-left">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Knockout Legs</label>
+                    <select class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3 py-2.5 text-xs text-white w-full"
+                      [ngModel]="newStageLegs()" (ngModelChange)="newStageLegs.set($event)" name="mStageLegs">
+                      <option [value]="1">Single Leg</option>
+                      <option [value]="2">2 Legs (Home & Away)</option>
+                    </select>
+                  </div>
                 </div>
-                <div class="flex flex-col gap-1.5 text-left">
-                  <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Advancing / Group</label>
-                  <input type="number" class="bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white w-full"
-                    [ngModel]="newStageAdvancingCount()" (ngModelChange)="newStageAdvancingCount.set($event)" name="mStageAdv" />
+
+                <!-- Points Configuration -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div class="flex flex-col gap-1.5 text-left">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Win Point</label>
+                    <input type="number" class="bg-slate-950 border border-white/10 focus:border-violet-500 rounded-xl px-3 py-2 text-xs text-white w-full"
+                      [ngModel]="newStageWinPoint()" (ngModelChange)="newStageWinPoint.set($event)" name="mStageWin" />
+                  </div>
+                  <div class="flex flex-col gap-1.5 text-left">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Draw Point</label>
+                    <input type="number" class="bg-slate-950 border border-white/10 focus:border-violet-500 rounded-xl px-3 py-2 text-xs text-white w-full"
+                      [ngModel]="newStageDrawPoint()" (ngModelChange)="newStageDrawPoint.set($event)" name="mStageDraw" />
+                  </div>
                 </div>
+
+                <!-- Fields based on subtype -->
+                @if (newStageGroupKnockoutSubtype() === 'multiple_groups') {
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-white/5 pt-3">
+                    <div class="flex flex-col gap-1.5 text-left">
+                      <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Groups Count</label>
+                      <input type="number" class="bg-slate-950 border border-white/10 focus:border-violet-500 rounded-xl px-3 py-2 text-xs text-white w-full"
+                        [ngModel]="newStageGroupsCount()" (ngModelChange)="newStageGroupsCount.set($event)" name="mStageGroups" />
+                    </div>
+                    <div class="flex flex-col gap-1.5 text-left">
+                      <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Advancing Option</label>
+                      <select class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3 py-2.5 text-xs text-white w-full"
+                        [ngModel]="newStageAdvancingType()" (ngModelChange)="newStageAdvancingType.set($event)" name="mAdvancingType">
+                        <option value="winner">Group Winner Only</option>
+                        <option value="winner_and_runner">Winner and Runner-up</option>
+                      </select>
+                    </div>
+                  </div>
+                } @else {
+                  <div class="grid grid-cols-1 gap-3 border-t border-white/5 pt-3">
+                    <div class="flex flex-col gap-1.5 text-left">
+                      <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Knockout Setup</label>
+                      <select class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3 py-2.5 text-xs text-white w-full"
+                        [ngModel]="newStageSingleGroupAdvancing()" (ngModelChange)="newStageSingleGroupAdvancing.set($event)" name="mSingleGroupAdv">
+                        <option [value]="2">Winner and Runner play Final</option>
+                        <option [value]="4">First four play Semi-Finals</option>
+                      </select>
+                    </div>
+                  </div>
+                }
               </div>
             }
           </div>

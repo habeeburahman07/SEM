@@ -17,8 +17,8 @@ export class CreateStageDto {
   name: string;
 
   @IsNotEmpty()
-  @IsEnum(['group', 'knockout', 'group_knockout'])
-  type: 'group' | 'knockout' | 'group_knockout';
+  @IsEnum(['league', 'group', 'knockout', 'group_knockout'])
+  type: 'league' | 'group' | 'knockout' | 'group_knockout';
 
   @IsOptional()
   @IsInt()
@@ -33,5 +33,9 @@ export class CreateStageDto {
     groupsCount?: number;
     advancingCount?: number;
     gamesPerTeam?: number;
+    legs?: number;
+    groupKnockoutSubtype?: 'single_group' | 'multiple_groups';
+    advancingType?: 'winner' | 'winner_and_runner';
+    singleGroupAdvancing?: number;
   };
 }

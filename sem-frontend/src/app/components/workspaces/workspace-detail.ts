@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, inject } from '@angular/core';
+import { Component, OnInit, signal, inject, computed } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { DatePipe, DecimalPipe } from '@angular/common';
@@ -150,13 +150,18 @@ export class WorkspaceDetailComponent implements OnInit {
   isLoadingStages = signal(false);
 
   newStageName = signal('');
-  newStageType = signal<'group' | 'knockout' | 'group_knockout'>('group');
+  newStageType = signal<'league' | 'group' | 'knockout' | 'group_knockout'>('league');
   newStageWinPoint = signal<number>(3);
   newStageDrawPoint = signal<number>(1);
   newStageTwoLegged = signal<boolean>(false);
   newStageGroupsCount = signal<number>(2);
   newStageAdvancingCount = signal<number>(2);
   newStageGamesPerTeam = signal<number>(3);
+  newStageLegs = signal<number>(1);
+  newStageGroupKnockoutSubtype = signal<'single_group' | 'multiple_groups'>('multiple_groups');
+  newStageAdvancingType = signal<'winner' | 'winner_and_runner'>('winner_and_runner');
+  newStageSingleGroupAdvancing = signal<number>(2);
+  newStageVenueId = signal<string>('');
 
   isCreatingStage = signal(false);
   stageCreateError = signal('');
@@ -164,13 +169,17 @@ export class WorkspaceDetailComponent implements OnInit {
 
   editingStage = signal<CompetitionStage | null>(null);
   editStageName = signal('');
-  editStageType = signal<'group' | 'knockout' | 'group_knockout'>('group');
+  editStageType = signal<'league' | 'group' | 'knockout' | 'group_knockout'>('league');
   editStageWinPoint = signal<number>(3);
   editStageDrawPoint = signal<number>(1);
   editStageTwoLegged = signal<boolean>(false);
   editStageGroupsCount = signal<number>(2);
   editStageAdvancingCount = signal<number>(2);
   editStageGamesPerTeam = signal<number>(3);
+  editStageLegs = signal<number>(1);
+  editStageGroupKnockoutSubtype = signal<'single_group' | 'multiple_groups'>('multiple_groups');
+  editStageAdvancingType = signal<'winner' | 'winner_and_runner'>('winner_and_runner');
+  editStageSingleGroupAdvancing = signal<number>(2);
 
   isUpdatingStage = signal(false);
   stageUpdateError = signal('');
@@ -180,6 +189,190 @@ export class WorkspaceDetailComponent implements OnInit {
   selectedStage = signal<CompetitionStage | null>(null);
   matches = signal<Match[]>([]);
   selectedMatch = signal<Match | null>(null);
+  selectedPointsTableGroup = signal<string>('Group A');
+
+  availableGroups = computed(() => {
+    const stage = this.selectedStage();
+    if (!stage) return [];
+    if (stage.type === 'group_knockout' && stage.config?.groupKnockoutSubtype === 'multiple_groups') {
+      const groupsCount = stage.config?.groupsCount ?? 2;
+      return Array.from({ length: groupsCount }, (_, i) => `Group ${String.fromCharCode(65 + i)}`);
+    }
+    return [];
+  });
+
+  leagueTable = computed(() => {
+    const stage = this.selectedStage();
+    if (!stage) return [];
+    if (stage.type !== 'league' && stage.type !== 'group' && stage.type !== 'group_knockout') {
+      return [];
+    }
+
+    const matchesList = this.matches();
+    const enrolledTeams = this.competitionTeams();
+    const currentGroup = this.selectedPointsTableGroup();
+    const isMultipleGroups = stage.type === 'group_knockout' && stage.config?.groupKnockoutSubtype === 'multiple_groups';
+
+    // Find teams in current group if multiple groups
+    const groupTeamIds = new Set<string>();
+    if (isMultipleGroups) {
+      for (const m of matchesList) {
+        if (m.config?.round === currentGroup) {
+          if (m.homeTeamId) groupTeamIds.add(m.homeTeamId);
+          if (m.awayTeamId) groupTeamIds.add(m.awayTeamId);
+        }
+      }
+    }
+    
+    // Initialize map of team stats
+    const statsMap = new Map<string, {
+      teamId: string;
+      teamName: string;
+      teamLogoUrl?: string | null;
+      played: number;
+      won: number;
+      drawn: number;
+      lost: number;
+      gf: number;
+      ga: number;
+      gd: number;
+      pts: number;
+    }>();
+
+    // Initialize with enrolled teams
+    for (const ct of enrolledTeams) {
+      if (isMultipleGroups && !groupTeamIds.has(ct.teamId)) {
+        continue;
+      }
+      statsMap.set(ct.teamId, {
+        teamId: ct.teamId,
+        teamName: ct.team.name,
+        teamLogoUrl: ct.team.logoUrl,
+        played: 0,
+        won: 0,
+        drawn: 0,
+        lost: 0,
+        gf: 0,
+        ga: 0,
+        gd: 0,
+        pts: 0,
+      });
+    }
+
+    const winPts = stage.config?.winPoint ?? 3;
+    const drawPts = stage.config?.drawPoint ?? 1;
+
+    // Process completed matches (and matches with score)
+    for (const match of matchesList) {
+      // Only process group play matches (ignore bracket matches if any)
+      const isGroupMatch = !match.config?.round || match.config.round.toLowerCase().includes('group') || match.config.round.toLowerCase().includes('stage');
+      if (stage.type === 'group_knockout' && !isGroupMatch) {
+        continue;
+      }
+
+      // If multiple groups, only process matches belonging to the selected group
+      if (isMultipleGroups && match.config?.round !== currentGroup) {
+        continue;
+      }
+
+      if (match.status !== 'completed') continue;
+      if (!match.homeTeamId || !match.awayTeamId) continue;
+
+      const home = statsMap.get(match.homeTeamId);
+      const away = statsMap.get(match.awayTeamId);
+
+      // If either team is not in statsMap (e.g. deleted or external), initialize
+      if (!home && match.homeTeam) {
+        statsMap.set(match.homeTeamId, {
+          teamId: match.homeTeamId, teamName: match.homeTeam.name, teamLogoUrl: match.homeTeam.logoUrl, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, pts: 0
+        });
+      }
+      if (!away && match.awayTeam) {
+        statsMap.set(match.awayTeamId, {
+          teamId: match.awayTeamId, teamName: match.awayTeam.name, teamLogoUrl: match.awayTeam.logoUrl, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, pts: 0
+        });
+      }
+
+      const hStats = statsMap.get(match.homeTeamId);
+      const aStats = statsMap.get(match.awayTeamId);
+      if (!hStats || !aStats) continue;
+
+      hStats.played++;
+      aStats.played++;
+
+      const homeScore = match.homeScore ?? 0;
+      const awayScore = match.awayScore ?? 0;
+
+      hStats.gf += homeScore;
+      hStats.ga += awayScore;
+      aStats.gf += awayScore;
+      aStats.ga += homeScore;
+
+      if (homeScore > awayScore) {
+        hStats.won++;
+        hStats.pts += winPts;
+        aStats.lost++;
+      } else if (homeScore < awayScore) {
+        aStats.won++;
+        aStats.pts += winPts;
+        hStats.lost++;
+      } else {
+        hStats.drawn++;
+        hStats.pts += drawPts;
+        aStats.drawn++;
+        aStats.pts += drawPts;
+      }
+
+      hStats.gd = hStats.gf - hStats.ga;
+      aStats.gd = aStats.gf - aStats.ga;
+    }
+
+    // Convert map to array and sort
+    return Array.from(statsMap.values()).sort((a, b) => {
+      if (b.pts !== a.pts) return b.pts - a.pts;
+      if (b.gd !== a.gd) return b.gd - a.gd;
+      return b.gf - a.gf;
+    });
+  });
+
+  getKnockoutRounds(): string[] {
+    const list = this.matches();
+    const stage = this.selectedStage();
+    if (!stage) return [];
+    
+    // Extract unique round names from matches that are not group stage matches
+    const roundsSet = new Set<string>();
+    for (const m of list) {
+      const round = m.config?.round;
+      if (round) {
+        // If stage is group_knockout, exclude group stage matches
+        const isGroup = round.toLowerCase().includes('group') || round.toLowerCase().includes('stage');
+        if (stage.type === 'group_knockout' && isGroup) {
+          continue;
+        }
+        roundsSet.add(round);
+      }
+    }
+    
+    // Sort rounds so that they display from earliest to latest: Round of X -> Quarter-Final -> Semi-Final -> Final
+    const roundOrder = ['round of 32', 'round of 16', 'round of 8', 'quarter-final', 'semi-final', 'final'];
+    return Array.from(roundsSet).sort((a, b) => {
+      const aLower = a.toLowerCase();
+      const bLower = b.toLowerCase();
+      const idxA = roundOrder.findIndex(o => aLower.includes(o));
+      const idxB = roundOrder.findIndex(o => bLower.includes(o));
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+  }
+
+  getMatchesForRound(roundName: string): Match[] {
+    // Only return leg 1 matches or first occurrence to keep brackets clean and compact
+    return this.matches().filter(m => m.config?.round === roundName && (m.config?.leg === undefined || m.config?.leg === 1));
+  }
+
   isCreatingMatch = signal(false);
 
   newMatchHomeTeamId = signal('');
@@ -230,6 +423,7 @@ export class WorkspaceDetailComponent implements OnInit {
   selectedFixtureTeamIds = signal<string[]>([]);
   isGeneratingFixturesSubmit = signal(false);
   generateFixturesSubmitError = signal('');
+  isResettingStages = signal(false);
 
   // ── Workspace Edit State ───────────────────────────────────────────────────
   editName = signal('');
@@ -2201,6 +2395,7 @@ export class WorkspaceDetailComponent implements OnInit {
 
   onSelectStage(stage: CompetitionStage | null) {
     this.selectedStage.set(stage);
+    this.selectedPointsTableGroup.set('Group A');
     this.selectedMatch.set(null);
     if (!stage) {
       this.matches.set([]);
@@ -2363,7 +2558,15 @@ export class WorkspaceDetailComponent implements OnInit {
     });
   }
 
-  onRecordFootballGoal(teamId: string, scorerId: string, assistId: string) {
+  onRecordFootballGoal(options: {
+    teamId: string;
+    goalType: string;
+    scorerId: string;
+    scorerCustomName?: string;
+    assistId?: string;
+    assistCustomName?: string;
+  }) {
+    const { teamId, goalType, scorerId, scorerCustomName, assistId, assistCustomName } = options;
     const match = this.selectedMatch();
     const ws = this.workspace();
     const event = this.selectedEvent();
@@ -2377,15 +2580,32 @@ export class WorkspaceDetailComponent implements OnInit {
     if (!live.events) live.events = [];
     live.events.push({
       type: 'goal',
+      goalType: goalType || 'regular',
       teamId,
-      playerUserId: scorerId,
-      assistPlayerUserId: assistId || undefined,
+      playerUserId: (scorerId && scorerId !== 'unregistered') ? scorerId : undefined,
+      playerName: (scorerId === 'unregistered') ? scorerCustomName : undefined,
+      assistPlayerUserId: (assistId && assistId !== 'unregistered') ? assistId : undefined,
+      assistPlayerName: (assistId === 'unregistered') ? assistCustomName : undefined,
       minute: currentMin,
     });
 
     const isHome = teamId === match.homeTeamId;
-    const newHomeScore = isHome ? match.homeScore + 1 : match.homeScore;
-    const newAwayScore = !isHome ? match.awayScore + 1 : match.awayScore;
+    let newHomeScore = match.homeScore;
+    let newAwayScore = match.awayScore;
+
+    if (goalType === 'own_goal') {
+      if (isHome) {
+        newAwayScore += 1;
+      } else {
+        newHomeScore += 1;
+      }
+    } else {
+      if (isHome) {
+        newHomeScore += 1;
+      } else {
+        newAwayScore += 1;
+      }
+    }
 
     this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       homeScore: newHomeScore,
@@ -2736,22 +2956,32 @@ export class WorkspaceDetailComponent implements OnInit {
     if (existingStages.length > 0) {
       const stage = existingStages[0];
       this.newStageName.set(stage.name);
-      this.newStageType.set(stage.type as any);
+      this.newStageType.set(stage.type === 'group' ? 'league' : stage.type as any);
       this.newStageWinPoint.set(stage.config?.winPoint ?? 3);
       this.newStageDrawPoint.set(stage.config?.drawPoint ?? 1);
       this.newStageTwoLegged.set(stage.config?.twoLegged ?? false);
       this.newStageGroupsCount.set(stage.config?.groupsCount ?? 2);
       this.newStageAdvancingCount.set(stage.config?.advancingCount ?? 2);
       this.newStageGamesPerTeam.set(stage.config?.gamesPerTeam ?? 3);
+      this.newStageLegs.set(stage.config?.legs ?? (stage.config?.twoLegged ? 2 : 1));
+      this.newStageGroupKnockoutSubtype.set(stage.config?.groupKnockoutSubtype ?? 'multiple_groups');
+      this.newStageAdvancingType.set(stage.config?.advancingType ?? 'winner_and_runner');
+      this.newStageSingleGroupAdvancing.set(stage.config?.singleGroupAdvancing ?? 2);
+      this.newStageVenueId.set(stage.config?.venueId ?? '');
     } else {
       this.newStageName.set('Main Stage');
-      this.newStageType.set('group');
+      this.newStageType.set('league');
       this.newStageWinPoint.set(3);
       this.newStageDrawPoint.set(1);
       this.newStageTwoLegged.set(false);
       this.newStageGroupsCount.set(2);
       this.newStageAdvancingCount.set(2);
       this.newStageGamesPerTeam.set(3);
+      this.newStageLegs.set(1);
+      this.newStageGroupKnockoutSubtype.set('multiple_groups');
+      this.newStageAdvancingType.set('winner_and_runner');
+      this.newStageSingleGroupAdvancing.set(2);
+      this.newStageVenueId.set('');
     }
 
     this.generateFixturesSubmitError.set('');
@@ -2832,25 +3062,44 @@ export class WorkspaceDetailComponent implements OnInit {
         config: {}
       };
 
-      if (this.newStageType() === 'group') {
+      if (this.newStageType() === 'league') {
         stagePayload.config = {
           winPoint: this.newStageWinPoint(),
           drawPoint: this.newStageDrawPoint(),
-          gamesPerTeam: this.newStageGamesPerTeam()
+          legs: this.newStageLegs(),
+          twoLegged: this.newStageLegs() === 2
+        };
+      } else if (this.newStageType() === 'group') {
+        stagePayload.config = {
+          winPoint: this.newStageWinPoint(),
+          drawPoint: this.newStageDrawPoint(),
+          gamesPerTeam: this.newStageGamesPerTeam(),
+          legs: this.newStageLegs(),
+          twoLegged: this.newStageLegs() === 2
         };
       } else if (this.newStageType() === 'knockout') {
         stagePayload.config = {
-          twoLegged: this.newStageTwoLegged()
+          legs: this.newStageLegs(),
+          twoLegged: this.newStageLegs() === 2
         };
       } else if (this.newStageType() === 'group_knockout') {
         stagePayload.config = {
           winPoint: this.newStageWinPoint(),
           drawPoint: this.newStageDrawPoint(),
-          gamesPerTeam: this.newStageGamesPerTeam(),
-          twoLegged: this.newStageTwoLegged(),
-          groupsCount: this.newStageGroupsCount(),
-          advancingCount: this.newStageAdvancingCount()
+          legs: this.newStageLegs(),
+          twoLegged: this.newStageLegs() === 2,
+          groupKnockoutSubtype: this.newStageGroupKnockoutSubtype(),
+          groupsCount: this.newStageGroupKnockoutSubtype() === 'multiple_groups' ? this.newStageGroupsCount() : 1,
+          advancingType: this.newStageAdvancingType(),
+          singleGroupAdvancing: this.newStageSingleGroupAdvancing(),
+          advancingCount: this.newStageGroupKnockoutSubtype() === 'multiple_groups'
+            ? (this.newStageAdvancingType() === 'winner_and_runner' ? 2 : 1)
+            : this.newStageSingleGroupAdvancing()
         };
+      }
+
+      if (this.newStageVenueId()) {
+        stagePayload.config.venueId = this.newStageVenueId();
       }
 
       if (existingStages.length > 0) {
@@ -2879,6 +3128,46 @@ export class WorkspaceDetailComponent implements OnInit {
       console.error('Failed to setup fixtures', err);
       this.generateFixturesSubmitError.set(err.error?.message ?? 'Failed to setup fixtures and generate matches.');
       this.isGeneratingFixturesSubmit.set(false);
+    }
+  }
+
+  async onResetStagesAndFixtures() {
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    if (!ws || !event || !comp) return;
+
+    const confirmed = await this.uiService.confirm({
+      title: 'Reset Stages & Fixtures',
+      message: 'Are you sure you want to delete all stages and all generated fixtures for this competition? This action cannot be undone.',
+      confirmText: 'Reset',
+      type: 'danger',
+    });
+    if (!confirmed) return;
+
+    this.isResettingStages.set(true);
+    try {
+      await firstValueFrom(
+        this.workspaceService.resetStagesAndFixtures(ws.id, event.id, comp.id)
+      );
+
+      this.uiService.success('Stages and fixtures have been cleared successfully.');
+      
+      // Reset local state signals
+      this.stages.set([]);
+      this.selectedStage.set(null);
+      this.matches.set([]);
+      this.selectedMatch.set(null);
+
+      // Force reload stages so UI returns to setup view
+      this.loadStages(comp.id);
+    } catch (err: any) {
+      console.error('Failed to reset stages and fixtures', err);
+      this.uiService.error(
+        err.error?.message ?? 'Failed to clear stages and fixtures. Please try again.'
+      );
+    } finally {
+      this.isResettingStages.set(false);
     }
   }
 }

@@ -111,7 +111,7 @@ export interface Competition {
 export interface CompetitionStage {
   id: string;
   name: string;
-  type: 'group' | 'knockout' | 'group_knockout';
+  type: 'league' | 'group' | 'knockout' | 'group_knockout';
   sequence: number;
   competitionId: string;
   config: {
@@ -121,6 +121,11 @@ export interface CompetitionStage {
     groupsCount?: number;
     advancingCount?: number;
     gamesPerTeam?: number;
+    legs?: number;
+    groupKnockoutSubtype?: 'single_group' | 'multiple_groups';
+    advancingType?: 'winner' | 'winner_and_runner';
+    singleGroupAdvancing?: number;
+    venueId?: string;
   };
   createdAt: string;
   updatedAt: string;
@@ -142,6 +147,8 @@ export interface Match {
     timerDuration?: number;
     overs?: number;
     setsToWin?: number;
+    round?: string;
+    leg?: number;
   };
   liveData: any;
   createdAt: string;
@@ -532,6 +539,17 @@ export class WorkspaceService {
   ): Observable<void> {
     return this.http.delete<void>(
       `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}`,
+      { headers: this.headers }
+    );
+  }
+
+  resetStagesAndFixtures(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string
+  ): Observable<void> {
+    return this.http.delete<void>(
+      `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}/reset-fixtures`,
       { headers: this.headers }
     );
   }
