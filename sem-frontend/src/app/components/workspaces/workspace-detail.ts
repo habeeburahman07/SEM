@@ -103,6 +103,7 @@ export class WorkspaceDetailComponent implements OnInit {
   newEventEndDate = signal('');
   newEventStatus = signal('upcoming');
   newEventLogoUrl = signal('');
+  selectedEventTeamIds = signal<string[]>([]);
   isCreatingEvent = signal(false);
   eventCreateError = signal('');
   eventCreateSuccess = signal('');
@@ -1768,6 +1769,12 @@ export class WorkspaceDetailComponent implements OnInit {
     return localDate.toISOString().substring(0, 16);
   }
 
+  toggleEventTeam(teamId: string) {
+    this.selectedEventTeamIds.update(prev =>
+      prev.includes(teamId) ? prev.filter(id => id !== teamId) : [...prev, teamId]
+    );
+  }
+
   onAddEvent() {
     this.editingEvent.set(null);
     this.newEventName.set('');
@@ -1776,6 +1783,7 @@ export class WorkspaceDetailComponent implements OnInit {
     this.newEventEndDate.set('');
     this.newEventStatus.set('upcoming');
     this.newEventLogoUrl.set('');
+    this.selectedEventTeamIds.set([]);
     this.eventCreateError.set('');
     this.eventCreateSuccess.set('');
     this.isEventModalOpen.set(true);
@@ -1790,6 +1798,7 @@ export class WorkspaceDetailComponent implements OnInit {
     this.newEventEndDate.set('');
     this.newEventStatus.set('upcoming');
     this.newEventLogoUrl.set('');
+    this.selectedEventTeamIds.set([]);
     this.eventCreateError.set('');
     this.eventCreateSuccess.set('');
     this.editEventName.set('');
@@ -1817,11 +1826,12 @@ export class WorkspaceDetailComponent implements OnInit {
 
     const payload = {
       name,
-      ...(description && { description }),
-      ...(startDate && { startDate: new Date(startDate).toISOString() }),
-      ...(endDate && { endDate: new Date(endDate).toISOString() }),
-      ...(status && { status }),
-      ...(this.newEventLogoUrl() && { logoUrl: this.newEventLogoUrl() }),
+      description: description || undefined,
+      startDate: startDate ? new Date(startDate).toISOString() : undefined,
+      endDate: endDate ? new Date(endDate).toISOString() : undefined,
+      status,
+      logoUrl: this.newEventLogoUrl() || undefined,
+      teamIds: this.selectedEventTeamIds(),
     };
 
     this.workspaceService.createEvent(ws.id, payload).subscribe({
@@ -1846,6 +1856,7 @@ export class WorkspaceDetailComponent implements OnInit {
     this.editEventEndDate.set(this.formatToLocalDatetime(event.endDate));
     this.editEventStatus.set(event.status);
     this.editEventLogoUrl.set(event.logoUrl ?? '');
+    this.selectedEventTeamIds.set(event.teams?.map(t => t.id) || []);
     this.eventUpdateError.set('');
     this.eventUpdateSuccess.set('');
     this.isEventModalOpen.set(true);
@@ -1876,6 +1887,7 @@ export class WorkspaceDetailComponent implements OnInit {
       endDate: endDate ? new Date(endDate).toISOString() : null,
       status,
       logoUrl: this.editEventLogoUrl() || undefined,
+      teamIds: this.selectedEventTeamIds(),
     };
 
     this.workspaceService.updateEvent(ws.id, event.id, payload).subscribe({
@@ -1883,6 +1895,13 @@ export class WorkspaceDetailComponent implements OnInit {
         this.isUpdatingEvent.set(false);
         this.eventUpdateSuccess.set(`Event updated successfully!`);
         this.events.update(prev => prev.map(e => e.id === event.id ? updated : e));
+        
+        // Also update selectedEvent if it's currently viewed
+        const curEvent = this.selectedEvent();
+        if (curEvent && curEvent.id === event.id) {
+          this.selectedEvent.set(updated);
+        }
+
         setTimeout(() => this.closeEventModal(), 1500);
       },
       error: (err) => {
@@ -3100,10 +3119,11 @@ export class WorkspaceDetailComponent implements OnInit {
 
   openGenerateFixturesModal() {
     const comp = this.selectedCompetition();
-    if (!comp) return;
+    const event = this.selectedEvent();
+    if (!comp || !event) return;
 
-    const currentTeamIds = this.competitionTeams().map(ct => ct.teamId);
-    this.selectedFixtureTeamIds.set(currentTeamIds);
+    const eventTeamIds = event.teams?.map(t => t.id) || [];
+    this.selectedFixtureTeamIds.set(eventTeamIds);
 
     const existingStages = this.stages();
     if (existingStages.length > 0) {
@@ -3188,21 +3208,6 @@ export class WorkspaceDetailComponent implements OnInit {
     this.generateFixturesSubmitError.set('');
 
     try {
-      // 1. Sync teams in the competition
-      const currentTeams = this.competitionTeams();
-      const currentIds = currentTeams.map(ct => ct.teamId);
-
-      const teamsToAdd = selectedIds.filter(id => !currentIds.includes(id));
-      const teamsToRemove = currentTeams.filter(ct => !selectedIds.includes(ct.teamId));
-
-      for (const ct of teamsToRemove) {
-        await firstValueFrom(this.workspaceService.removeTeamFromCompetition(ws.id, event.id, comp.id, ct.teamId));
-      }
-
-      for (const teamId of teamsToAdd) {
-        await firstValueFrom(this.workspaceService.addTeamToCompetition(ws.id, event.id, comp.id, teamId));
-      }
-
       // Refresh competition teams local state
       const refreshedTeams = await firstValueFrom(this.workspaceService.getCompetitionTeams(ws.id, event.id, comp.id));
       this.competitionTeams.set(refreshedTeams);

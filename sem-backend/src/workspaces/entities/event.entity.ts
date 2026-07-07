@@ -7,9 +7,12 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
+  ManyToMany,
+  JoinTable,
 } from 'typeorm';
 import { Workspace } from './workspace.entity';
 import { Competition } from './competition.entity';
+import { Team } from './team.entity';
 
 @Entity('events')
 export class Event {
@@ -43,6 +46,14 @@ export class Event {
 
   @OneToMany(() => Competition, (competition) => competition.event)
   competitions: Competition[];
+
+  @ManyToMany(() => Team, { onDelete: 'CASCADE' })
+  @JoinTable({
+    name: 'event_teams',
+    joinColumn: { name: 'event_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'team_id', referencedColumnName: 'id' },
+  })
+  teams: Team[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

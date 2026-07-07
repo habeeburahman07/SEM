@@ -738,12 +738,17 @@ export class WorkspacesService implements OnModuleInit {
     await this.ensureMember(workspaceId, userId);
     return this.eventRepo.find({
       where: { workspaceId },
+      relations: { teams: true },
       order: { name: 'ASC' },
     });
   }
 
   async createEvent(workspaceId: string, dto: CreateEventDto, userId: string): Promise<Event> {
     await this.ensureAdminOrOwner(workspaceId, userId);
+    let teams: Team[] = [];
+    if (dto.teamIds && dto.teamIds.length > 0) {
+      teams = await this.teamRepo.findBy({ id: In(dto.teamIds) });
+    }
     const event = this.eventRepo.create({
       name: dto.name,
       description: dto.description ?? null,
@@ -752,6 +757,7 @@ export class WorkspacesService implements OnModuleInit {
       status: dto.status ?? 'upcoming',
       logoUrl: dto.logoUrl ?? null,
       workspaceId,
+      teams,
     });
     return this.eventRepo.save(event);
   }
@@ -763,9 +769,20 @@ export class WorkspacesService implements OnModuleInit {
     userId: string,
   ): Promise<Event> {
     await this.ensureAdminOrOwner(workspaceId, userId);
-    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    const event = await this.eventRepo.findOne({
+      where: { id: eventId, workspaceId },
+      relations: { teams: true },
+    });
     if (!event) {
       throw new NotFoundException('Event not found in this workspace');
+    }
+
+    if (dto.teamIds !== undefined) {
+      if (dto.teamIds.length > 0) {
+        event.teams = await this.teamRepo.findBy({ id: In(dto.teamIds) });
+      } else {
+        event.teams = [];
+      }
     }
 
     Object.assign(event, {
@@ -1217,13 +1234,22 @@ export class WorkspacesService implements OnModuleInit {
     userId: string,
   ): Promise<CompetitionTeam[]> {
     await this.ensureMember(workspaceId, userId);
+    const event = await this.eventRepo.findOne({
+      where: { id: eventId, workspaceId },
+      relations: { teams: true },
+    });
+    if (!event) throw new NotFoundException(`Event not found`);
     const competition = await this.competitionRepo.findOne({ where: { id: competitionId, eventId } });
     if (!competition) throw new NotFoundException(`Competition "${competitionId}" not found`);
-    return this.competitionTeamRepo.find({
-      where: { competitionId },
-      relations: { team: true },
-      order: { createdAt: 'ASC' },
-    });
+    
+    const eventTeams = event.teams || [];
+    return eventTeams.map((t) => ({
+      id: `${competitionId}-${t.id}`,
+      competitionId,
+      teamId: t.id,
+      team: t,
+      createdAt: event.createdAt,
+    })) as CompetitionTeam[];
   }
 
   async addTeamToCompetition(
@@ -1268,16 +1294,19 @@ export class WorkspacesService implements OnModuleInit {
   ): Promise<{ stagesGenerated: number; matchesCreated: number }> {
     await this.ensureAdminOrOwner(workspaceId, userId);
 
-    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    const event = await this.eventRepo.findOne({
+      where: { id: eventId, workspaceId },
+      relations: { teams: true },
+    });
     if (!event) throw new NotFoundException(`Event not found`);
 
     const competition = await this.competitionRepo.findOne({ where: { id: competitionId, eventId } });
     if (!competition) throw new NotFoundException(`Competition not found`);
 
-    // Enrolled teams
-    const enrolled = await this.competitionTeamRepo.find({ where: { competitionId } });
-    if (enrolled.length < 2) {
-      throw new BadRequestException('At least 2 teams must be enrolled before generating fixtures.');
+    // Participating teams from event context
+    const eventTeams = event.teams || [];
+    if (eventTeams.length < 2) {
+      throw new BadRequestException('At least 2 teams must be mapped to the event before generating fixtures.');
     }
 
     // Stages
@@ -1290,7 +1319,7 @@ export class WorkspacesService implements OnModuleInit {
     }
 
     // Shuffle team IDs
-    const teamIds = enrolled.map((ct) => ct.teamId);
+    const teamIds = eventTeams.map((t) => t.id);
     this.shuffleArray(teamIds);
 
     let totalMatches = 0;

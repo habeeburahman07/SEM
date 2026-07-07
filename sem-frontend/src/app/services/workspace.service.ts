@@ -79,6 +79,7 @@ export interface WorkspaceEvent {
   workspaceId: string;
   createdAt: string;
   updatedAt: string;
+  teams?: Team[];
 }
 
 export interface Sport {
@@ -390,7 +391,7 @@ export class WorkspaceService {
 
   createEvent(
     workspaceId: string,
-    payload: { name: string; description?: string; startDate?: string; endDate?: string; status?: string; logoUrl?: string }
+    payload: { name: string; description?: string; startDate?: string; endDate?: string; status?: string; logoUrl?: string; teamIds?: string[] }
   ): Observable<WorkspaceEvent> {
     return this.http.post<WorkspaceEvent>(
       `${this.apiUrl}/${workspaceId}/events`,
@@ -402,7 +403,7 @@ export class WorkspaceService {
   updateEvent(
     workspaceId: string,
     eventId: string,
-    payload: { name?: string; description?: string; startDate?: string | null; endDate?: string | null; status?: string; logoUrl?: string }
+    payload: { name?: string; description?: string; startDate?: string | null; endDate?: string | null; status?: string; logoUrl?: string; teamIds?: string[] }
   ): Observable<WorkspaceEvent> {
     return this.http.patch<WorkspaceEvent>(
       `${this.apiUrl}/${workspaceId}/events/${eventId}`,

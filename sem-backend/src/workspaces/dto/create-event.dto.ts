@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength, MinLength, IsDateString, IsIn } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, MaxLength, MinLength, IsDateString, IsIn, IsArray, IsUUID } from 'class-validator';
 
 export class CreateEventDto {
   @IsNotEmpty()
@@ -29,4 +29,9 @@ export class CreateEventDto {
   @IsString()
   @MaxLength(500)
   logoUrl?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  teamIds?: string[];
 }
