@@ -65,12 +65,21 @@ export class WorkspaceDetailComponent implements OnInit {
 
   // ── Players State ──────────────────────────────────────────────────────────
   players = signal<Player[]>([]);
+  isPlayerModalOpen = signal(false);
   newPlayerUserId = signal('');
   newPlayerJerseyNumber = signal('');
   newPlayerTeamId = signal('');
   isCreatingPlayer = signal(false);
   playerCreateError = signal('');
   playerCreateSuccess = signal('');
+
+  // Bulk Import Players State
+  isPlayerBulkModalOpen = signal(false);
+  isImportingPlayerBulk = signal(false);
+  playerBulkImportProgress = signal(0);
+  bulkImportPlayers = signal<any[]>([]);
+  playerBulkImportError = signal('');
+  playerBulkImportSuccess = signal('');
 
   // Editing state for Players
   editingPlayer = signal<Player | null>(null);
@@ -648,11 +657,37 @@ export class WorkspaceDetailComponent implements OnInit {
           const descKey = Object.keys(row).find(k => k.toLowerCase() === 'description') || 'Description';
           const logoKey = Object.keys(row).find(k => k.toLowerCase() === 'logourl' || k.toLowerCase() === 'logo') || 'LogoUrl';
           
+          const name = (row[nameKey] || '').toString().trim();
+          const code = (row[codeKey] || '').toString().trim();
+          const description = (row[descKey] || '').toString().trim();
+          const logoUrl = (row[logoKey] || '').toString().trim();
+
+          let status = 'pending';
+          let error = '';
+
+          if (!name) {
+            status = 'failed';
+            error = 'Team Name is missing';
+          } else {
+            const nameExists = this.teams().some(t => t.name.toLowerCase() === name.toLowerCase());
+            const codeExists = code && this.teams().some(t => t.code && t.code.toUpperCase() === code.toUpperCase());
+
+            if (nameExists) {
+              status = 'exist';
+              error = 'Team Name already registered';
+            } else if (codeExists) {
+              status = 'exist';
+              error = 'Team Code already registered';
+            }
+          }
+
           return {
-            name: (row[nameKey] || '').toString().trim(),
-            code: (row[codeKey] || '').toString().trim(),
-            description: (row[descKey] || '').toString().trim(),
-            logoUrl: (row[logoKey] || '').toString().trim(),
+            name,
+            code,
+            description,
+            logoUrl,
+            status,
+            error
           };
         }).filter(t => {
           if (!t.name) return false;
@@ -682,7 +717,7 @@ export class WorkspaceDetailComponent implements OnInit {
 
   async onConfirmBulkImport() {
     const ws = this.workspace();
-    const teamsToImport = this.bulkImportTeams();
+    const teamsToImport = [...this.bulkImportTeams()];
     if (!ws || teamsToImport.length === 0) return;
 
     this.isImportingBulk.set(true);
@@ -692,37 +727,64 @@ export class WorkspaceDetailComponent implements OnInit {
 
     let successCount = 0;
     let failCount = 0;
+    let existCount = 0;
 
     for (let i = 0; i < teamsToImport.length; i++) {
       const item = teamsToImport[i];
+
+      if (item.status === 'failed') {
+        failCount++;
+        this.bulkImportProgress.set(Math.round(((i + 1) / teamsToImport.length) * 100));
+        continue;
+      }
+      if (item.status === 'exist') {
+        existCount++;
+        this.bulkImportProgress.set(Math.round(((i + 1) / teamsToImport.length) * 100));
+        continue;
+      }
+
       try {
         await new Promise<void>((resolve) => {
           const finalCode = item.code || item.name.substring(0, 3).toUpperCase() + Math.floor(100 + Math.random() * 900);
           this.workspaceService.createTeam(ws.id, item.name, finalCode, item.description || undefined, item.logoUrl || undefined).subscribe({
             next: (team) => {
               this.teams.update(prev => [...prev, team]);
+              item.status = 'success';
+              item.error = '';
               successCount++;
+              this.bulkImportTeams.set([...teamsToImport]);
               resolve();
             },
             error: (err) => {
-              failCount++;
-              console.error(`Failed to import team: ${item.name}`, err);
+              const errMsg = err.error?.message ?? 'Unknown error';
+              if (errMsg.toLowerCase().includes('already registered') || errMsg.toLowerCase().includes('unique') || err.status === 409) {
+                item.status = 'exist';
+                item.error = 'Team Code/Name already registered';
+                existCount++;
+              } else {
+                item.status = 'failed';
+                item.error = errMsg;
+                failCount++;
+              }
+              this.bulkImportTeams.set([...teamsToImport]);
               resolve();
             }
           });
         });
       } catch (err) {
+        item.status = 'failed';
+        item.error = 'Import failed';
         failCount++;
+        this.bulkImportTeams.set([...teamsToImport]);
       }
       this.bulkImportProgress.set(Math.round(((i + 1) / teamsToImport.length) * 100));
     }
 
     this.isImportingBulk.set(false);
-    if (failCount === 0) {
+    if (failCount === 0 && existCount === 0) {
       this.bulkImportSuccess.set(`Successfully imported all ${successCount} teams!`);
-      setTimeout(() => this.closeBulkModal(), 1500);
     } else {
-      this.bulkImportSuccess.set(`Import finished: ${successCount} successful, ${failCount} failed.`);
+      this.bulkImportSuccess.set(`Import finished: ${successCount} successful, ${existCount} already existed, ${failCount} failed.`);
     }
   }
 
@@ -757,6 +819,33 @@ export class WorkspaceDetailComponent implements OnInit {
     });
   }
 
+  onAddPlayer() {
+    this.editingPlayer.set(null);
+    this.newPlayerUserId.set('');
+    this.newPlayerJerseyNumber.set('');
+    this.newPlayerTeamId.set('');
+    this.playerCreateError.set('');
+    this.playerCreateSuccess.set('');
+    this.isPlayerModalOpen.set(true);
+  }
+
+  closePlayerModal() {
+    this.isPlayerModalOpen.set(false);
+    this.editingPlayer.set(null);
+  }
+
+  openPlayerBulkModal() {
+    this.bulkImportPlayers.set([]);
+    this.playerBulkImportProgress.set(0);
+    this.playerBulkImportError.set('');
+    this.playerBulkImportSuccess.set('');
+    this.isPlayerBulkModalOpen.set(true);
+  }
+
+  closePlayerBulkModal() {
+    this.isPlayerBulkModalOpen.set(false);
+  }
+
   onCreatePlayer() {
     const userId = this.newPlayerUserId();
     const jerseyNumber = this.newPlayerJerseyNumber().trim();
@@ -778,10 +867,8 @@ export class WorkspaceDetailComponent implements OnInit {
       next: (player) => {
         this.isCreatingPlayer.set(false);
         this.playerCreateSuccess.set(`Player "${player.user.username}" registered successfully!`);
-        this.newPlayerUserId.set('');
-        this.newPlayerJerseyNumber.set('');
-        this.newPlayerTeamId.set('');
         this.players.update(prev => [...prev, player]);
+        setTimeout(() => this.closePlayerModal(), 1500);
       },
       error: (err) => {
         this.isCreatingPlayer.set(false);
@@ -796,10 +883,11 @@ export class WorkspaceDetailComponent implements OnInit {
     this.editPlayerTeamId.set(player.teamId);
     this.playerUpdateError.set('');
     this.playerUpdateSuccess.set('');
+    this.isPlayerModalOpen.set(true);
   }
 
   onCancelEditPlayer() {
-    this.editingPlayer.set(null);
+    this.closePlayerModal();
   }
 
   onUpdatePlayer() {
@@ -823,13 +911,223 @@ export class WorkspaceDetailComponent implements OnInit {
         this.isUpdatingPlayer.set(false);
         this.playerUpdateSuccess.set(`Player updated successfully!`);
         this.players.update(prev => prev.map(p => p.id === player.id ? updated : p));
-        setTimeout(() => this.editingPlayer.set(null), 1000);
+        setTimeout(() => this.closePlayerModal(), 1500);
       },
       error: (err) => {
         this.isUpdatingPlayer.set(false);
         this.playerUpdateError.set(err.error?.message ?? 'Failed to update player.');
       }
     });
+  }
+
+  async downloadPlayerTemplate() {
+    try {
+      const XLSX = await import('xlsx-js-style') as any;
+      const ws: any = {
+        '!ref': 'A1:C3',
+        'A1': { v: 'Username', t: 's', s: { font: { bold: true } } },
+        'B1': { v: 'TeamCode', t: 's', s: { font: { bold: true } } },
+        'C1': { v: 'JerseyNumber', t: 's', s: { font: { bold: true } } },
+        'A2': { v: '#Required (must exist on system)', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
+        'B2': { v: '#Required', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
+        'C2': { v: '#Optional', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
+        'A3': { v: 'eg. john_doe', t: 's', s: { font: { italic: true } } },
+        'B3': { v: 'eg. WAR', t: 's', s: { font: { italic: true } } },
+        'C3': { v: 'eg. 10', t: 's', s: { font: { italic: true } } }
+      };
+      ws['!cols'] = [
+        { wch: 32 },
+        { wch: 15 },
+        { wch: 15 }
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Players Template');
+      XLSX.writeFile(wb, 'players_import_template.xlsx');
+    } catch (err) {
+      console.error('Failed to generate template', err);
+    }
+  }
+
+  onPlayerExcelUpload(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = async (e: any) => {
+      try {
+        const XLSX = await import('xlsx');
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+        const parsedPlayers = json.map((row: any) => {
+          const usernameKey = Object.keys(row).find(k => k.toLowerCase() === 'username') || 'Username';
+          const teamCodeKey = Object.keys(row).find(k => k.toLowerCase() === 'teamcode') || 'TeamCode';
+          const jerseyKey = Object.keys(row).find(k => k.toLowerCase() === 'jerseynumber' || k.toLowerCase() === 'jersey') || 'JerseyNumber';
+
+          const username = (row[usernameKey] || '').toString().trim();
+          const teamCode = (row[teamCodeKey] || '').toString().trim();
+          const jerseyNumber = (row[jerseyKey] || '').toString().trim();
+
+          const member = this.members().find(m => m.user.username.toLowerCase() === username.toLowerCase());
+          const team = this.teams().find(t => t.code && t.code.toUpperCase() === teamCode.toUpperCase());
+
+          let status = 'pending';
+          let error = '';
+
+          if (!username) {
+            status = 'failed';
+            error = 'Username is missing';
+          } else if (!member) {
+            status = 'failed';
+            error = 'User not found in workspace';
+          } else if (!teamCode) {
+            status = 'failed';
+            error = 'Team Code is missing';
+          } else if (!team) {
+            status = 'failed';
+            error = 'Team Code not found';
+          } else {
+            const alreadyExists = this.players().some(p => 
+              p.user.username.toLowerCase() === username.toLowerCase() && 
+              p.teamId === team.id
+            );
+            if (alreadyExists) {
+              status = 'exist';
+              error = 'Already registered in this team';
+            }
+          }
+
+          return {
+            username,
+            teamCode,
+            jerseyNumber,
+            status,
+            error
+          };
+        }).filter(p => {
+          if (!p.username) return false;
+          const lowerUser = p.username.toLowerCase();
+          if (lowerUser.startsWith('#required') || lowerUser === 'required') return false;
+          if (lowerUser.startsWith('eg.')) return false;
+          if (lowerUser.startsWith('eg ')) return false;
+          return true;
+        });
+
+        this.bulkImportPlayers.set(parsedPlayers);
+        this.playerBulkImportError.set('');
+        if (parsedPlayers.length === 0) {
+          this.playerBulkImportError.set('No valid players found in the spreadsheet. Make sure you have a "Username" column.');
+        }
+      } catch (err) {
+        console.error('Failed to parse file', err);
+        this.playerBulkImportError.set('Failed to parse spreadsheet. Please ensure it is a valid format.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    input.value = '';
+  }
+
+  async onConfirmPlayerBulkImport() {
+    const ws = this.workspace();
+    const playersToImport = [...this.bulkImportPlayers()];
+    if (!ws || playersToImport.length === 0) return;
+
+    this.isImportingPlayerBulk.set(true);
+    this.playerBulkImportProgress.set(0);
+    this.playerBulkImportError.set('');
+    this.playerBulkImportSuccess.set('');
+
+    let successCount = 0;
+    let failCount = 0;
+    let existCount = 0;
+
+    for (let i = 0; i < playersToImport.length; i++) {
+      const item = playersToImport[i];
+
+      if (item.status === 'failed') {
+        failCount++;
+        this.playerBulkImportProgress.set(Math.round(((i + 1) / playersToImport.length) * 100));
+        continue;
+      }
+      if (item.status === 'exist') {
+        existCount++;
+        this.playerBulkImportProgress.set(Math.round(((i + 1) / playersToImport.length) * 100));
+        continue;
+      }
+
+      const member = this.members().find(m => m.user.username.toLowerCase() === item.username.toLowerCase());
+      const team = this.teams().find(t => t.code && t.code.toUpperCase() === item.teamCode.toUpperCase());
+
+      if (!member) {
+        item.status = 'failed';
+        item.error = 'User not found in workspace';
+        failCount++;
+        this.bulkImportPlayers.set([...playersToImport]);
+        this.playerBulkImportProgress.set(Math.round(((i + 1) / playersToImport.length) * 100));
+        continue;
+      }
+      if (!team) {
+        item.status = 'failed';
+        item.error = 'Team Code not found';
+        failCount++;
+        this.bulkImportPlayers.set([...playersToImport]);
+        this.playerBulkImportProgress.set(Math.round(((i + 1) / playersToImport.length) * 100));
+        continue;
+      }
+
+      try {
+        await new Promise<void>((resolve) => {
+          const payload = {
+            userId: member.userId,
+            teamId: team.id,
+            ...(item.jerseyNumber && { jerseyNumber: item.jerseyNumber }),
+          };
+
+          this.workspaceService.createPlayer(ws.id, payload).subscribe({
+            next: (player) => {
+              if (!this.players().some(p => p.id === player.id)) {
+                this.players.update(prev => [...prev, player]);
+              }
+              item.status = 'success';
+              item.error = '';
+              successCount++;
+              this.bulkImportPlayers.set([...playersToImport]);
+              resolve();
+            },
+            error: (err) => {
+              const errMsg = err.error?.message ?? 'Unknown error';
+              if (errMsg.toLowerCase().includes('already registered') || err.status === 409) {
+                item.status = 'exist';
+                item.error = 'Already registered in this team';
+                existCount++;
+              } else {
+                item.status = 'failed';
+                item.error = errMsg;
+                failCount++;
+              }
+              this.bulkImportPlayers.set([...playersToImport]);
+              resolve();
+            }
+          });
+        });
+      } catch (err) {
+        item.status = 'failed';
+        item.error = 'Registration failed';
+        failCount++;
+        this.bulkImportPlayers.set([...playersToImport]);
+      }
+      this.playerBulkImportProgress.set(Math.round(((i + 1) / playersToImport.length) * 100));
+    }
+
+    this.isImportingPlayerBulk.set(false);
+    if (failCount === 0 && existCount === 0) {
+      this.playerBulkImportSuccess.set(`Successfully imported all ${successCount} players!`);
+    } else {
+      this.playerBulkImportSuccess.set(`Import finished: ${successCount} successful, ${existCount} already existed, ${failCount} failed.`);
+    }
   }
 
   async onDeletePlayer(player: Player) {

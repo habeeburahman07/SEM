@@ -709,124 +709,173 @@
 
       <!-- ═══════════════ PLAYERS TAB ═══════════════ -->
       @if (activeTab() === 'players') {
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-          <!-- Players List -->
-          <div class="lg:col-span-2 flex flex-col gap-6">
-            <div class="flex items-center justify-between border-b border-white/5 pb-4">
-              <div>
-                <h2 class="text-xl font-bold text-white">Workspace Players</h2>
-                <p class="text-xs text-slate-400 mt-1">Player profiles and career assignments across workspace teams.</p>
-              </div>
+        <div class="flex flex-col gap-6 text-left">
+          <div class="flex items-center justify-between border-b border-white/5 pb-4">
+            <div>
+              <h2 class="text-xl font-bold text-white">Workspace Players</h2>
+              <p class="text-xs text-slate-400 mt-1">Player profiles and career assignments across workspace teams.</p>
+            </div>
+            <div class="flex items-center gap-3">
               <span class="text-xs font-semibold px-2.5 py-1 bg-slate-900 border border-white/10 text-violet-400 rounded-lg">
                 {{ players().length }} Total
               </span>
-            </div>
-
-            @if (players().length === 0) {
-              <div class="flex flex-col items-center justify-center py-20 text-center bg-slate-900/40 border border-white/10 rounded-2xl">
-                <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-white/10 flex items-center justify-center mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-slate-600" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm9 7h-6v13h-2v-6h-2v6H7V9H1c-.55 0-1-.45-1-1s.45-1 1-1h22c.55 0 1 .45 1 1s-.45 1-1 1z"/>
+              @if (canManageMembers()) {
+                <button (click)="openPlayerBulkModal()"
+                  class="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-white/10 text-white hover:text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                   </svg>
-                </div>
-                <h3 class="text-sm font-bold text-white mb-1">No players registered</h3>
-                <p class="text-xs text-slate-500 max-w-xs">Add your first player in the sidebar to start tracking stats and records.</p>
-              </div>
-            } @else {
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                @for (player of players(); track player.id) {
-                  <div class="bg-slate-900 border border-white/10 hover:border-violet-500/30 rounded-2xl p-5 flex flex-col gap-4 group transition-all duration-300">
-                    <div class="flex items-start gap-4">
-                      <!-- Player Avatar -->
-                      <div class="w-12 h-12 rounded-xl flex items-center justify-center text-white text-sm font-extrabold shadow-inner flex-shrink-0 overflow-hidden"
-                        [style.background]="player.user.avatarUrl ? 'transparent' : avatarColor(player.user.username)">
-                        @if (player.user.avatarUrl) {
-                          <img [src]="player.user.avatarUrl" alt="Avatar" class="w-full h-full object-cover" />
-                        } @else {
-                          {{ initials(player.user.username) }}
-                        }
-                      </div>
-                      <div class="flex-1 min-w-0">
-                        <h4 class="text-sm font-bold text-white truncate">{{ player.user.username }}</h4>
-                        <div class="flex items-center gap-1.5 mt-1">
-                          <span class="text-[10px] px-2 py-0.5 bg-violet-500/10 text-violet-400 rounded-md border border-violet-500/20 max-w-[120px] truncate">
-                            {{ player.team.name }}
-                          </span>
-                          @if (player.jerseyNumber) {
-                            <span class="text-[10px] px-1.5 py-0.5 bg-slate-800 text-slate-300 rounded border border-white/5">
-                              #{{ player.jerseyNumber }}
-                            </span>
-                          }
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="text-xs text-slate-400 flex flex-col gap-1 border-t border-white/5 pt-3 text-left">
-                      <div class="flex justify-between">
-                        <span class="text-slate-500">Username:</span>
-                        <span class="text-white truncate max-w-[150px]">{{ player.user.username }}</span>
-                      </div>
-                    </div>
-
-                    <!-- Actions -->
-                    @if (canManageMembers()) {
-                      <div class="flex items-center justify-end gap-2 pt-3 border-t border-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button (click)="onEditPlayer(player)"
-                          class="px-2.5 py-1.5 text-[11px] font-bold text-violet-400 hover:text-white hover:bg-violet-600/20 border border-violet-500/10 hover:border-violet-500/30 rounded-lg transition-all cursor-pointer">
-                          Edit
-                        </button>
-                        <button (click)="onDeletePlayer(player)"
-                          class="px-2.5 py-1.5 text-[11px] font-bold text-rose-400 hover:text-white hover:bg-rose-600/20 border border-rose-500/10 hover:border-rose-500/30 rounded-lg transition-all cursor-pointer">
-                          Delete
-                        </button>
-                      </div>
-                    }
-                  </div>
-                }
-              </div>
-            }
+                  Bulk Import
+                </button>
+                <button (click)="onAddPlayer()"
+                  class="flex items-center gap-1.5 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-violet-900/20 transition-all cursor-pointer">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Player
+                </button>
+              }
+            </div>
           </div>
 
-          <!-- Register Player (Right Sidebar) -->
-          @if (canManageMembers()) {
-            <div class="flex flex-col gap-6">
+          @if (players().length === 0) {
+            <div class="flex flex-col items-center justify-center py-20 text-center bg-slate-900/40 border border-white/10 rounded-2xl">
+              <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-white/10 flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-slate-600" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm9 7h-6v13h-2v-6h-2v6H7V9H1c-.55 0-1-.45-1-1s.45-1 1-1h22c.55 0 1 .45 1 1s-.45 1-1 1z"/>
+                </svg>
+              </div>
+              <h3 class="text-sm font-bold text-white mb-1">No players registered</h3>
+              <p class="text-xs text-slate-500 max-w-xs">Add your first player or use bulk import to get started.</p>
+            </div>
+          } @else {
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              @for (player of players(); track player.id) {
+                <div class="bg-slate-900 border border-white/10 hover:border-violet-500/30 rounded-2xl p-5 flex flex-col gap-4 group transition-all duration-300">
+                  <div class="flex items-start gap-4">
+                    <div class="w-10 h-10 rounded-xl bg-slate-800 border border-white/5 flex items-center justify-center font-bold text-violet-400 text-xs overflow-hidden flex-shrink-0">
+                      @if (player.user.avatarUrl) {
+                        <img [src]="player.user.avatarUrl" alt="Avatar" class="w-full h-full object-cover" />
+                      } @else {
+                        {{ initials(player.user.username) }}
+                      }
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <h4 class="text-sm font-bold text-white truncate">{{ player.user.username }}</h4>
+                      <div class="flex items-center gap-1.5 mt-1">
+                        <span class="text-[10px] px-2 py-0.5 bg-violet-500/10 text-violet-400 rounded-md border border-violet-500/20 max-w-[120px] truncate">
+                          {{ player.team.name }}
+                        </span>
+                        @if (player.jerseyNumber) {
+                          <span class="text-[10px] px-1.5 py-0.5 bg-slate-800 text-slate-300 rounded border border-white/5">
+                            #{{ player.jerseyNumber }}
+                          </span>
+                        }
+                      </div>
+                    </div>
+                  </div>
 
-              <!-- Form card -->
-              @if (!editingPlayer()) {
-                <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-xl flex flex-col gap-5 sticky top-24">
-                  <h3 class="text-sm font-bold text-white border-b border-white/5 pb-3">Register New Player</h3>
+                  <div class="text-xs text-slate-400 flex flex-col gap-1 border-t border-white/5 pt-3 text-left">
+                    <div class="flex justify-between">
+                      <span class="text-slate-500">Username:</span>
+                      <span class="text-white truncate max-w-[150px]">{{ player.user.username }}</span>
+                    </div>
+                  </div>
 
-                  @if (teams().length === 0) {
-                    <div class="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl text-amber-300 text-xs flex flex-col gap-2">
-                      <p>You must register at least one Team before you can add players.</p>
-                      <button type="button" (click)="activeTab.set('teams')" class="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-center transition-all cursor-pointer text-xs">
-                        Go to Teams Tab
+                  <!-- Actions -->
+                  @if (canManageMembers()) {
+                    <div class="flex items-center justify-end gap-2 pt-3 border-t border-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button (click)="onEditPlayer(player)"
+                        class="px-2.5 py-1.5 text-[11px] font-bold text-violet-400 hover:text-white hover:bg-violet-600/20 border border-violet-500/10 hover:border-violet-500/30 rounded-lg transition-all cursor-pointer">
+                        Edit
+                      </button>
+                      <button (click)="onDeletePlayer(player)"
+                        class="px-2.5 py-1.5 text-[11px] font-bold text-rose-400 hover:text-white hover:bg-rose-600/20 border border-rose-500/10 hover:border-rose-500/30 rounded-lg transition-all cursor-pointer">
+                        Delete
                       </button>
                     </div>
-                  } @else {
-                    @if (playerCreateSuccess()) {
-                      <div class="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3 text-emerald-300 text-xs flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                        </svg>
-                        {{ playerCreateSuccess() }}
-                      </div>
-                    }
-                    @if (playerCreateError()) {
-                      <div class="rounded-xl bg-rose-500/10 border border-rose-500/30 p-3 text-rose-300 text-xs flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-                        </svg>
-                        {{ playerCreateError() }}
-                      </div>
-                    }
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
 
-                    <form (submit)="onCreatePlayer(); $event.preventDefault()" class="flex flex-col gap-4">
-                      <div class="flex flex-col gap-1.5 text-left">
-                        <label for="p-user" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Member / User <span class="text-rose-400">*</span></label>
-                        <select id="p-user"
-                          class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all w-full"
+        <!-- Player Add/Edit Modal -->
+        @if (isPlayerModalOpen()) {
+          <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" (click)="closePlayerModal()">
+            <div class="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden" (click)="$event.stopPropagation()">
+              <!-- Gradient top line -->
+              <div class="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-violet-500 to-indigo-500"></div>
+
+              <!-- Header -->
+              <div class="px-6 py-5 border-b border-white/5 flex items-center justify-between">
+                <div>
+                  <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    @if (editingPlayer()) {
+                      <span>Edit Player:</span>
+                      <span class="text-violet-400">{{ editingPlayer()?.user?.username }}</span>
+                    } @else {
+                      <span>Register New Player</span>
+                    }
+                  </h3>
+                  <p class="text-xs text-slate-400 mt-1">
+                    @if (editingPlayer()) {
+                      Update the player details and configuration.
+                    } @else {
+                      Add a new player to this workspace.
+                    }
+                  </p>
+                </div>
+                <button (click)="closePlayerModal()" class="text-slate-400 hover:text-white transition cursor-pointer">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Form Content -->
+              <div class="p-6 overflow-y-auto flex-1">
+                @if (teams().length === 0) {
+                  <div class="bg-amber-500/10 border border-amber-500/30 p-4 rounded-xl text-amber-300 text-xs flex flex-col gap-2">
+                    <p>You must register at least one Team before you can add players.</p>
+                    <button type="button" (click)="activeTab.set('teams'); closePlayerModal()" class="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-center transition-all cursor-pointer text-xs">
+                      Go to Teams Tab
+                    </button>
+                  </div>
+                } @else {
+                  @if (editingPlayer()) {
+                    <div class="mb-4 text-xs text-slate-400 bg-slate-950/40 p-3 rounded-xl border border-white/5 flex flex-col gap-1.5">
+                      <div>
+                        <span class="text-slate-500">Player:</span>
+                        <span class="text-white font-bold ml-1.5">{{ editingPlayer()?.user?.username }}</span>
+                      </div>
+                    </div>
+                  }
+
+                  @if (playerCreateSuccess() || playerUpdateSuccess()) {
+                    <div class="mb-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3 text-emerald-300 text-xs flex items-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                      </svg>
+                      {{ playerCreateSuccess() || playerUpdateSuccess() }}
+                    </div>
+                  }
+                  @if (playerCreateError() || playerUpdateError()) {
+                    <div class="mb-4 rounded-xl bg-rose-500/10 border border-rose-500/30 p-3 text-rose-300 text-xs flex items-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                      </svg>
+                      {{ playerCreateError() || playerUpdateError() }}
+                    </div>
+                  }
+
+                  <form (submit)="editingPlayer() ? onUpdatePlayer() : onCreatePlayer(); $event.preventDefault()" class="flex flex-col gap-4">
+                    @if (!editingPlayer()) {
+                      <div class="flex flex-col gap-1.5">
+                        <label for="modal-p-user" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Member / User <span class="text-rose-400">*</span></label>
+                        <select id="modal-p-user"
+                          class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-4 py-2.5 text-xs text-white outline-none transition-all w-full"
                           [ngModel]="newPlayerUserId()" (ngModelChange)="newPlayerUserId.set($event)" name="pUserId" required>
                           <option value="" disabled selected>Select workspace member...</option>
                           @for (m of members(); track m.id) {
@@ -834,109 +883,221 @@
                           }
                         </select>
                       </div>
+                    }
 
-                      <div class="flex flex-col gap-1.5 text-left">
-                        <label for="p-team" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Team <span class="text-rose-400">*</span></label>
-                        <select id="p-team"
-                          class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all w-full"
-                          [ngModel]="newPlayerTeamId()" (ngModelChange)="newPlayerTeamId.set($event)" name="pTeamId" required>
-                          <option value="" disabled selected>Select a team...</option>
-                          @for (team of teams(); track team.id) {
-                            <option [value]="team.id">{{ team.name }}</option>
-                          }
-                        </select>
-                      </div>
-
-                      <div class="flex flex-col gap-1.5 text-left">
-                        <label for="p-jersey" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Jersey #</label>
-                        <input id="p-jersey" type="text" placeholder="e.g. 10" autocomplete="off"
-                          class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 outline-none transition-all w-full"
-                          [ngModel]="newPlayerJerseyNumber()" (ngModelChange)="newPlayerJerseyNumber.set($event)" name="pJersey" />
-                      </div>
-
-                      <button type="submit" [disabled]="isCreatingPlayer() || !newPlayerUserId() || !newPlayerTeamId()"
-                        class="w-full py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2">
-                        @if (isCreatingPlayer()) {
-                          <svg class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                          </svg>
-                        } @else { Register Player }
-                      </button>
-                    </form>
-                  }
-                </div>
-              } @else {
-                <!-- Edit mode card -->
-                <div class="bg-slate-900 border border-violet-500/30 rounded-2xl p-6 shadow-xl flex flex-col gap-5 sticky top-24">
-                  <h3 class="text-sm font-bold text-white border-b border-white/5 pb-3">Edit Player</h3>
-
-                  @if (playerUpdateSuccess()) {
-                    <div class="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3 text-emerald-300 text-xs flex items-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                      </svg>
-                      {{ playerUpdateSuccess() }}
-                    </div>
-                  }
-                  @if (playerUpdateError()) {
-                    <div class="rounded-xl bg-rose-500/10 border border-rose-500/30 p-3 text-rose-300 text-xs flex items-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-                      </svg>
-                      {{ playerUpdateError() }}
-                    </div>
-                  }
-
-                  <div class="text-xs text-slate-400 bg-slate-950/40 p-3 rounded-xl border border-white/5 flex flex-col gap-1.5 text-left">
-                    <div>
-                      <span class="text-slate-500">Player:</span>
-                      <span class="text-white font-bold ml-1.5">{{ editingPlayer()?.user?.username }}</span>
-                    </div>
-                  </div>
-
-                  <form (submit)="onUpdatePlayer(); $event.preventDefault()" class="flex flex-col gap-4">
-                    <div class="flex flex-col gap-1.5 text-left">
-                      <label for="edit-p-team" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Team <span class="text-rose-400">*</span></label>
-                      <select id="edit-p-team"
-                        class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all w-full"
-                        [ngModel]="editPlayerTeamId()" (ngModelChange)="editPlayerTeamId.set($event)" name="editPTeamId" required>
+                    <div class="flex flex-col gap-1.5">
+                      <label for="modal-p-team" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Team <span class="text-rose-400">*</span></label>
+                      <select id="modal-p-team"
+                        class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-4 py-2.5 text-xs text-white outline-none transition-all w-full"
+                        [ngModel]="editingPlayer() ? editPlayerTeamId() : newPlayerTeamId()" 
+                        (ngModelChange)="editingPlayer() ? editPlayerTeamId.set($event) : newPlayerTeamId.set($event)" 
+                        name="pTeamId" required>
+                        <option value="" disabled selected>Select a team...</option>
                         @for (team of teams(); track team.id) {
                           <option [value]="team.id">{{ team.name }}</option>
                         }
                       </select>
                     </div>
 
-                    <div class="flex flex-col gap-1.5 text-left">
-                      <label for="edit-p-jersey" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Jersey #</label>
-                      <input id="edit-p-jersey" type="text" autocomplete="off"
-                        class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-3.5 py-2 text-xs text-white outline-none transition-all w-full"
-                        [ngModel]="editPlayerJerseyNumber()" (ngModelChange)="editPlayerJerseyNumber.set($event)" name="editPJersey" />
+                    <div class="flex flex-col gap-1.5">
+                      <label for="modal-p-jersey" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Jersey # <span class="text-slate-600 font-normal normal-case">(optional)</span></label>
+                      <input id="modal-p-jersey" type="text" placeholder="e.g. 10" autocomplete="off"
+                        class="bg-slate-950 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 outline-none transition-all w-full"
+                        [ngModel]="editingPlayer() ? editPlayerJerseyNumber() : newPlayerJerseyNumber()" 
+                        (ngModelChange)="editingPlayer() ? editPlayerJerseyNumber.set($event) : newPlayerJerseyNumber.set($event)" 
+                        name="pJersey" />
                     </div>
 
-                    <div class="flex gap-2">
-                      <button type="button" (click)="onCancelEditPlayer()"
-                        class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white hover:text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer">
+                    <!-- Footer Buttons -->
+                    <div class="flex justify-end gap-3 pt-4 border-t border-white/5">
+                      <button type="button" (click)="closePlayerModal()"
+                        class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white hover:text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer">
                         Cancel
                       </button>
-                      <button type="submit" [disabled]="isUpdatingPlayer() || !editPlayerTeamId()"
-                        class="flex-1 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2">
-                        @if (isUpdatingPlayer()) {
+                      <button type="submit" 
+                        [disabled]="editingPlayer() ? (isUpdatingPlayer() || !editPlayerTeamId()) : (isCreatingPlayer() || !newPlayerUserId() || !newPlayerTeamId())"
+                        class="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2">
+                        @if (isCreatingPlayer() || isUpdatingPlayer()) {
                           <svg class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                           </svg>
-                        } @else { Save }
+                          Saving...
+                        } @else {
+                          {{ editingPlayer() ? 'Save Changes' : 'Register Player' }}
+                        }
                       </button>
                     </div>
                   </form>
-                </div>
-              }
-
+                }
+              </div>
             </div>
-          }
+          </div>
+        }
 
-        </div>
+        <!-- Player Bulk Import Modal -->
+        @if (isPlayerBulkModalOpen()) {
+          <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" (click)="closePlayerBulkModal()">
+            <div class="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden" (click)="$event.stopPropagation()">
+              <!-- Gradient top line -->
+              <div class="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-violet-500 to-indigo-500"></div>
+
+              <!-- Header -->
+              <div class="px-6 py-5 border-b border-white/5 flex items-center justify-between">
+                <div>
+                  <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    <span>Bulk Import Players</span>
+                  </h3>
+                  <p class="text-xs text-slate-400 mt-1">Upload a spreadsheet or Excel file to register multiple players at once.</p>
+                </div>
+                <button (click)="closePlayerBulkModal()" class="text-slate-400 hover:text-white transition cursor-pointer">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Content -->
+              <div class="p-6 overflow-y-auto flex-1 flex flex-col gap-5">
+                <!-- Step 1: Download format -->
+                <div class="bg-slate-950/50 border border-white/5 rounded-xl p-4 flex flex-col gap-3">
+                  <h4 class="text-xs font-bold text-white uppercase tracking-wider">1. Prepare your spreadsheet</h4>
+                  <p class="text-xs text-slate-400 leading-relaxed">
+                    Make sure usernames correspond to registered workspace members, and team mapping uses the unique <strong class="text-violet-400">Team Code</strong>. Jersey # is optional.
+                  </p>
+                  <button (click)="downloadPlayerTemplate()"
+                    class="self-start flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white hover:text-slate-950 text-xs font-bold rounded-lg border border-white/10 transition cursor-pointer">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download Excel Template
+                  </button>
+                </div>
+
+                <!-- Step 2: Upload File -->
+                <div class="flex flex-col gap-2">
+                  <h4 class="text-xs font-bold text-white uppercase tracking-wider">2. Upload spreadsheet file</h4>
+                  
+                  <label class="flex flex-col items-center justify-center border-2 border-dashed border-white/10 hover:border-violet-500/50 rounded-xl p-6 cursor-pointer bg-slate-950/20 hover:bg-slate-950/40 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-slate-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span class="text-xs font-bold text-white">Choose Excel File</span>
+                    <span class="text-[10px] text-slate-500 mt-1">Supports .xlsx, .xls</span>
+                    <input type="file" (change)="onPlayerExcelUpload($event)" accept=".xlsx,.xls" class="hidden" />
+                  </label>
+                </div>
+
+                <!-- Status Banners -->
+                @if (playerBulkImportError()) {
+                  <div class="rounded-xl bg-rose-500/10 border border-rose-500/30 p-3 text-rose-300 text-xs flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    {{ playerBulkImportError() }}
+                  </div>
+                }
+                @if (playerBulkImportSuccess()) {
+                  <div class="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3 text-emerald-300 text-xs flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    {{ playerBulkImportSuccess() }}
+                  </div>
+                }
+
+                <!-- Preview & Progress -->
+                @if (bulkImportPlayers().length > 0) {
+                  <div class="flex flex-col gap-2">
+                    <h4 class="text-xs font-bold text-white uppercase tracking-wider flex justify-between">
+                      <span>Preview Players ({{ bulkImportPlayers().length }} found)</span>
+                      <span class="text-violet-400 capitalize">Ready</span>
+                    </h4>
+                    <div class="max-h-64 overflow-y-auto border border-white/5 rounded-xl bg-slate-950/40 p-2 text-xs flex flex-col gap-1.5">
+                      @for (item of bulkImportPlayers(); track $index) {
+                        <div class="flex items-center justify-between px-3 py-2 bg-slate-900/60 rounded-xl border border-white/5 gap-4">
+                          <div class="flex flex-col min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                              <span class="font-bold text-white truncate max-w-[150px]">{{ item.username }}</span>
+                              <span class="text-[10px] px-1.5 py-0.5 bg-slate-950 border border-white/10 text-slate-400 rounded">
+                                Jersey: {{ item.jerseyNumber || 'N/A' }}
+                              </span>
+                            </div>
+                            <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                              <span class="text-[10px] text-slate-400">Team Code:</span>
+                              <span class="text-[10px] font-mono text-violet-400 font-bold uppercase">{{ item.teamCode || 'MISSING' }}</span>
+                              @if (item.error) {
+                                <span class="text-[10px] text-rose-400 font-medium">| {{ item.error }}</span>
+                              }
+                            </div>
+                          </div>
+                          <div class="flex-shrink-0">
+                            @if (item.status === 'success') {
+                              <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                Imported
+                              </span>
+                            } @else if (item.status === 'exist') {
+                              <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                                Already Exists
+                              </span>
+                            } @else if (item.status === 'failed') {
+                              <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                                Failed
+                              </span>
+                            } @else {
+                              <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800 border border-white/5 text-slate-400 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-slate-500 animate-pulse"></span>
+                                Ready
+                              </span>
+                            }
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+
+                @if (isImportingPlayerBulk()) {
+                  <div class="flex flex-col gap-2 bg-slate-950/30 p-4 border border-white/5 rounded-xl">
+                    <div class="flex justify-between text-xs font-bold text-white">
+                      <span>Importing Players...</span>
+                      <span>{{ playerBulkImportProgress() }}%</span>
+                    </div>
+                    <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-white/5">
+                      <div class="bg-gradient-to-r from-violet-500 to-indigo-500 h-full rounded-full transition-all duration-300" [style.width]="playerBulkImportProgress() + '%'"></div>
+                    </div>
+                  </div>
+                }
+              </div>
+
+              <!-- Footer Buttons -->
+              <div class="px-6 py-5 border-t border-white/5 flex justify-end gap-3">
+                <button type="button" (click)="closePlayerBulkModal()" [disabled]="isImportingPlayerBulk()"
+                  class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white hover:text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                  Close
+                </button>
+                <button type="button" (click)="onConfirmPlayerBulkImport()" [disabled]="isImportingPlayerBulk() || bulkImportPlayers().length === 0"
+                  class="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2">
+                  @if (isImportingPlayerBulk()) {
+                    <svg class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    Importing...
+                  } @else {
+                    Confirm Import
+                  }
+                </button>
+              </div>
+            </div>
+          </div>
+        }
       }
 
       <!-- ═══════════════ EVENTS TAB ═══════════════ -->
@@ -2846,11 +3007,48 @@
                 <span>Preview Teams ({{ bulkImportTeams().length }} found)</span>
                 <span class="text-violet-400 capitalize">Ready</span>
               </h4>
-              <div class="max-h-36 overflow-y-auto border border-white/5 rounded-xl bg-slate-950/40 p-2 text-xs flex flex-col gap-1.5">
+              <div class="max-h-64 overflow-y-auto border border-white/5 rounded-xl bg-slate-950/40 p-2 text-xs flex flex-col gap-1.5">
                 @for (t of bulkImportTeams(); track $index) {
-                  <div class="flex items-center justify-between px-2 py-1 bg-slate-900/60 rounded border border-white/5">
-                    <div class="font-bold text-white truncate max-w-[200px]">{{ t.name }}</div>
-                    <div class="text-[10px] text-slate-500 truncate max-w-[150px]">{{ t.description || 'No description' }}</div>
+                  <div class="flex items-center justify-between px-3 py-2 bg-slate-900/60 rounded-xl border border-white/5 gap-4">
+                    <div class="flex flex-col min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-bold text-white truncate max-w-[150px]">{{ t.name }}</span>
+                        @if (t.code) {
+                          <span class="text-[10px] px-1.5 py-0.5 bg-slate-950 border border-white/10 text-violet-400 font-mono font-bold rounded uppercase">
+                            Code: {{ t.code }}
+                          </span>
+                        }
+                      </div>
+                      <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                        <span class="text-[10px] text-slate-500 truncate max-w-[200px]">{{ t.description || 'No description' }}</span>
+                        @if (t.error) {
+                          <span class="text-[10px] text-rose-400 font-medium">| {{ t.error }}</span>
+                        }
+                      </div>
+                    </div>
+                    <div class="flex-shrink-0">
+                      @if (t.status === 'success') {
+                        <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center gap-1">
+                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                          Imported
+                        </span>
+                      } @else if (t.status === 'exist') {
+                        <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center gap-1">
+                          <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                          Already Exists
+                        </span>
+                      } @else if (t.status === 'failed') {
+                        <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center gap-1">
+                          <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                          Failed
+                        </span>
+                      } @else {
+                        <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800 border border-white/5 text-slate-400 flex items-center gap-1">
+                          <span class="w-1.5 h-1.5 rounded-full bg-slate-500 animate-pulse"></span>
+                          Ready
+                        </span>
+                      }
+                    </div>
                   </div>
                 }
               </div>
