@@ -192,6 +192,12 @@ export class WorkspaceDetailComponent implements OnInit {
   selectedMatch = signal<Match | null>(null);
   selectedPointsTableGroup = signal<string>('Group A');
 
+  // Cricket Scoring Inputs
+  cricketBowler = signal<string>('');
+  cricketStriker = signal<string>('');
+  cricketNonStriker = signal<string>('');
+  cricketStatsTab = signal<'batting' | 'bowling'>('batting');
+
   isStageCompleted = computed(() => {
     const stage = this.selectedStage();
     if (!stage) return false;
@@ -2865,7 +2871,34 @@ export class WorkspaceDetailComponent implements OnInit {
     });
   }
 
-  onRecordCricketBall(runs: number, extraRuns: number, wicket: boolean) {
+  getCricketBallNumber(ballsHistory: any[] | undefined): string {
+    if (!ballsHistory || ballsHistory.length === 0) {
+      return "1.1";
+    }
+    let validBallsCount = 0;
+    for (const ball of ballsHistory) {
+      if (ball.ballType !== 'wide' && ball.ballType !== 'no-ball') {
+        validBallsCount++;
+      }
+    }
+    const over = Math.floor(validBallsCount / 6);
+    const ballInOver = (validBallsCount % 6) + 1;
+    return `${over + 1}.${ballInOver}`;
+  }
+
+  isFreeHitActive(innings: any): boolean {
+    if (!innings || !innings.ballsHistory || innings.ballsHistory.length === 0) {
+      return false;
+    }
+    const lastBall = innings.ballsHistory[innings.ballsHistory.length - 1];
+    return lastBall.ballType === 'no-ball';
+  }
+
+  getObjectKeys(obj: any): string[] {
+    return obj ? Object.keys(obj) : [];
+  }
+
+  onRecordCricketBall(runs: number, extraRuns: number, wicket: boolean, ballType: string) {
     const match = this.selectedMatch();
     const ws = this.workspace();
     const event = this.selectedEvent();
@@ -2881,15 +2914,69 @@ export class WorkspaceDetailComponent implements OnInit {
 
     // Update Runs
     innings.runs += runs + extraRuns;
-    innings.balls += 1;
-    if (innings.balls >= 6) {
-      innings.overs += 1;
-      innings.balls = 0;
-    }
+    innings.extraRuns = (innings.extraRuns ?? 0) + extraRuns;
 
     // Update wickets
     if (wicket) {
       innings.wickets += 1;
+    }
+
+    // Update valid balls/overs count
+    if (ballType !== 'wide' && ballType !== 'no-ball') {
+      innings.balls += 1;
+      if (innings.balls >= 6) {
+        innings.overs += 1;
+        innings.balls = 0;
+      }
+    }
+
+    // Record ball to history
+    if (!innings.ballsHistory) {
+      innings.ballsHistory = [];
+    }
+    const ballNumber = this.getCricketBallNumber(innings.ballsHistory);
+    innings.ballsHistory.push({
+      ballNumber,
+      bowler: this.cricketBowler() || 'Unknown Bowler',
+      striker: this.cricketStriker() || 'Unknown Batter',
+      nonStriker: this.cricketNonStriker() || 'Unknown Batter',
+      runs,
+      extras: extraRuns,
+      wicket,
+      ballType,
+      timestamp: new Date().toISOString()
+    });
+
+    // Update batsman stats
+    const striker = this.cricketStriker() || 'Unknown Batter';
+    if (!innings.batsmanStats) innings.batsmanStats = {};
+    if (!innings.batsmanStats[striker]) {
+      innings.batsmanStats[striker] = { runs: 0, balls: 0, fours: 0, sixes: 0 };
+    }
+    if (ballType !== 'wide') {
+      innings.batsmanStats[striker].balls += 1;
+      innings.batsmanStats[striker].runs += runs;
+      if (runs === 4) innings.batsmanStats[striker].fours += 1;
+      if (runs === 6) innings.batsmanStats[striker].sixes += 1;
+    }
+
+    // Update bowler stats
+    const bowler = this.cricketBowler() || 'Unknown Bowler';
+    if (!innings.bowlerStats) innings.bowlerStats = {};
+    if (!innings.bowlerStats[bowler]) {
+      innings.bowlerStats[bowler] = { overs: 0, balls: 0, runsConceded: 0, wickets: 0, extraRuns: 0 };
+    }
+    innings.bowlerStats[bowler].runsConceded += runs + extraRuns;
+    innings.bowlerStats[bowler].extraRuns += extraRuns;
+    if (wicket) {
+      innings.bowlerStats[bowler].wickets += 1;
+    }
+    if (ballType !== 'wide' && ballType !== 'no-ball') {
+      innings.bowlerStats[bowler].balls += 1;
+      if (innings.bowlerStats[bowler].balls >= 6) {
+        innings.bowlerStats[bowler].overs += 1;
+        innings.bowlerStats[bowler].balls = 0;
+      }
     }
 
     live.inningsData[inningsIndex] = innings;
@@ -2918,11 +3005,116 @@ export class WorkspaceDetailComponent implements OnInit {
           bowlerStats: {},
           extraRuns: 0,
           completed: false,
+          ballsHistory: []
         });
       } else {
         // Match completed
         match.status = 'completed';
       }
+    }
+
+    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+      homeScore,
+      awayScore,
+      status: match.status,
+      liveData: live,
+    }).subscribe({
+      next: (updated) => {
+        this.selectedMatch.set(updated);
+        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+      }
+    });
+  }
+
+  onUndoCricketBall() {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!match || !ws || !event || !comp || !stage) return;
+
+    const live = { ...match.liveData };
+    const inningsIndex = (live.currentInnings ?? 1) - 1;
+    if (!live.inningsData || !live.inningsData[inningsIndex]) return;
+
+    const innings = { ...live.inningsData[inningsIndex] };
+    if (!innings.ballsHistory || innings.ballsHistory.length === 0) return;
+
+    // Pop the last ball
+    innings.ballsHistory.pop();
+
+    // Re-calculate statistics for the innings from the remaining history
+    innings.runs = 0;
+    innings.wickets = 0;
+    innings.balls = 0;
+    innings.overs = 0;
+    innings.extraRuns = 0;
+    innings.batsmanStats = {};
+    innings.bowlerStats = {};
+
+    const history = [...innings.ballsHistory];
+    innings.ballsHistory = [];
+
+    // Replay all previous balls
+    for (const ball of history) {
+      innings.runs += ball.runs + ball.extras;
+      innings.extraRuns += ball.extras;
+      if (ball.wicket) {
+        innings.wickets += 1;
+      }
+      if (ball.ballType !== 'wide' && ball.ballType !== 'no-ball') {
+        innings.balls += 1;
+        if (innings.balls >= 6) {
+          innings.overs += 1;
+          innings.balls = 0;
+        }
+      }
+
+      // Re-populate batsman stats
+      const bName = ball.striker;
+      if (!innings.batsmanStats[bName]) {
+        innings.batsmanStats[bName] = { runs: 0, balls: 0, fours: 0, sixes: 0 };
+      }
+      if (ball.ballType !== 'wide') {
+        innings.batsmanStats[bName].balls += 1;
+        innings.batsmanStats[bName].runs += ball.runs;
+        if (ball.runs === 4) innings.batsmanStats[bName].fours += 1;
+        if (ball.runs === 6) innings.batsmanStats[bName].sixes += 1;
+      }
+
+      // Re-populate bowler stats
+      const bwName = ball.bowler;
+      if (!innings.bowlerStats[bwName]) {
+        innings.bowlerStats[bwName] = { overs: 0, balls: 0, runsConceded: 0, wickets: 0, extraRuns: 0 };
+      }
+      innings.bowlerStats[bwName].runsConceded += ball.runs + ball.extras;
+      innings.bowlerStats[bwName].extraRuns += ball.extras;
+      if (ball.wicket) {
+        innings.bowlerStats[bwName].wickets += 1;
+      }
+      if (ball.ballType !== 'wide' && ball.ballType !== 'no-ball') {
+        innings.bowlerStats[bwName].balls += 1;
+        if (innings.bowlerStats[bwName].balls >= 6) {
+          innings.bowlerStats[bwName].overs += 1;
+          innings.bowlerStats[bwName].balls = 0;
+        }
+      }
+      
+      innings.ballsHistory.push(ball);
+    }
+
+    live.inningsData[inningsIndex] = innings;
+
+    // Update main scores
+    const homeInnings = live.inningsData.find((i: any) => i.battingTeamId === match.homeTeamId);
+    const homeScore = homeInnings ? homeInnings.runs : 0;
+    const awayInnings = live.inningsData.find((i: any) => i.battingTeamId === match.awayTeamId);
+    const awayScore = awayInnings ? awayInnings.runs : 0;
+
+    // Reset status if match was completed but we undo
+    if (match.status === 'completed') {
+      match.status = 'live';
     }
 
     this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
