@@ -35,6 +35,7 @@ export class WorkspaceDetailComponent implements OnInit {
   isSidebarOpen = signal(false);
   enableExtraTime = signal(true);
   enablePenaltyShootout = signal(true);
+  extraTimeHalfDuration = signal(15);
 
   // Image Upload Loading States
   isUploadingAvatar = signal(false);
@@ -2743,7 +2744,8 @@ export class WorkspaceDetailComponent implements OnInit {
             return;
           }
         } else if (live.currentHalf === 3) {
-          const extra1Limit = halfSecs * 2 + 15 * 60;
+          const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
+          const extra1Limit = halfSecs * 2 + extraHalfMinutes * 60;
           if ((live.elapsedSeconds ?? 0) >= extra1Limit) {
             live.timerRunning = false;
             live.elapsedSeconds = extra1Limit;
@@ -2752,7 +2754,8 @@ export class WorkspaceDetailComponent implements OnInit {
             return;
           }
         } else if (live.currentHalf === 4) {
-          const extra2Limit = halfSecs * 2 + 30 * 60;
+          const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
+          const extra2Limit = halfSecs * 2 + (extraHalfMinutes * 2) * 60;
           if ((live.elapsedSeconds ?? 0) >= extra2Limit) {
             live.timerRunning = false;
             live.elapsedSeconds = extra2Limit;
@@ -2799,7 +2802,7 @@ export class WorkspaceDetailComponent implements OnInit {
     });
   }
 
-  onStartFootballMatch(halfDurationMinutes: number, enableExtraTime: boolean = false, enablePenaltyShootout: boolean = false) {
+  onStartFootballMatch(halfDurationMinutes: number, enableExtraTime: boolean = false, enablePenaltyShootout: boolean = false, extraTimeHalfDurationMinutes: number = 15) {
     const match = this.selectedMatch();
     const ws = this.workspace();
     const event = this.selectedEvent();
@@ -2812,6 +2815,7 @@ export class WorkspaceDetailComponent implements OnInit {
       halfDurationMinutes,
       enableExtraTime,
       enablePenaltyShootout,
+      extraTimeHalfDurationMinutes,
       currentHalf: 1,
       elapsedSeconds: 0,
       timerRunning: true,
@@ -2898,11 +2902,13 @@ export class WorkspaceDetailComponent implements OnInit {
       }
       return '2nd Half';
     } else if (live.currentHalf === 3) {
-      const extra1Limit = halfSecs * 2 + 15 * 60;
+      const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
+      const extra1Limit = halfSecs * 2 + extraHalfMinutes * 60;
       if ((live.elapsedSeconds ?? 0) >= extra1Limit) return 'Extra Half Time';
       return '1st Extra Half';
     } else if (live.currentHalf === 4) {
-      const extra2Limit = halfSecs * 2 + 30 * 60;
+      const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
+      const extra2Limit = halfSecs * 2 + (extraHalfMinutes * 2) * 60;
       if ((live.elapsedSeconds ?? 0) >= extra2Limit) {
         if (live.enablePenaltyShootout && match.homeScore === match.awayScore) {
           return 'Penalty Shootout Pending';
@@ -2941,7 +2947,8 @@ export class WorkspaceDetailComponent implements OnInit {
     if (!match || !match.liveData?.started) return false;
     const live = match.liveData;
     const halfSecs = (live.halfDurationMinutes || 45) * 60;
-    const extra1Limit = halfSecs * 2 + 15 * 60;
+    const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
+    const extra1Limit = halfSecs * 2 + extraHalfMinutes * 60;
     return live.currentHalf === 3 && (live.elapsedSeconds ?? 0) >= extra1Limit;
   }
 
@@ -2949,7 +2956,8 @@ export class WorkspaceDetailComponent implements OnInit {
     if (!match || !match.liveData?.started) return false;
     const live = match.liveData;
     const halfSecs = (live.halfDurationMinutes || 45) * 60;
-    const extra2Limit = halfSecs * 2 + 30 * 60;
+    const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
+    const extra2Limit = halfSecs * 2 + (extraHalfMinutes * 2) * 60;
     return live.currentHalf === 4 && (live.elapsedSeconds ?? 0) >= extra2Limit;
   }
 
@@ -2957,7 +2965,8 @@ export class WorkspaceDetailComponent implements OnInit {
     if (!match || !match.liveData?.started) return false;
     const live = match.liveData;
     const halfSecs = (live.halfDurationMinutes || 45) * 60;
-    const extra2Limit = halfSecs * 2 + 30 * 60;
+    const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
+    const extra2Limit = halfSecs * 2 + (extraHalfMinutes * 2) * 60;
     return live.currentHalf === 4 && (live.elapsedSeconds ?? 0) >= extra2Limit && live.enablePenaltyShootout && match.homeScore === match.awayScore;
   }
 
@@ -3414,8 +3423,9 @@ export class WorkspaceDetailComponent implements OnInit {
 
     const live = { ...match.liveData };
     const halfDurationMinutes = live.halfDurationMinutes || 45;
+    const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
     live.currentHalf = 4;
-    live.elapsedSeconds = halfDurationMinutes * 2 * 60 + 15 * 60;
+    live.elapsedSeconds = halfDurationMinutes * 2 * 60 + extraHalfMinutes * 60;
     live.timerRunning = true;
 
     this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {

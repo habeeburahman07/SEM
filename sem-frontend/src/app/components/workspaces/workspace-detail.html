@@ -2303,6 +2303,13 @@
                           <input type="checkbox" [checked]="enableExtraTime()" (change)="enableExtraTime.set($any($event.target).checked)" class="accent-violet-500 rounded border-white/10" />
                           Enable Extra Time
                         </label>
+                        @if (enableExtraTime()) {
+                        <div class="flex flex-col gap-1 text-left pl-6 mt-1">
+                          <label class="text-[9px] font-bold text-slate-400 uppercase">Extra Time Half Duration (Mins)</label>
+                          <input #extraTimeHalfDurationInput type="number" [value]="extraTimeHalfDuration()" (input)="extraTimeHalfDuration.set(+extraTimeHalfDurationInput.value || 15)" min="1" max="45"
+                            class="bg-slate-950 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white placeholder-slate-600 outline-none w-32" />
+                        </div>
+                        }
                         <label class="text-xs text-white flex items-center gap-2 cursor-pointer">
                           <input type="checkbox" [checked]="enablePenaltyShootout()" (change)="enablePenaltyShootout.set($any($event.target).checked)" class="accent-violet-500 rounded border-white/10" />
                           Enable Penalty Shootout
@@ -2311,7 +2318,7 @@
                     </div>
                     }
                   </div>
-                  <button (click)="onStartFootballMatch(+halfDuration.value, enableExtraTime(), enablePenaltyShootout())"
+                  <button (click)="onStartFootballMatch(+halfDuration.value, enableExtraTime(), enablePenaltyShootout(), extraTimeHalfDuration())"
                     class="w-full py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-xl cursor-pointer transition-all">
                     Start Match
                   </button>
