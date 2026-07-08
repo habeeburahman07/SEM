@@ -2513,6 +2513,19 @@
                 @let innings = match.liveData?.inningsData?.[currentInningsNum - 1];
 
                 <div class="flex flex-col gap-6 text-left">
+                  <!-- Match Completed Banner -->
+                  @if ($any(match).status === 'completed') {
+                  <div class="bg-gradient-to-r from-emerald-500/20 to-emerald-500/5 border border-emerald-500/25 rounded-xl p-3.5 flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                      <span class="text-emerald-400 text-sm"><i class="fi fi-rr-trophy"></i></span>
+                      <h4 class="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest">Match Completed</h4>
+                    </div>
+                    <p class="text-xs font-semibold text-white mt-1">
+                      {{ getCricketMatchResult(match) }}
+                    </p>
+                  </div>
+                  }
+
                   <!-- Innings Banner & Current Over -->
                   <div class="flex items-center justify-between border-b border-white/5 pb-3">
                     <div>
@@ -2525,13 +2538,19 @@
                         Bowling: <span class="text-slate-300">{{ innings?.bowlingTeamId === match.homeTeamId ? match.homeTeam?.name : match.awayTeam?.name }}</span>
                       </p>
                     </div>
-                    <div class="text-right">
+                    <div class="text-right flex flex-col items-end gap-1">
                       <div class="text-lg font-black text-white">
                         {{ innings?.runs || 0 }}/{{ innings?.wickets || 0 }}
                       </div>
                       <div class="text-[10px] text-slate-400 font-semibold mt-0.5">
                         Overs: {{ innings?.overs || 0 }}.{{ innings?.balls || 0 }}
                       </div>
+                      @let powerplay = getPowerplayStatus(innings, match.config?.overs || 20);
+                      @if (powerplay) {
+                        <span class="px-1.5 py-0.5 rounded bg-violet-600/10 border border-violet-500/20 text-[8px] font-extrabold text-violet-300 uppercase tracking-wider mt-0.5">
+                          {{ powerplay }}
+                        </span>
+                      }
                     </div>
                   </div>
 
@@ -2553,15 +2572,17 @@
                         <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Bowler</label>
                         <div class="flex flex-col gap-1.5">
                           <select [ngModel]="cricketBowler()" (ngModelChange)="cricketBowler.set($event)" 
-                            class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:border-violet-500 focus:outline-none transition-colors">
+                            [disabled]="$any(match).status === 'completed'"
+                            class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:border-violet-500 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                             <option value="">-- Select Roster Bowler --</option>
                             @for (p of getPlayersForTeam(innings?.bowlingTeamId); track p.id) {
                               <option [value]="p.user?.username">{{ p.user?.username }}</option>
                             }
                           </select>
                           <input type="text" [ngModel]="cricketBowler()" (ngModelChange)="cricketBowler.set($event)" 
+                            [disabled]="$any(match).status === 'completed'"
                             placeholder="Or type custom bowler name" 
-                            class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:border-violet-500 focus:outline-none transition-colors" />
+                            class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:border-violet-500 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed" />
                         </div>
                       </div>
 
@@ -2570,15 +2591,17 @@
                         <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Striker (On Strike)</label>
                         <div class="flex flex-col gap-1.5">
                           <select [ngModel]="cricketStriker()" (ngModelChange)="cricketStriker.set($event)" 
-                            class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:border-violet-500 focus:outline-none transition-colors">
+                            [disabled]="$any(match).status === 'completed'"
+                            class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:border-violet-500 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                             <option value="">-- Select Roster Batter --</option>
                             @for (p of getPlayersForTeam(innings?.battingTeamId); track p.id) {
                               <option [value]="p.user?.username">{{ p.user?.username }}</option>
                             }
                           </select>
                           <input type="text" [ngModel]="cricketStriker()" (ngModelChange)="cricketStriker.set($event)" 
+                            [disabled]="$any(match).status === 'completed'"
                             placeholder="Or type striker name" 
-                            class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:border-violet-500 focus:outline-none transition-colors" />
+                            class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:border-violet-500 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed" />
                         </div>
                       </div>
 
@@ -2587,15 +2610,17 @@
                         <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Non-Striker</label>
                         <div class="flex flex-col gap-1.5">
                           <select [ngModel]="cricketNonStriker()" (ngModelChange)="cricketNonStriker.set($event)" 
-                            class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:border-violet-500 focus:outline-none transition-colors">
+                            [disabled]="$any(match).status === 'completed'"
+                            class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:border-violet-500 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                             <option value="">-- Select Roster Batter --</option>
                             @for (p of getPlayersForTeam(innings?.battingTeamId); track p.id) {
                               <option [value]="p.user?.username">{{ p.user?.username }}</option>
                             }
                           </select>
                           <input type="text" [ngModel]="cricketNonStriker()" (ngModelChange)="cricketNonStriker.set($event)" 
+                            [disabled]="$any(match).status === 'completed'"
                             placeholder="Or type non-striker name" 
-                            class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:border-violet-500 focus:outline-none transition-colors" />
+                            class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:border-violet-500 focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed" />
                         </div>
                       </div>
                     </div>
@@ -2603,16 +2628,26 @@
                     <!-- Switch Strike / Swap Batters Button -->
                     <div class="flex justify-end border-t border-white/5 pt-2">
                       <button (click)="onSwitchCricketStrikers()"
-                        class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-white/10 hover:border-white/20 text-slate-300 hover:text-white text-xs font-bold rounded-xl cursor-pointer transition-all">
+                        [disabled]="$any(match).status === 'completed'"
+                        [class.opacity-40]="$any(match).status === 'completed'"
+                        [class.cursor-not-allowed]="$any(match).status === 'completed'"
+                        class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-white/10 hover:border-white/20 text-slate-300 hover:text-white text-xs font-bold rounded-xl cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                         <i class="fi fi-rr-shuffle"></i> Switch Strike / Swap Batters
                       </button>
                     </div>
                   </div>
 
                   <!-- Quick Scoring Console -->
-                  @let isScoringDisabled = !cricketBowler() || !cricketStriker() || !cricketNonStriker();
+                  @let isScoringDisabled = $any(match).status === 'completed' || !cricketBowler() || !cricketStriker() || !cricketNonStriker();
                   <div class="flex flex-col gap-4 bg-slate-900 border border-white/10 rounded-2xl p-5">
-                    @if (isScoringDisabled) {
+                    @if ($any(match).status === 'completed') {
+                    <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 flex items-center gap-2.5">
+                      <span class="text-emerald-400 text-sm flex-shrink-0"><i class="fi fi-rr-check-circle"></i></span>
+                      <span class="text-xs font-medium text-emerald-300">
+                        This match has ended. Scoring console is locked.
+                      </span>
+                    </div>
+                    } @else if (!cricketBowler() || !cricketStriker() || !cricketNonStriker()) {
                     <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-center gap-2.5">
                       <span class="text-amber-400 text-sm flex-shrink-0"><i class="fi fi-rr-exclamation"></i></span>
                       <span class="text-xs font-medium text-amber-300">
@@ -2711,6 +2746,41 @@
                       </div>
                     </div>
 
+                    <!-- Byes & Leg Byes Section -->
+                    <div class="flex flex-col gap-2 border-t border-white/5 pt-3">
+                      <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Byes & Leg Byes</span>
+                      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <button (click)="onRecordCricketBall(0, 1, false, 'bye')"
+                          [disabled]="isScoringDisabled"
+                          [class.opacity-40]="isScoringDisabled"
+                          [class.cursor-not-allowed]="isScoringDisabled"
+                          class="py-2 bg-slate-950 hover:bg-slate-800 border border-white/10 text-xs text-slate-300 font-semibold rounded-xl cursor-pointer transition-all">
+                          1 Bye
+                        </button>
+                        <button (click)="onRecordCricketBall(0, 4, false, 'bye')"
+                          [disabled]="isScoringDisabled"
+                          [class.opacity-40]="isScoringDisabled"
+                          [class.cursor-not-allowed]="isScoringDisabled"
+                          class="py-2 bg-slate-950 hover:bg-slate-800 border border-white/10 text-xs text-slate-300 font-semibold rounded-xl cursor-pointer transition-all">
+                          4 Byes
+                        </button>
+                        <button (click)="onRecordCricketBall(0, 1, false, 'leg-bye')"
+                          [disabled]="isScoringDisabled"
+                          [class.opacity-40]="isScoringDisabled"
+                          [class.cursor-not-allowed]="isScoringDisabled"
+                          class="py-2 bg-slate-950 hover:bg-slate-800 border border-white/10 text-xs text-slate-300 font-semibold rounded-xl cursor-pointer transition-all">
+                          1 Leg Bye
+                        </button>
+                        <button (click)="onRecordCricketBall(0, 4, false, 'leg-bye')"
+                          [disabled]="isScoringDisabled"
+                          [class.opacity-40]="isScoringDisabled"
+                          [class.cursor-not-allowed]="isScoringDisabled"
+                          class="py-2 bg-slate-950 hover:bg-slate-800 border border-white/10 text-xs text-slate-300 font-semibold rounded-xl cursor-pointer transition-all">
+                          4 Leg Byes
+                        </button>
+                      </div>
+                    </div>
+
                     <!-- Wickets & Controls -->
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between border-t border-white/5 pt-3 gap-3">
                       <div class="flex items-center gap-2">
@@ -2719,13 +2789,18 @@
                           [class.opacity-40]="isScoringDisabled"
                           [class.cursor-not-allowed]="isScoringDisabled"
                           class="bg-slate-950 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:border-rose-500 focus:outline-none transition-colors">
-                          <option value="Bowled">Bowled</option>
-                          <option value="Caught">Caught</option>
-                          <option value="LBW">LBW</option>
-                          <option value="Run Out">Run Out</option>
-                          <option value="Stumped">Stumped</option>
-                          <option value="Hit Wicket">Hit Wicket</option>
-                          <option value="Retired Hurt">Retired Hurt</option>
+                          @if (isFreeHitActive(innings)) {
+                            <option value="Run Out">Run Out</option>
+                            <option value="Retired Hurt">Retired Hurt</option>
+                          } @else {
+                            <option value="Bowled">Bowled</option>
+                            <option value="Caught">Caught</option>
+                            <option value="LBW">LBW</option>
+                            <option value="Run Out">Run Out</option>
+                            <option value="Stumped">Stumped</option>
+                            <option value="Hit Wicket">Hit Wicket</option>
+                            <option value="Retired Hurt">Retired Hurt</option>
+                          }
                         </select>
                         <button (click)="onRecordCricketWicket()"
                           [disabled]="isScoringDisabled"
@@ -2737,9 +2812,9 @@
                       </div>
 
                       <button (click)="onUndoCricketBall()"
-                        [disabled]="!innings?.ballsHistory?.length"
-                        [class.opacity-50]="!innings?.ballsHistory?.length"
-                        [class.cursor-not-allowed]="!innings?.ballsHistory?.length"
+                        [disabled]="!innings?.ballsHistory?.length || $any(match).status === 'completed'"
+                        [class.opacity-50]="!innings?.ballsHistory?.length || $any(match).status === 'completed'"
+                        [class.cursor-not-allowed]="!innings?.ballsHistory?.length || $any(match).status === 'completed'"
                         class="px-5 py-2.5 bg-slate-950 hover:bg-amber-600/20 border border-white/10 hover:border-amber-500/30 text-xs text-slate-300 hover:text-amber-400 font-bold rounded-xl cursor-pointer transition-all flex items-center gap-1.5">
                         <i class="fi fi-rr-undo"></i> Undo Last Ball
                       </button>
@@ -2917,6 +2992,10 @@
                             <span class="px-1 py-0.5 rounded bg-amber-500/20 border border-amber-500/30 text-amber-400 font-bold text-[8px] uppercase">NB</span>
                             } @else if (ball.ballType === 'free-hit') {
                             <span class="px-1 py-0.5 rounded bg-blue-500/25 border border-blue-500/30 text-blue-400 font-bold text-[8px] uppercase">FH</span>
+                            } @else if (ball.ballType === 'bye') {
+                            <span class="px-1 py-0.5 rounded bg-slate-700/30 border border-slate-500/30 text-slate-300 font-bold text-[8px] uppercase">BYE (+{{ ball.extras }})</span>
+                            } @else if (ball.ballType === 'leg-bye') {
+                            <span class="px-1 py-0.5 rounded bg-slate-700/30 border border-slate-500/30 text-slate-300 font-bold text-[8px] uppercase">LBYE (+{{ ball.extras }})</span>
                             } @else if (ball.runs === 0) {
                             <span class="px-1 py-0.5 rounded bg-slate-800 border border-white/5 text-slate-400 font-semibold text-[8px] uppercase">DOT</span>
                             } @else {
@@ -3025,6 +3104,7 @@
                           <tr class="text-[9px] text-slate-500 border-b border-white/5 uppercase">
                             <th class="pb-1.5 font-bold">Bowler</th>
                             <th class="pb-1.5 font-bold text-center">O</th>
+                            <th class="pb-1.5 font-bold text-center">M</th>
                             <th class="pb-1.5 font-bold text-center">R</th>
                             <th class="pb-1.5 font-bold text-center">W</th>
                             <th class="pb-1.5 font-bold text-right">Econ</th>
@@ -3037,6 +3117,7 @@
                           <tr class="border-b border-white/5 last:border-b-0 text-white font-medium">
                             <td class="py-1.5 truncate max-w-[80px]" [title]="entry">{{ entry }}</td>
                             <td class="py-1.5 text-center">{{ stats.overs }}.{{ stats.balls }}</td>
+                            <td class="py-1.5 text-center text-slate-400">{{ stats.maidens || 0 }}</td>
                             <td class="py-1.5 text-center text-slate-400">{{ stats.runsConceded }}</td>
                             <td class="py-1.5 text-center text-rose-400 font-extrabold">{{ stats.wickets }}</td>
                             <td class="py-1.5 text-right text-slate-500">

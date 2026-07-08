@@ -2847,6 +2847,7 @@ export class WorkspaceDetailComponent implements OnInit {
 
     live.inningsData = [
       {
+        inningsNumber: 1,
         battingTeamId,
         bowlingTeamId,
         runs: 0,
@@ -2903,6 +2904,59 @@ export class WorkspaceDetailComponent implements OnInit {
 
   getObjectKeys(obj: any): string[] {
     return obj ? Object.keys(obj) : [];
+  }
+
+  getCricketMatchResult(match: any): string {
+    if (!match || !match.liveData || !match.liveData.inningsData || match.liveData.inningsData.length === 0) {
+      return 'Match in progress';
+    }
+    const inningsData = match.liveData.inningsData;
+    const inn1 = inningsData[0];
+    const inn2 = inningsData[1];
+    
+    const team1Name = inn1.battingTeamId === match.homeTeamId ? match.homeTeam?.name : match.awayTeam?.name;
+    const team2Name = inn2 ? (inn2.battingTeamId === match.homeTeamId ? match.homeTeam?.name : match.awayTeam?.name) : 'Opponent';
+
+    if (!inn2) {
+      return `${team1Name} scored ${inn1.runs}/${inn1.wickets}. 2nd innings not started.`;
+    }
+
+    if (inn2.runs > inn1.runs) {
+      const wicketsLeft = 10 - inn2.wickets;
+      return `${team2Name} won by ${wicketsLeft} wicket${wicketsLeft > 1 ? 's' : ''}`;
+    }
+
+    if (inn2.completed || inn2.overs >= (match.config?.overs ?? 20) || inn2.wickets >= 10) {
+      if (inn1.runs > inn2.runs) {
+        const runDiff = inn1.runs - inn2.runs;
+        return `${team1Name} won by ${runDiff} run${runDiff > 1 ? 's' : ''}`;
+      } else if (inn1.runs === inn2.runs) {
+        return `Match Tied`;
+      }
+    }
+
+    return 'Match in progress';
+  }
+
+  getPowerplayStatus(innings: any, targetOvers: number): string {
+    if (!innings) return '';
+    const currentOver = innings.overs + 1; // 1-indexed over number
+    if (targetOvers <= 20) {
+      // T20 rules
+      if (currentOver <= 6) {
+        return 'Powerplay (Max 2 fielders outside)';
+      }
+      return 'Normal Play (Max 5 fielders outside)';
+    } else {
+      // ODI rules
+      if (currentOver <= 10) {
+        return 'Powerplay 1 (Max 2 outside)';
+      } else if (currentOver <= 40) {
+        return 'Powerplay 2 (Max 4 outside)';
+      } else {
+        return 'Powerplay 3 (Max 5 outside)';
+      }
+    }
   }
 
   onRecordCricketBall(runs: number, extraRuns: number, wicket: boolean, ballType: string, wicketType?: string) {
@@ -2980,15 +3034,32 @@ export class WorkspaceDetailComponent implements OnInit {
     const bowler = this.cricketBowler() || 'Unknown Bowler';
     if (!innings.bowlerStats) innings.bowlerStats = {};
     if (!innings.bowlerStats[bowler]) {
-      innings.bowlerStats[bowler] = { overs: 0, balls: 0, runsConceded: 0, wickets: 0, extraRuns: 0 };
+      innings.bowlerStats[bowler] = { overs: 0, balls: 0, runsConceded: 0, wickets: 0, extraRuns: 0, maidens: 0, currentOverRuns: 0 };
     }
-    innings.bowlerStats[bowler].runsConceded += runs + extraRuns;
-    innings.bowlerStats[bowler].extraRuns += extraRuns;
+    // Byes & Leg Byes are NOT conceded by the bowler
+    const bowlerRunsConceded = (ballType === 'bye' || ballType === 'leg-bye') ? runs : (runs + extraRuns);
+    innings.bowlerStats[bowler].runsConceded += bowlerRunsConceded;
+    innings.bowlerStats[bowler].currentOverRuns = (innings.bowlerStats[bowler].currentOverRuns || 0) + bowlerRunsConceded;
+
+    const bowlerExtraRuns = (ballType === 'bye' || ballType === 'leg-bye') ? 0 : extraRuns;
+    innings.bowlerStats[bowler].extraRuns += bowlerExtraRuns;
     if (wicket) {
       // Bowler gets wickets for all types except Run Out and Retired Hurt
       const bowlerGetsWicket = wicketType !== 'Run Out' && wicketType !== 'Retired Hurt';
       if (bowlerGetsWicket) {
         innings.bowlerStats[bowler].wickets += 1;
+
+        // Hat-trick check: filter history for this bowler's deliveries
+        const bowlerDeliveries = innings.ballsHistory.filter((b: any) => b.bowler === bowler);
+        if (bowlerDeliveries.length >= 3) {
+          const last3 = bowlerDeliveries.slice(-3);
+          const isHatTrick = last3.every((b: any) => {
+            return b.wicket && b.wicketType !== 'Run Out' && b.wicketType !== 'Retired Hurt';
+          });
+          if (isHatTrick) {
+            this.uiService.success(`🎓 HAT-TRICK! ${bowler} has taken 3 wickets in 3 consecutive deliveries!`);
+          }
+        }
       }
     }
     if (ballType !== 'wide' && ballType !== 'no-ball') {
@@ -2996,7 +3067,41 @@ export class WorkspaceDetailComponent implements OnInit {
       if (innings.bowlerStats[bowler].balls >= 6) {
         innings.bowlerStats[bowler].overs += 1;
         innings.bowlerStats[bowler].balls = 0;
+
+        // Over completed: Check for maiden
+        if (innings.bowlerStats[bowler].currentOverRuns === 0) {
+          innings.bowlerStats[bowler].maidens = (innings.bowlerStats[bowler].maidens || 0) + 1;
+        }
+        innings.bowlerStats[bowler].currentOverRuns = 0; // Reset for next over
       }
+    }
+
+    // Strike rotation logic
+    let runsForStrikeChange = runs;
+    if (ballType === 'bye' || ballType === 'leg-bye') {
+      runsForStrikeChange = extraRuns;
+    }
+    const shouldRotateStrike = (runsForStrikeChange % 2 !== 0);
+
+    let currentStriker = this.cricketStriker();
+    let currentNonStriker = this.cricketNonStriker();
+
+    if (wicket) {
+      this.cricketStriker.set('');
+    } else {
+      if (shouldRotateStrike) {
+        const temp = currentStriker;
+        currentStriker = currentNonStriker;
+        currentNonStriker = temp;
+      }
+      const overCompleted = (ballType !== 'wide' && ballType !== 'no-ball' && innings.balls === 0);
+      if (overCompleted) {
+        const temp = currentStriker;
+        currentStriker = currentNonStriker;
+        currentNonStriker = temp;
+      }
+      this.cricketStriker.set(currentStriker);
+      this.cricketNonStriker.set(currentNonStriker);
     }
 
     live.inningsData[inningsIndex] = innings;
@@ -3007,14 +3112,18 @@ export class WorkspaceDetailComponent implements OnInit {
     const awayInnings = live.inningsData.find((i: any) => i.battingTeamId === match.awayTeamId);
     const awayScore = awayInnings ? awayInnings.runs : 0;
 
-    // Check if innings completed (e.g. 10 wickets down, or overs reached)
+    // Check if innings completed (e.g. 10 wickets down, or overs reached, or target chased in 2nd innings)
     const targetOvers = match.config.overs ?? 20;
-    if (innings.wickets >= 10 || innings.overs >= targetOvers) {
+    const firstInnings = live.inningsData[0];
+    const targetChased = (live.currentInnings === 2 && firstInnings && innings.runs > firstInnings.runs);
+
+    if (innings.wickets >= 10 || innings.overs >= targetOvers || targetChased) {
       innings.completed = true;
       if (live.currentInnings === 1) {
         // Switch innings
         live.currentInnings = 2;
         live.inningsData.push({
+          inningsNumber: 2,
           battingTeamId: innings.bowlingTeamId,
           bowlingTeamId: innings.battingTeamId,
           runs: 0,
@@ -3027,9 +3136,16 @@ export class WorkspaceDetailComponent implements OnInit {
           completed: false,
           ballsHistory: []
         });
+        // Clear selectors since teams swapped
+        this.cricketStriker.set('');
+        this.cricketNonStriker.set('');
+        this.cricketBowler.set('');
       } else {
         // Match completed
         match.status = 'completed';
+        this.cricketStriker.set('');
+        this.cricketNonStriker.set('');
+        this.cricketBowler.set('');
       }
     }
 
@@ -3047,7 +3163,15 @@ export class WorkspaceDetailComponent implements OnInit {
   }
 
   onRecordCricketWicket() {
-    const type = this.cricketWicketType();
+    let type = this.cricketWicketType();
+    const match = this.selectedMatch();
+    const currentInningsNum = match?.liveData?.currentInnings ?? 1;
+    const innings = match?.liveData?.inningsData?.[currentInningsNum - 1];
+    if (this.isFreeHitActive(innings)) {
+      if (type !== 'Run Out' && type !== 'Retired Hurt') {
+        type = 'Run Out';
+      }
+    }
     this.onRecordCricketBall(0, 0, true, 'wicket', type);
   }
 
@@ -3111,10 +3235,14 @@ export class WorkspaceDetailComponent implements OnInit {
       // Re-populate bowler stats
       const bwName = ball.bowler;
       if (!innings.bowlerStats[bwName]) {
-        innings.bowlerStats[bwName] = { overs: 0, balls: 0, runsConceded: 0, wickets: 0, extraRuns: 0 };
+        innings.bowlerStats[bwName] = { overs: 0, balls: 0, runsConceded: 0, wickets: 0, extraRuns: 0, maidens: 0, currentOverRuns: 0 };
       }
-      innings.bowlerStats[bwName].runsConceded += ball.runs + ball.extras;
-      innings.bowlerStats[bwName].extraRuns += ball.extras;
+      const bowlerRunsConceded = (ball.ballType === 'bye' || ball.ballType === 'leg-bye') ? ball.runs : (ball.runs + ball.extras);
+      innings.bowlerStats[bwName].runsConceded += bowlerRunsConceded;
+      innings.bowlerStats[bwName].currentOverRuns = (innings.bowlerStats[bwName].currentOverRuns || 0) + bowlerRunsConceded;
+
+      const bowlerExtraRuns = (ball.ballType === 'bye' || ball.ballType === 'leg-bye') ? 0 : ball.extras;
+      innings.bowlerStats[bwName].extraRuns += bowlerExtraRuns;
       if (ball.wicket) {
         const bowlerGetsWicket = ball.wicketType !== 'Run Out' && ball.wicketType !== 'Retired Hurt';
         if (bowlerGetsWicket) {
@@ -3126,6 +3254,12 @@ export class WorkspaceDetailComponent implements OnInit {
         if (innings.bowlerStats[bwName].balls >= 6) {
           innings.bowlerStats[bwName].overs += 1;
           innings.bowlerStats[bwName].balls = 0;
+
+          // Over completed: Check for maiden
+          if (innings.bowlerStats[bwName].currentOverRuns === 0) {
+            innings.bowlerStats[bwName].maidens = (innings.bowlerStats[bwName].maidens || 0) + 1;
+          }
+          innings.bowlerStats[bwName].currentOverRuns = 0; // Reset for next over
         }
       }
       
