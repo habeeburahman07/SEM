@@ -1210,8 +1210,13 @@ export class WorkspacesService implements OnModuleInit {
     // If match was completed, run knockout advancement
     if (saved.status === 'completed') {
       const stage = await this.stageRepo.findOne({ where: { id: stageId } });
-      if (stage && (stage.type === 'knockout' || stage.type === 'group_knockout')) {
-        await this.advanceKnockoutWinner(saved, stage);
+      if (stage) {
+        if (stage.type === 'knockout' || stage.type === 'group_knockout') {
+          await this.advanceKnockoutWinner(saved, stage);
+        }
+        if (stage.type === 'group_knockout') {
+          await this.advanceGroupStageWinners(stage);
+        }
       }
     }
 
@@ -1224,6 +1229,10 @@ export class WorkspacesService implements OnModuleInit {
   private async advanceKnockoutWinner(completedMatch: Match, stage: CompetitionStage): Promise<void> {
     const roundName = (completedMatch.config as any)?.round;
     if (!roundName || roundName.toLowerCase() === 'final') return;
+
+    // Ignore group and league stage matches for knockout advancement
+    const roundLower = roundName.toLowerCase();
+    if (roundLower.includes('group') || roundLower.includes('league')) return;
 
     // Fetch all matches in this stage
     const allMatches = await this.matchRepo.find({
@@ -1375,6 +1384,206 @@ export class WorkspacesService implements OnModuleInit {
     }
   }
 
+  private async advanceGroupStageWinners(stage: CompetitionStage): Promise<void> {
+    // Fetch all matches in this stage
+    const allMatches = await this.matchRepo.find({
+      where: { stageId: stage.id },
+      order: { id: 'ASC', createdAt: 'ASC' }
+    });
+
+    // Separate group and knockout matches
+    const groupMatches = allMatches.filter(m => {
+      const r = (m.config as any)?.round || '';
+      return r.toLowerCase().includes('group') || r.toLowerCase().includes('league');
+    });
+
+    const knockoutMatches = allMatches.filter(m => {
+      const r = (m.config as any)?.round || '';
+      return !r.toLowerCase().includes('group') && !r.toLowerCase().includes('league');
+    });
+
+    if (groupMatches.length === 0 || knockoutMatches.length === 0) return;
+
+    // Check if all group stage matches are completed
+    const allGroupMatchesCompleted = groupMatches.every(m => m.status === 'completed');
+    if (!allGroupMatchesCompleted) return;
+
+    // Calculate standings for each group
+    const winPoint = stage.config?.winPoint ?? 3;
+    const drawPoint = stage.config?.drawPoint ?? 1;
+
+    const roundTeams = new Map<string, Set<string>>();
+    for (const m of groupMatches) {
+      const r = (m.config as any)?.round || 'Group Stage';
+      if (!roundTeams.has(r)) {
+        roundTeams.set(r, new Set());
+      }
+      if (m.homeTeamId) roundTeams.get(r)!.add(m.homeTeamId);
+      if (m.awayTeamId) roundTeams.get(r)!.add(m.awayTeamId);
+    }
+
+    const standings = new Map<string, { teamId: string; pts: number; gd: number; gf: number }>();
+    for (const [r, teams] of roundTeams.entries()) {
+      for (const teamId of teams) {
+        standings.set(`${r}-${teamId}`, { teamId, pts: 0, gd: 0, gf: 0 });
+      }
+    }
+
+    for (const m of groupMatches) {
+      const r = (m.config as any)?.round || 'Group Stage';
+      if (!m.homeTeamId || !m.awayTeamId) continue;
+      
+      const homeKey = `${r}-${m.homeTeamId}`;
+      const awayKey = `${r}-${m.awayTeamId}`;
+      
+      const homeStats = standings.get(homeKey);
+      const awayStats = standings.get(awayKey);
+      if (!homeStats || !awayStats) continue;
+
+      const hScore = m.homeScore ?? 0;
+      const aScore = m.awayScore ?? 0;
+
+      homeStats.gf += hScore;
+      awayStats.gf += aScore;
+      homeStats.gd += (hScore - aScore);
+      awayStats.gd += (aScore - hScore);
+
+      if (hScore > aScore) {
+        homeStats.pts += winPoint;
+      } else if (aScore > hScore) {
+        awayStats.pts += winPoint;
+      } else {
+        homeStats.pts += drawPoint;
+        awayStats.pts += drawPoint;
+      }
+    }
+
+    const roundRankings = new Map<string, string[]>();
+    for (const [r, teams] of roundTeams.entries()) {
+      const sorted = Array.from(teams).sort((a, b) => {
+        const statsA = standings.get(`${r}-${a}`)!;
+        const statsB = standings.get(`${r}-${b}`)!;
+        if (statsB.pts !== statsA.pts) return statsB.pts - statsA.pts;
+        if (statsB.gd !== statsA.gd) return statsB.gd - statsA.gd;
+        return statsB.gf - statsA.gf;
+      });
+      roundRankings.set(r, sorted);
+    }
+
+    // Determine the first knockout round matches
+    const koRoundCounts: { [round: string]: number } = {};
+    for (const m of knockoutMatches) {
+      const rName = (m.config as any)?.round;
+      if (!rName) continue;
+      const isLeg1OrNone = (m.config as any)?.leg === undefined || (m.config as any)?.leg === 1;
+      if (isLeg1OrNone) {
+        koRoundCounts[rName] = (koRoundCounts[rName] || 0) + 1;
+      }
+    }
+    const sortedKoRounds = Object.keys(koRoundCounts).sort((a, b) => koRoundCounts[b] - koRoundCounts[a]);
+    if (sortedKoRounds.length === 0) return;
+
+    const firstKoRoundName = sortedKoRounds[0];
+    const firstKoRoundMatches = knockoutMatches.filter(m => 
+      (m.config as any)?.round === firstKoRoundName && 
+      ((m.config as any)?.leg === undefined || (m.config as any)?.leg === 1)
+    );
+
+    const isSingleGroup = stage.config?.groupKnockoutSubtype === 'single_group';
+    const advancingType = stage.config?.advancingType || 'winner';
+    const groupsCount = stage.config?.groupsCount ?? 2;
+
+    const promotedTeams: { home: string; away: string }[] = [];
+
+    if (isSingleGroup) {
+      const sortedTeams = roundRankings.get('Group Stage') || [];
+      if (firstKoRoundMatches.length === 1) {
+        if (sortedTeams.length >= 2) {
+          promotedTeams.push({ home: sortedTeams[0], away: sortedTeams[1] });
+        }
+      } else if (firstKoRoundMatches.length === 2) {
+        if (sortedTeams.length >= 4) {
+          promotedTeams.push({ home: sortedTeams[0], away: sortedTeams[3] });
+          promotedTeams.push({ home: sortedTeams[1], away: sortedTeams[2] });
+        }
+      }
+    } else {
+      const getWinner = (gIdx: number) => {
+        const groupChar = String.fromCharCode(65 + gIdx);
+        const sorted = roundRankings.get(`Group ${groupChar}`) || [];
+        return sorted[0] || null;
+      };
+      const getRunner = (gIdx: number) => {
+        const groupChar = String.fromCharCode(65 + gIdx);
+        const sorted = roundRankings.get(`Group ${groupChar}`) || [];
+        return sorted[1] || null;
+      };
+
+      if (groupsCount === 2) {
+        if (advancingType === 'winner') {
+          const wA = getWinner(0);
+          const wB = getWinner(1);
+          if (wA && wB) {
+            promotedTeams.push({ home: wA, away: wB });
+          }
+        } else if (advancingType === 'winner_and_runner') {
+          const wA = getWinner(0);
+          const rA = getRunner(0);
+          const wB = getWinner(1);
+          const rB = getRunner(1);
+          if (wA && rB) promotedTeams.push({ home: wA, away: rB });
+          if (wB && rA) promotedTeams.push({ home: wB, away: rA });
+        }
+      } else if (groupsCount === 4) {
+        if (advancingType === 'winner') {
+          const wA = getWinner(0);
+          const wB = getWinner(1);
+          const wC = getWinner(2);
+          const wD = getWinner(3);
+          if (wA && wB) promotedTeams.push({ home: wA, away: wB });
+          if (wC && wD) promotedTeams.push({ home: wC, away: wD });
+        } else if (advancingType === 'winner_and_runner') {
+          const wA = getWinner(0);
+          const rA = getRunner(0);
+          const wB = getWinner(1);
+          const rB = getRunner(1);
+          const wC = getWinner(2);
+          const rC = getRunner(2);
+          const wD = getWinner(3);
+          const rD = getRunner(3);
+          if (wA && rB) promotedTeams.push({ home: wA, away: rB });
+          if (wB && rA) promotedTeams.push({ home: wB, away: rA });
+          if (wC && rD) promotedTeams.push({ home: wC, away: rD });
+          if (wD && rC) promotedTeams.push({ home: wD, away: rC });
+        }
+      }
+    }
+
+    const twoLegged = (stage.config as any)?.twoLegged || (stage.config as any)?.legs === 2;
+
+    for (let i = 0; i < promotedTeams.length; i++) {
+      const targetMatch = firstKoRoundMatches[i];
+      if (!targetMatch) continue;
+
+      targetMatch.homeTeamId = promotedTeams[i].home;
+      targetMatch.awayTeamId = promotedTeams[i].away;
+      await this.matchRepo.save(targetMatch);
+
+      if (twoLegged) {
+        const nextRoundLeg2Matches = knockoutMatches.filter(m => 
+          (m.config as any)?.round === firstKoRoundName && 
+          (m.config as any)?.leg === 2
+        );
+        const targetLeg2Match = nextRoundLeg2Matches[i];
+        if (targetLeg2Match) {
+          targetLeg2Match.homeTeamId = promotedTeams[i].away;
+          targetLeg2Match.awayTeamId = promotedTeams[i].home;
+          await this.matchRepo.save(targetLeg2Match);
+        }
+      }
+    }
+  }
+
   async removeMatch(
     workspaceId: string,
     eventId: string,
@@ -1409,7 +1618,8 @@ export class WorkspacesService implements OnModuleInit {
     if (!competition) throw new NotFoundException(`Competition "${competitionId}" not found`);
     
     const eventTeams = event.teams || [];
-    return eventTeams.map((t) => ({
+    const uniqueTeams = Array.from(new Map(eventTeams.map((t) => [t.id, t])).values());
+    return uniqueTeams.map((t) => ({
       id: `${competitionId}-${t.id}`,
       competitionId,
       teamId: t.id,
@@ -1471,7 +1681,8 @@ export class WorkspacesService implements OnModuleInit {
 
     // Participating teams from event context
     const eventTeams = event.teams || [];
-    if (eventTeams.length < 2) {
+    const uniqueTeams = Array.from(new Map(eventTeams.map((t) => [t.id, t])).values());
+    if (uniqueTeams.length < 2) {
       throw new BadRequestException('At least 2 teams must be mapped to the event before generating fixtures.');
     }
 
@@ -1484,8 +1695,8 @@ export class WorkspacesService implements OnModuleInit {
       throw new BadRequestException('Configure at least one stage before generating fixtures.');
     }
 
-    // Shuffle team IDs
-    const teamIds = eventTeams.map((t) => t.id);
+    // Shuffle team IDs (guaranteed unique)
+    const teamIds = uniqueTeams.map((t) => t.id);
     this.shuffleArray(teamIds);
 
     let totalMatches = 0;

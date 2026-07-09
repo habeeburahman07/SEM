@@ -2159,7 +2159,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const allMatchesCompleted = lastStage.matches.every((m: any) => m.status === 'completed');
     if (!allMatchesCompleted) return null;
 
-    if (lastStage.type === 'knockout') {
+    if (lastStage.type === 'knockout' || lastStage.type === 'group_knockout') {
       // Find the final match: round is 'Final'
       const finalMatch = lastStage.matches.find((m: any) => m.config?.round === 'Final');
       if (finalMatch && finalMatch.status === 'completed') {
@@ -2177,7 +2177,7 @@ export class WorkspaceDetailComponent implements OnInit {
           };
         }
       }
-    } else if (lastStage.type === 'league' || lastStage.type === 'group' || lastStage.type === 'group_knockout') {
+    } else if (lastStage.type === 'league' || lastStage.type === 'group') {
       const winPts = lastStage.config?.winPoint ?? 3;
       const drawPts = lastStage.config?.drawPoint ?? 1;
 
