@@ -1,9 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique, ManyToMany, JoinTable } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Index, ManyToOne, JoinColumn, Unique, ManyToMany, JoinTable } from 'typeorm';
 import { Workspace } from './workspace.entity';
 import { Permission } from './permission.entity';
 
 @Entity('roles')
 @Unique(['slug', 'workspaceId'])
+@Index('idx_roles_workspace_id', ['workspaceId'])           // FK: all roles for a workspace
+@Index('idx_roles_slug_workspace', ['slug', 'workspaceId']) // Composite: role lookup by slug within workspace (hot path)
+@Index('idx_roles_is_system', ['isSystem'])                 // Filter system vs custom roles
 export class Role {
   @PrimaryGeneratedColumn('uuid')
   id: string;

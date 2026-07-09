@@ -2,6 +2,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  Index,
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
@@ -10,6 +11,9 @@ import {
 import { Workspace } from './workspace.entity';
 
 @Entity('teams')
+@Index('idx_teams_workspace_id', ['workspaceId'])             // FK: all teams in a workspace
+@Index('idx_teams_workspace_name', ['workspaceId', 'name'])   // Composite: search teams by name within workspace
+@Index('idx_teams_code', ['code'])                            // Unique code lookup
 export class Team {
   @PrimaryGeneratedColumn('uuid')
   id: string;

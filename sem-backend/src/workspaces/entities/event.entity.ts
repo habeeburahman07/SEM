@@ -2,6 +2,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  Index,
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
@@ -15,6 +16,10 @@ import { Competition } from './competition.entity';
 import { Team } from './team.entity';
 
 @Entity('events')
+@Index('idx_events_workspace_id', ['workspaceId'])                         // FK: all events in a workspace
+@Index('idx_events_workspace_status', ['workspaceId', 'status'])           // Composite: filter events by status within workspace
+@Index('idx_events_workspace_start_date', ['workspaceId', 'startDate'])    // Composite: order events by date within workspace
+@Index('idx_events_status', ['status'])                                    // Global status filter
 export class Event {
   @PrimaryGeneratedColumn('uuid')
   id: string;

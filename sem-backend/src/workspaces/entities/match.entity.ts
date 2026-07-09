@@ -2,6 +2,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  Index,
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
@@ -51,6 +52,13 @@ export enum RallyResult {
 }
 
 @Entity('matches')
+@Index('idx_matches_stage_id', ['stageId'])                         // FK: all matches in a stage (primary access pattern)
+@Index('idx_matches_status', ['status'])                            // Filter live/completed matches globally
+@Index('idx_matches_stage_status', ['stageId', 'status'])           // Composite: live matches within a stage (hot path)
+@Index('idx_matches_home_team_id', ['homeTeamId'])                  // FK: matches involving a team as home
+@Index('idx_matches_away_team_id', ['awayTeamId'])                  // FK: matches involving a team as away
+@Index('idx_matches_venue_id', ['venueId'])                         // FK: matches at a venue
+@Index('idx_matches_created_at', ['createdAt'])                     // Pagination / chronological ordering
 export class Match {
   @PrimaryGeneratedColumn('uuid')
   id: string;

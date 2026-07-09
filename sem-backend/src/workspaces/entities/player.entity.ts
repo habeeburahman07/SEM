@@ -2,6 +2,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  Index,
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
@@ -14,6 +15,9 @@ import { User } from '../../users/entities/user.entity';
 
 @Entity('players')
 @Unique(['teamId', 'userId'])
+@Index('idx_players_workspace_id', ['workspaceId'])      // FK: all players in a workspace
+@Index('idx_players_team_id', ['teamId'])                // FK: all players in a team
+@Index('idx_players_user_id', ['userId'])                // FK: player profile for a user
 export class Player {
   @PrimaryGeneratedColumn('uuid')
   id: string;

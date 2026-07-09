@@ -1,7 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Index, ManyToMany } from 'typeorm';
 import { Role } from './role.entity';
 
 @Entity('permissions')
+@Index('idx_permissions_slug', ['slug'])  // Fast slug-based lookup in ensurePermission
 export class Permission {
   @PrimaryGeneratedColumn('uuid')
   id: string;

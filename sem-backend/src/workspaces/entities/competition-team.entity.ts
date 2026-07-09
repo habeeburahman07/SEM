@@ -2,6 +2,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  Index,
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
@@ -12,6 +13,8 @@ import { Team } from './team.entity';
 
 @Entity('competition_teams')
 @Unique(['competitionId', 'teamId'])
+@Index('idx_comp_teams_competition_id', ['competitionId'])  // FK: all teams in a competition
+@Index('idx_comp_teams_team_id', ['teamId'])                // FK: all competitions a team is in
 export class CompetitionTeam {
   @PrimaryGeneratedColumn('uuid')
   id: string;

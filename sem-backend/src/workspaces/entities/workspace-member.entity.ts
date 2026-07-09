@@ -2,6 +2,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  Index,
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
@@ -42,6 +43,10 @@ export const OPERATIONAL_ROLES: string[] = [
 
 @Entity('workspace_members')
 @Unique(['workspaceId', 'userId'])
+@Index('idx_members_workspace_id', ['workspaceId'])         // FK: all members in a workspace
+@Index('idx_members_user_id', ['userId'])                   // FK: all workspaces a user belongs to
+@Index('idx_members_role_id', ['roleId'])                   // FK: members by role
+@Index('idx_members_workspace_user', ['workspaceId', 'userId'])  // Composite: permission check (hot path)
 export class WorkspaceMember {
   @PrimaryGeneratedColumn('uuid')
   id: string;

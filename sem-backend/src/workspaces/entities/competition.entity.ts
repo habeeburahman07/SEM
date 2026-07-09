@@ -2,6 +2,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  Index,
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
@@ -13,6 +14,9 @@ import { Sport } from './sport.entity';
 import { CompetitionStage } from './competition-stage.entity';
 
 @Entity('competitions')
+@Index('idx_competitions_event_id', ['eventId'])                          // FK: all competitions for an event
+@Index('idx_competitions_sport_id', ['sportId'])                          // FK: competitions by sport
+@Index('idx_competitions_event_status', ['eventId', 'status'])            // Composite: filter competitions by status within event
 export class Competition {
   @PrimaryGeneratedColumn('uuid')
   id: string;

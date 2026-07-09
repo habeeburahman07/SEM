@@ -2,6 +2,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  Index,
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
@@ -12,6 +13,9 @@ import { User } from '../../users/entities/user.entity';
 import { WorkspaceMember } from './workspace-member.entity';
 
 @Entity('workspaces')
+@Index('idx_workspaces_owner_id', ['ownerId'])           // FK lookup: all workspaces for a user
+@Index('idx_workspaces_slug', ['slug'])                  // Unique slug lookup (duplicate of UNIQUE constraint, kept explicit)
+@Index('idx_workspaces_created_at', ['createdAt'])       // Pagination / ordering
 export class Workspace {
   @PrimaryGeneratedColumn('uuid')
   id: string;

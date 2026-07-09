@@ -2,6 +2,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  Index,
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
@@ -10,6 +11,8 @@ import {
 import { Workspace } from './workspace.entity';
 
 @Entity('venues')
+@Index('idx_venues_workspace_id', ['workspaceId'])             // FK: all venues in a workspace
+@Index('idx_venues_workspace_name', ['workspaceId', 'name'])  // Composite: search venues by name
 export class Venue {
   @PrimaryGeneratedColumn('uuid')
   id: string;
