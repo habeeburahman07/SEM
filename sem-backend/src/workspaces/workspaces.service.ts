@@ -18,7 +18,7 @@ import { Event } from './entities/event.entity';
 import { Sport } from './entities/sport.entity';
 import { Competition } from './entities/competition.entity';
 import { CompetitionStage } from './entities/competition-stage.entity';
-import { Match } from './entities/match.entity';
+import { Match, MatchType } from './entities/match.entity';
 import { CompetitionTeam } from './entities/competition-team.entity';
 import { Venue } from './entities/venue.entity';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
@@ -1147,11 +1147,14 @@ export class WorkspacesService implements OnModuleInit {
       };
     } else if (sportCode === 'badminton') {
       if (!config.setsToWin) config.setsToWin = 2; // Best of 3
+      if (!config.matchType) config.matchType = MatchType.MENS_SINGLES;
       liveData = {
         currentSet: 1,
         setsScore: [{ home: 0, away: 0 }],
         homeSetsWon: 0,
         awaySetsWon: 0,
+        matchStatus: 'Scheduled',
+        rallies: [],
       };
     }
 

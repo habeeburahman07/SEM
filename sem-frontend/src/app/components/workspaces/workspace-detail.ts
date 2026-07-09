@@ -421,6 +421,18 @@ export class WorkspaceDetailComponent implements OnInit {
   matchCreateError = signal('');
   matchCreateSuccess = signal('');
 
+  // Badminton Live Scoring State
+  badmintonServer = signal('');
+  badmintonReceiver = signal('');
+  badmintonReason = signal('Winner');
+  badmintonDuration = signal(0);
+  badmintonTimerRunning = signal(false);
+  badmintonTimerInterval: any = null;
+  badmintonMatchType = signal("Men's Singles");
+  badmintonMatchStatus = signal("Scheduled");
+  badmintonServiceCourt = signal<'Right' | 'Left'>('Right');
+  badmintonServiceNumber = signal<number>(1);
+
   // ── Competition Teams State ──────────────────────────────────────────────────
   competitionTeams = signal<CompetitionTeam[]>([]);
   isLoadingCompetitionTeams = signal(false);
@@ -2684,10 +2696,62 @@ export class WorkspaceDetailComponent implements OnInit {
 
   onSelectMatch(match: Match | null) {
     this.selectedMatch.set(match);
-    if (match && match.status === 'live' && this.selectedCompetition()?.sport?.code === 'football') {
-      this.startFootballTimer();
+    this.stopBadmintonTimer();
+    this.badmintonDuration.set(0);
+    
+    if (match) {
+      const sportCode = this.selectedCompetition()?.sport?.code;
+      if (sportCode === 'football' && match.status === 'live') {
+        this.startFootballTimer();
+      } else {
+        this.stopFootballTimer();
+      }
+
+      if (sportCode === 'badminton') {
+        this.badmintonMatchType.set(match.config?.matchType || "Men's Singles");
+        this.badmintonMatchStatus.set(match.liveData?.matchStatus || "Scheduled");
+        this.autoSelectBadmintonPlayers(match);
+      }
     } else {
       this.stopFootballTimer();
+    }
+  }
+
+  autoSelectBadmintonPlayers(match: Match) {
+    const live = match.liveData || {};
+    
+    if (live.currentServer) {
+      this.badmintonServer.set(live.currentServer);
+    } else {
+      const homePlayers = this.getPlayersForTeam(match.homeTeamId);
+      if (homePlayers.length > 0) {
+        this.badmintonServer.set(homePlayers[0].user.username);
+      } else {
+        this.badmintonServer.set('');
+      }
+    }
+
+    if (live.currentReceiver) {
+      this.badmintonReceiver.set(live.currentReceiver);
+    } else {
+      const awayPlayers = this.getPlayersForTeam(match.awayTeamId);
+      if (awayPlayers.length > 0) {
+        this.badmintonReceiver.set(awayPlayers[0].user.username);
+      } else {
+        this.badmintonReceiver.set('');
+      }
+    }
+
+    if (live.currentServiceCourt) {
+      this.badmintonServiceCourt.set(live.currentServiceCourt);
+    } else {
+      this.badmintonServiceCourt.set('Right');
+    }
+
+    if (live.serviceNumber) {
+      this.badmintonServiceNumber.set(live.serviceNumber);
+    } else {
+      this.badmintonServiceNumber.set(1);
     }
   }
 
@@ -4000,6 +4064,377 @@ export class WorkspaceDetailComponent implements OnInit {
   }
 
   // ─── Badminton Live Actions ────────────────────────────────────────────────
+  onUpdateBadmintonMatchType(matchType: string) {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!match || !ws || !event || !comp || !stage) return;
+
+    const config = { ...match.config, matchType };
+    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+      config
+    }).subscribe({
+      next: (updated) => {
+        this.selectedMatch.set(updated);
+        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+        this.badmintonMatchType.set(matchType);
+        this.uiService.success(`Match type updated to ${matchType}`);
+      }
+    });
+  }
+
+  onUpdateBadmintonStatus(matchStatus: string) {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!match || !ws || !event || !comp || !stage) return;
+
+    const live = match.liveData ? { ...match.liveData } : {};
+    live.matchStatus = matchStatus;
+
+    let dbStatus = match.status;
+    if (matchStatus === 'Scheduled') {
+      dbStatus = 'scheduled';
+    } else if (['Finished', 'Walkover', 'Retired', 'Abandoned'].includes(matchStatus)) {
+      dbStatus = 'completed';
+    } else {
+      dbStatus = 'live';
+    }
+
+    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+      status: dbStatus,
+      liveData: live
+    }).subscribe({
+      next: (updated) => {
+        this.selectedMatch.set(updated);
+        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+        this.badmintonMatchStatus.set(matchStatus);
+        this.uiService.success(`Match status updated to ${matchStatus}`);
+      }
+    });
+  }
+
+  startBadmintonTimer() {
+    if (this.badmintonTimerInterval) return;
+    this.badmintonTimerRunning.set(true);
+    this.badmintonTimerInterval = setInterval(() => {
+      this.badmintonDuration.update(d => d + 1);
+    }, 1000);
+  }
+
+  stopBadmintonTimer() {
+    if (this.badmintonTimerInterval) {
+      clearInterval(this.badmintonTimerInterval);
+      this.badmintonTimerInterval = null;
+    }
+    this.badmintonTimerRunning.set(false);
+  }
+
+  toggleBadmintonTimer() {
+    if (this.badmintonTimerRunning()) {
+      this.stopBadmintonTimer();
+    } else {
+      this.startBadmintonTimer();
+    }
+  }
+
+  onServerChange(serverName: string) {
+    this.badmintonServer.set(serverName);
+    const match = this.selectedMatch();
+    if (match) {
+      const court = this.getAutoServiceCourt(match, serverName);
+      this.badmintonServiceCourt.set(court);
+      
+      const homePlayers = this.getPlayersForTeam(match.homeTeamId);
+      const isHomeServer = homePlayers.some(p => p.user.username === serverName);
+      
+      const serverTeamPlayers = isHomeServer ? homePlayers : this.getPlayersForTeam(match.awayTeamId);
+      const receiverTeamPlayers = isHomeServer ? this.getPlayersForTeam(match.awayTeamId) : homePlayers;
+      
+      const currentReceiver = this.badmintonReceiver();
+      const isReceiverInvalid = !currentReceiver || serverTeamPlayers.some(p => p.user.username === currentReceiver);
+      
+      if (isReceiverInvalid && receiverTeamPlayers.length > 0) {
+        this.badmintonReceiver.set(receiverTeamPlayers[0].user.username);
+      }
+    }
+  }
+
+  onRecordBadmintonRally(winnerSide: 'home' | 'away') {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!match || !ws || !event || !comp || !stage) return;
+
+    const live = match.liveData ? { ...match.liveData } : {};
+    if (!live.setsScore) {
+      live.setsScore = [{ home: 0, away: 0 }];
+      live.currentSet = 1;
+      live.homeSetsWon = 0;
+      live.awaySetsWon = 0;
+      live.rallies = [];
+    }
+    if (!live.rallies) {
+      live.rallies = [];
+    }
+
+    const currentSetNum = live.currentSet ?? 1;
+    const setIndex = currentSetNum - 1;
+    if (!live.setsScore[setIndex]) {
+      live.setsScore[setIndex] = { home: 0, away: 0 };
+    }
+
+    const setScore = { ...live.setsScore[setIndex] };
+    if (winnerSide === 'home') {
+      setScore.home += 1;
+    } else {
+      setScore.away += 1;
+    }
+    live.setsScore[setIndex] = setScore;
+
+    // Record the rally event
+    const server = this.badmintonServer() || 'Unknown';
+    const receiver = this.badmintonReceiver() || 'Unknown';
+    const reason = this.badmintonReason() || 'Winner';
+    const duration = this.badmintonDuration();
+    const serviceCourt = this.badmintonServiceCourt();
+    const serviceNumber = this.badmintonServiceNumber();
+
+    live.rallies.push({
+      set: currentSetNum,
+      server,
+      receiver,
+      serviceCourt,
+      serviceNumber,
+      winner: winnerSide === 'home' ? (match.homeTeam?.name || 'Home') : (match.awayTeam?.name || 'Away'),
+      winnerSide,
+      reason,
+      duration,
+      scoreAfter: { home: setScore.home, away: setScore.away }
+    });
+
+    // Check if set is won (typically first to 21 points, must lead by 2, or max 30)
+    const homeScore = setScore.home;
+    const awayScore = setScore.away;
+    const setsToWin = match.config.setsToWin ?? 2;
+    let setWon = false;
+    let setWinner: 'home' | 'away' | null = null;
+
+    if ((homeScore >= 21 && homeScore - awayScore >= 2) || homeScore === 30) {
+      setWon = true;
+      setWinner = 'home';
+    } else if ((awayScore >= 21 && awayScore - homeScore >= 2) || awayScore === 30) {
+      setWon = true;
+      setWinner = 'away';
+    }
+
+    let dbStatus = match.status;
+
+    if (setWon) {
+      if (setWinner === 'home') {
+        live.homeSetsWon += 1;
+      } else {
+        live.awaySetsWon += 1;
+      }
+
+      if (live.homeSetsWon >= setsToWin || live.awaySetsWon >= setsToWin) {
+        dbStatus = 'completed';
+        live.matchStatus = 'Finished';
+      } else {
+        live.currentSet += 1;
+        live.setsScore.push({ home: 0, away: 0 });
+        live.matchStatus = live.currentSet === 2 ? 'SecondGame' : 'ThirdGame';
+      }
+    } else {
+      dbStatus = 'live';
+      live.matchStatus = currentSetNum === 1 ? 'FirstGame' : currentSetNum === 2 ? 'SecondGame' : 'ThirdGame';
+    }
+
+    // Stop timer and reset
+    this.stopBadmintonTimer();
+    this.badmintonDuration.set(0);
+
+    // Rotate players after the point
+    const isDoubles = (match.config?.matchType || "").toLowerCase().includes('doubles');
+    this.rotateBadmintonPlayers(live, winnerSide, isDoubles);
+
+    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+      homeScore: live.homeSetsWon,
+      awayScore: live.awaySetsWon,
+      status: dbStatus,
+      liveData: live,
+    }).subscribe({
+      next: (updated) => {
+        this.selectedMatch.set(updated);
+        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+        this.badmintonMatchStatus.set(live.matchStatus);
+        
+        if (updated.liveData) {
+          this.badmintonServer.set(updated.liveData.currentServer || '');
+          this.badmintonReceiver.set(updated.liveData.currentReceiver || '');
+          this.badmintonServiceCourt.set(updated.liveData.currentServiceCourt || 'Right');
+          this.badmintonServiceNumber.set(updated.liveData.serviceNumber || 1);
+        }
+      }
+    });
+  }
+
+  onRecordBadmintonLet(letReason: string) {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!match || !ws || !event || !comp || !stage) return;
+
+    const live = match.liveData ? { ...match.liveData } : {};
+    if (!live.setsScore) {
+      live.setsScore = [{ home: 0, away: 0 }];
+      live.currentSet = 1;
+      live.homeSetsWon = 0;
+      live.awaySetsWon = 0;
+      live.rallies = [];
+    }
+    if (!live.rallies) {
+      live.rallies = [];
+    }
+
+    const currentSetNum = live.currentSet ?? 1;
+    const setIndex = currentSetNum - 1;
+    if (!live.setsScore[setIndex]) {
+      live.setsScore[setIndex] = { home: 0, away: 0 };
+    }
+    const setScore = live.setsScore[setIndex];
+
+    live.rallies.push({
+      set: currentSetNum,
+      server: this.badmintonServer() || 'Unknown',
+      receiver: this.badmintonReceiver() || 'Unknown',
+      serviceCourt: this.badmintonServiceCourt(),
+      serviceNumber: this.badmintonServiceNumber(),
+      winner: 'None',
+      winnerSide: 'none',
+      reason: letReason,
+      duration: this.badmintonDuration(),
+      scoreAfter: { home: setScore.home, away: setScore.away }
+    });
+
+    // Stop timer and reset duration
+    this.stopBadmintonTimer();
+    this.badmintonDuration.set(0);
+
+    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+      liveData: live,
+    }).subscribe({
+      next: (updated) => {
+        this.selectedMatch.set(updated);
+        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+        this.uiService.success(`Let recorded: ${letReason}`);
+      }
+    });
+  }
+
+  // Helper to handle BWF positioning rules on rally record
+  rotateBadmintonPlayers(live: any, winnerSide: 'home' | 'away', isDoubles: boolean) {
+    const match = this.selectedMatch();
+    if (!match) return;
+
+    // Current server side before this rally
+    const prevServer = live.currentServer || this.badmintonServer();
+    const homePlayers = this.getPlayersForTeam(match.homeTeamId);
+    const isHomeServer = homePlayers.some(p => p.user.username === prevServer);
+    const prevServingSide: 'home' | 'away' = isHomeServer ? 'home' : 'away';
+
+    // Get current positioning
+    let homeRight = live.homeRightPlayer || (homePlayers[0]?.user?.username ?? '');
+    let homeLeft = live.homeLeftPlayer || (homePlayers[1]?.user?.username ?? '');
+    const awayPlayers = this.getPlayersForTeam(match.awayTeamId);
+    let awayRight = live.awayRightPlayer || (awayPlayers[0]?.user?.username ?? '');
+    let awayLeft = live.awayLeftPlayer || (awayPlayers[1]?.user?.username ?? '');
+
+    // Current set score AFTER point is added
+    const currentSetNum = live.currentSet ?? 1;
+    const setScore = live.setsScore[currentSetNum - 1] || { home: 0, away: 0 };
+
+    if (winnerSide === prevServingSide) {
+      // Serving side wins the point -> Server swaps courts with partner (rotates)
+      if (winnerSide === 'home') {
+        if (isDoubles) {
+          const temp = homeRight;
+          homeRight = homeLeft;
+          homeLeft = temp;
+        }
+        live.currentServer = prevServer; // Server stays the same
+      } else {
+        if (isDoubles) {
+          const temp = awayRight;
+          awayRight = awayLeft;
+          awayLeft = temp;
+        }
+        live.currentServer = prevServer; // Server stays the same
+      }
+      live.serviceNumber = (live.serviceNumber || 1) + 1;
+    } else {
+      // Receiving side wins the point -> Service possession changes. No position changes!
+      // New server is determined by the new score of the receiving side (which is winnerSide)
+      const newServingSideScore = winnerSide === 'home' ? setScore.home : setScore.away;
+      if (newServingSideScore % 2 === 0) {
+        // Even score -> serve from Right court
+        live.currentServer = winnerSide === 'home' ? homeRight : awayRight;
+      } else {
+        // Odd score -> serve from Left court
+        live.currentServer = winnerSide === 'home' ? homeLeft : awayLeft;
+      }
+      live.serviceNumber = 1; // Reset service number
+    }
+
+    // Receiver is always determined by the new server side's score
+    const newServerScore = winnerSide === 'home' ? setScore.home : setScore.away;
+    if (newServerScore % 2 === 0) {
+      // Even score -> serve to Right court. Receiver is whoever is in the opponent's Right court
+      live.currentReceiver = winnerSide === 'home' ? awayRight : homeRight;
+      live.currentServiceCourt = 'Right';
+    } else {
+      // Odd score -> serve to Left court. Receiver is whoever is in the opponent's Left court
+      live.currentReceiver = winnerSide === 'home' ? awayLeft : homeLeft;
+      live.currentServiceCourt = 'Left';
+    }
+
+    // Save positions back to live
+    live.homeRightPlayer = homeRight;
+    live.homeLeftPlayer = homeLeft;
+    live.awayRightPlayer = awayRight;
+    live.awayLeftPlayer = awayLeft;
+  }
+
+  // Helper to determine the correct service court based on the serving side's score
+  getAutoServiceCourt(match: Match | null, serverName: string): 'Right' | 'Left' {
+    if (!match || !serverName) return 'Right';
+    
+    // Determine which team the server belongs to
+    const homePlayers = this.getPlayersForTeam(match.homeTeamId);
+    const isHome = homePlayers.some(p => p.user.username === serverName);
+    
+    // If not found in home list, check away list
+    const awayPlayers = this.getPlayersForTeam(match.awayTeamId);
+    const isAway = awayPlayers.some(p => p.user.username === serverName);
+
+    // Default to Home if not found (or custom name)
+    const servingSide: 'home' | 'away' = isAway && !isHome ? 'away' : 'home';
+
+    const currentSetNum = match.liveData?.currentSet ?? 1;
+    const setScore = match.liveData?.setsScore?.[currentSetNum - 1] || { home: 0, away: 0 };
+    const score = servingSide === 'home' ? setScore.home : setScore.away;
+
+    return score % 2 === 0 ? 'Right' : 'Left';
+  }
+
   onRecordBadmintonPoint(side: 'home' | 'away', change: number) {
     const match = this.selectedMatch();
     const ws = this.workspace();
@@ -4014,9 +4449,11 @@ export class WorkspaceDetailComponent implements OnInit {
       live.currentSet = 1;
       live.homeSetsWon = 0;
       live.awaySetsWon = 0;
+      live.rallies = [];
     }
 
-    const setIndex = (live.currentSet ?? 1) - 1;
+    const currentSetNum = live.currentSet ?? 1;
+    const setIndex = currentSetNum - 1;
     if (!live.setsScore[setIndex]) {
       live.setsScore[setIndex] = { home: 0, away: 0 };
     }
@@ -4027,43 +4464,262 @@ export class WorkspaceDetailComponent implements OnInit {
     } else {
       setScore.away = Math.max(0, setScore.away + change);
     }
-
     live.setsScore[setIndex] = setScore;
 
-    // Check if set is won (typically first to 21 points, must lead by 2, or max 30)
+    // Check if set is won
     const homeScore = setScore.home;
     const awayScore = setScore.away;
     const setsToWin = match.config.setsToWin ?? 2;
+    let setWon = false;
+    let setWinner: 'home' | 'away' | null = null;
 
     if ((homeScore >= 21 && homeScore - awayScore >= 2) || homeScore === 30) {
-      // Home wins set
-      live.homeSetsWon += 1;
-      if (live.homeSetsWon >= setsToWin) {
-        match.status = 'completed';
-      } else {
-        live.currentSet += 1;
-        live.setsScore.push({ home: 0, away: 0 });
-      }
+      setWon = true;
+      setWinner = 'home';
     } else if ((awayScore >= 21 && awayScore - homeScore >= 2) || awayScore === 30) {
-      // Away wins set
-      live.awaySetsWon += 1;
-      if (live.awaySetsWon >= setsToWin) {
-        match.status = 'completed';
+      setWon = true;
+      setWinner = 'away';
+    }
+
+    let dbStatus = match.status;
+
+    if (setWon) {
+      if (setWinner === 'home') {
+        live.homeSetsWon += 1;
+      } else {
+        live.awaySetsWon += 1;
+      }
+
+      if (live.homeSetsWon >= setsToWin || live.awaySetsWon >= setsToWin) {
+        dbStatus = 'completed';
+        live.matchStatus = 'Finished';
       } else {
         live.currentSet += 1;
         live.setsScore.push({ home: 0, away: 0 });
+        live.matchStatus = live.currentSet === 2 ? 'SecondGame' : 'ThirdGame';
       }
+    } else {
+      dbStatus = 'live';
+      live.matchStatus = currentSetNum === 1 ? 'FirstGame' : currentSetNum === 2 ? 'SecondGame' : 'ThirdGame';
     }
+
+    // Recalculate service details based on the new score
+    this.recalculateLiveServiceDetails(match, live);
 
     this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       homeScore: live.homeSetsWon,
       awayScore: live.awaySetsWon,
-      status: match.status,
+      status: dbStatus,
       liveData: live,
     }).subscribe({
       next: (updated) => {
         this.selectedMatch.set(updated);
         this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+        this.badmintonMatchStatus.set(live.matchStatus);
+
+        if (updated.liveData) {
+          this.badmintonServer.set(updated.liveData.currentServer || '');
+          this.badmintonReceiver.set(updated.liveData.currentReceiver || '');
+          this.badmintonServiceCourt.set(updated.liveData.currentServiceCourt || 'Right');
+          this.badmintonServiceNumber.set(updated.liveData.serviceNumber || 1);
+        }
+      }
+    });
+  }
+
+  onSwapHomePositions() {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!match || !ws || !event || !comp || !stage) return;
+
+    const live = match.liveData ? { ...match.liveData } : {};
+    const homePlayers = this.getPlayersForTeam(match.homeTeamId);
+    const homeRight = live.homeRightPlayer || (homePlayers[0]?.user?.username ?? '');
+    const homeLeft = live.homeLeftPlayer || (homePlayers[1]?.user?.username ?? '');
+
+    live.homeRightPlayer = homeLeft;
+    live.homeLeftPlayer = homeRight;
+
+    this.recalculateLiveServiceDetails(match, live);
+
+    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+      liveData: live
+    }).subscribe({
+      next: (updated) => {
+        this.selectedMatch.set(updated);
+        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+        this.uiService.success('Home team positions swapped');
+      }
+    });
+  }
+
+  onSwapAwayPositions() {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!match || !ws || !event || !comp || !stage) return;
+
+    const live = match.liveData ? { ...match.liveData } : {};
+    const awayPlayers = this.getPlayersForTeam(match.awayTeamId);
+    const awayRight = live.awayRightPlayer || (awayPlayers[0]?.user?.username ?? '');
+    const awayLeft = live.awayLeftPlayer || (awayPlayers[1]?.user?.username ?? '');
+
+    live.awayRightPlayer = awayLeft;
+    live.awayLeftPlayer = awayRight;
+
+    this.recalculateLiveServiceDetails(match, live);
+
+    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+      liveData: live
+    }).subscribe({
+      next: (updated) => {
+        this.selectedMatch.set(updated);
+        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+        this.uiService.success('Away team positions swapped');
+      }
+    });
+  }
+
+  recalculateLiveServiceDetails(match: Match, live: any) {
+    const serverName = this.badmintonServer();
+    if (!serverName) return;
+
+    const homeRight = live.homeRightPlayer || '';
+    const homeLeft = live.homeLeftPlayer || '';
+    const awayRight = live.awayRightPlayer || '';
+    const awayLeft = live.awayLeftPlayer || '';
+
+    const homePlayers = this.getPlayersForTeam(match.homeTeamId);
+    const isHomeServer = homePlayers.some(p => p.user.username === serverName);
+
+    const currentSetNum = live.currentSet ?? 1;
+    const setScore = live.setsScore?.[currentSetNum - 1] || { home: 0, away: 0 };
+    const score = isHomeServer ? setScore.home : setScore.away;
+
+    if (score % 2 === 0) {
+      live.currentServiceCourt = 'Right';
+      live.currentReceiver = isHomeServer ? awayRight : homeRight;
+    } else {
+      live.currentServiceCourt = 'Left';
+      live.currentReceiver = isHomeServer ? awayLeft : homeLeft;
+    }
+
+    this.badmintonReceiver.set(live.currentReceiver || '');
+    this.badmintonServiceCourt.set(live.currentServiceCourt || 'Right');
+  }
+
+  onUndoBadmintonRally() {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!match || !ws || !event || !comp || !stage) return;
+
+    const live = match.liveData ? { ...match.liveData } : {};
+    if (!live.rallies || live.rallies.length === 0) return;
+
+    // Remove last rally
+    live.rallies.pop();
+
+    // Reset back to baseline
+    live.currentSet = 1;
+    live.setsScore = [{ home: 0, away: 0 }];
+    live.homeSetsWon = 0;
+    live.awaySetsWon = 0;
+    live.matchStatus = 'FirstGame';
+    
+    // Reset player positions to initial rosters
+    const homePlayers = this.getPlayersForTeam(match.homeTeamId);
+    const awayPlayers = this.getPlayersForTeam(match.awayTeamId);
+    live.homeRightPlayer = homePlayers[0]?.user?.username ?? '';
+    live.homeLeftPlayer = homePlayers[1]?.user?.username ?? '';
+    live.awayRightPlayer = awayPlayers[0]?.user?.username ?? '';
+    live.awayLeftPlayer = awayPlayers[1]?.user?.username ?? '';
+    live.currentServer = live.homeRightPlayer;
+    live.currentReceiver = live.awayRightPlayer;
+    live.currentServiceCourt = 'Right';
+    live.serviceNumber = 1;
+
+    const setsToWin = match.config.setsToWin ?? 2;
+    const isDoubles = (match.config?.matchType || "").toLowerCase().includes('doubles');
+
+    // Replay remaining rallies
+    for (const rally of live.rallies) {
+      if (rally.winnerSide === 'none') {
+        // Let event - no score/rotation change
+        continue;
+      }
+
+      const sIdx = live.currentSet - 1;
+      if (!live.setsScore[sIdx]) {
+        live.setsScore[sIdx] = { home: 0, away: 0 };
+      }
+
+      if (rally.winnerSide === 'home') {
+        live.setsScore[sIdx].home += 1;
+      } else {
+        live.setsScore[sIdx].away += 1;
+      }
+
+      // Rotate players after this point
+      this.rotateBadmintonPlayers(live, rally.winnerSide, isDoubles);
+
+      const hScore = live.setsScore[sIdx].home;
+      const aScore = live.setsScore[sIdx].away;
+
+      let setWon = false;
+      if ((hScore >= 21 && hScore - aScore >= 2) || hScore === 30) {
+        setWon = true;
+        live.homeSetsWon += 1;
+      } else if ((aScore >= 21 && aScore - hScore >= 2) || aScore === 30) {
+        setWon = true;
+        live.awaySetsWon += 1;
+      }
+
+      if (setWon) {
+        if (live.homeSetsWon < setsToWin && live.awaySetsWon < setsToWin) {
+          live.currentSet += 1;
+          live.setsScore.push({ home: 0, away: 0 });
+        }
+      }
+    }
+
+    if (live.homeSetsWon >= setsToWin || live.awaySetsWon >= setsToWin) {
+      live.matchStatus = 'Finished';
+    } else {
+      live.matchStatus = live.currentSet === 1 ? 'FirstGame' : live.currentSet === 2 ? 'SecondGame' : 'ThirdGame';
+    }
+
+    let dbStatus = 'live';
+    if (live.matchStatus === 'Scheduled') {
+      dbStatus = 'scheduled';
+    } else if (['Finished', 'Walkover', 'Retired', 'Abandoned'].includes(live.matchStatus)) {
+      dbStatus = 'completed';
+    }
+
+    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+      homeScore: live.homeSetsWon,
+      awayScore: live.awaySetsWon,
+      status: dbStatus,
+      liveData: live,
+    }).subscribe({
+      next: (updated) => {
+        this.selectedMatch.set(updated);
+        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
+        this.badmintonMatchStatus.set(live.matchStatus);
+        
+        if (updated.liveData) {
+          this.badmintonServer.set(updated.liveData.currentServer || '');
+          this.badmintonReceiver.set(updated.liveData.currentReceiver || '');
+          this.badmintonServiceCourt.set(updated.liveData.currentServiceCourt || 'Right');
+          this.badmintonServiceNumber.set(updated.liveData.serviceNumber || 1);
+        }
       }
     });
   }

@@ -11,6 +11,45 @@ import { CompetitionStage } from './competition-stage.entity';
 import { Team } from './team.entity';
 import { Venue } from './venue.entity';
 
+export enum MatchType {
+  MENS_SINGLES = "Men's Singles",
+  WOMENS_SINGLES = "Women's Singles",
+  MENS_DOUBLES = "Men's Doubles",
+  WOMENS_DOUBLES = "Women's Doubles",
+  MIXED_DOUBLES = "Mixed Doubles"
+}
+
+export enum MatchStatus {
+  SCHEDULED = "Scheduled",
+  WARM_UP = "WarmUp",
+  FIRST_GAME = "FirstGame",
+  BREAK = "Break",
+  SECOND_GAME = "SecondGame",
+  THIRD_GAME = "ThirdGame",
+  FINISHED = "Finished",
+  WALKOVER = "Walkover",
+  RETIRED = "Retired",
+  ABANDONED = "Abandoned"
+}
+
+export enum RallyResult {
+  WINNER = "Winner",
+  FORCED_ERROR = "ForcedError",
+  UNFORCED_ERROR = "UnforcedError",
+  NET_TOUCH = "NetTouch",
+  SHUTTLE_OUT = "ShuttleOut",
+  DOUBLE_HIT = "DoubleHit",
+  CARRIED_SHUTTLE = "CarriedShuttle",
+  SERVICE_FAULT = "ServiceFault",
+  FOOT_FAULT = "FootFault",
+  WRONG_RECEIVER = "WrongReceiver",
+  WRONG_SERVER = "WrongServer",
+  LET_SHUTTLE_BREAKS = "LetShuttleBreaks",
+  LET_RECEIVER_NOT_READY = "LetReceiverNotReady",
+  LET_EXTERNAL_INTERRUPTION = "LetExternalInterruption",
+  LET_UMPIRE_CALL = "LetUmpireCall"
+}
+
 @Entity('matches')
 export class Match {
   @PrimaryGeneratedColumn('uuid')
@@ -61,6 +100,8 @@ export class Match {
     overs?: number;
     // Badminton: setsToWin (e.g. 2 means best of 3 sets)
     setsToWin?: number;
+    // Badminton matchType
+    matchType?: MatchType;
   };
 
   @Column({ type: 'json', nullable: true })

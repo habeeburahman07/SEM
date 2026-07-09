@@ -1,4 +1,5 @@
 import { IsOptional, IsUUID, IsString, IsObject, IsInt } from 'class-validator';
+import { MatchType } from '../entities/match.entity';
 
 export class UpdateMatchDto {
   @IsOptional()
@@ -31,6 +32,7 @@ export class UpdateMatchDto {
     timerDuration?: number;
     overs?: number;
     setsToWin?: number;
+    matchType?: MatchType;
   };
 
   @IsOptional()

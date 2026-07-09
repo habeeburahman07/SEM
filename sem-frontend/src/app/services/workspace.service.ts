@@ -149,6 +149,7 @@ export interface Match {
     timerDuration?: number;
     overs?: number;
     setsToWin?: number;
+    matchType?: string;
     round?: string;
     leg?: number;
   };

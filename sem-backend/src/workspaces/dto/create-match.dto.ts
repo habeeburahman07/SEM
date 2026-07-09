@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsUUID, IsOptional, IsObject } from 'class-validator';
+import { MatchType } from '../entities/match.entity';
 
 export class CreateMatchDto {
   @IsNotEmpty()
@@ -19,5 +20,6 @@ export class CreateMatchDto {
     timerDuration?: number;
     overs?: number;
     setsToWin?: number;
+    matchType?: MatchType;
   };
 }
