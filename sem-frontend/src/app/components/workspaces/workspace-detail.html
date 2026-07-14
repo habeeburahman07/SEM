@@ -253,7 +253,7 @@
                       <div class="min-w-0">
                         <p class="text-xs font-bold text-white truncate">{{ invite.workspace?.name }}</p>
                         <p class="text-[9px] text-slate-400 mt-0.5 capitalize">
-                          Role: {{ invite.role?.name || 'Viewer' }}
+                          Role: {{ invite.role.name || 'Viewer' }}
                         </p>
                       </div>
                     </div>
@@ -2096,7 +2096,7 @@
 
                     <!-- Status Badges & Controls -->
                     <div class="flex items-center justify-end gap-3 font-semibold">
-                      @if (match.config?.round) {
+                      @if (match.config.round) {
                       <span
                         class="text-[9px] font-extrabold px-2 py-1 bg-violet-600/10 text-violet-400 rounded-lg border border-violet-500/20 uppercase tracking-wider">
                         {{ match.config.round }}
@@ -3432,7 +3432,7 @@
                     </div>
                     <div class="flex flex-col gap-1.5 text-left">
                       <label class="text-[10px] font-bold text-slate-400 uppercase">Overs Limit</label>
-                      <input #matchOvers type="number" [value]="match.config?.overs || 20" min="1" max="100"
+                      <input #matchOvers type="number" [value]="match.config.overs || 20" min="1" max="100"
                         class="bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 outline-none" />
                     </div>
                   </div>
@@ -3484,7 +3484,7 @@
                       <div class="text-[10px] text-slate-400 font-semibold mt-0.5">
                         Overs: {{ innings?.overs || 0 }}.{{ innings?.balls || 0 }}
                       </div>
-                      @let powerplay = getPowerplayStatus(innings, match.config?.overs || 20);
+                      @let powerplay = getPowerplayStatus(innings, match.config.overs || 20);
                       @if (powerplay) {
                       <span
                         class="px-1.5 py-0.5 rounded bg-violet-600/10 border border-violet-500/20 text-[8px] font-extrabold text-violet-300 uppercase tracking-wider mt-0.5">
