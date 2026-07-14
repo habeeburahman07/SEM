@@ -2,7 +2,7 @@ import { Component, OnInit, signal, inject, computed } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { WorkspaceService, Workspace } from '../../services/workspace.service';
+import { WorkspaceService, Workspace, WorkspaceMember } from '../../services/workspace.service';
 import { AuthService } from '../../services/auth.service';
 import { UiService } from '../../services/ui.service';
 
@@ -27,6 +27,11 @@ export class WorkspacesComponent implements OnInit {
   isUserDropdownOpen = signal(false);
   isUploadingAvatar = signal(false);
 
+  // Invitation signals
+  pendingInvitations = signal<WorkspaceMember[]>([]);
+  isNotificationOpen = signal(false);
+  isProcessingInvitation = signal(false);
+
   ngOnInit() {
     this.workspaceService.getAll().subscribe({
       next: (data) => {
@@ -39,6 +44,7 @@ export class WorkspacesComponent implements OnInit {
         this.isLoading.set(false);
       },
     });
+    this.loadPendingInvitations();
   }
 
   logout() {
@@ -153,6 +159,50 @@ export class WorkspacesComponent implements OnInit {
           this.createError.set('Failed to create workspace. Please try again.');
         }
       },
+    });
+  }
+
+  loadPendingInvitations() {
+    this.workspaceService.getPendingInvitations().subscribe({
+      next: (data) => {
+        this.pendingInvitations.set(data);
+      },
+      error: (err) => {
+        console.error('Failed to load invitations', err);
+      }
+    });
+  }
+
+  acceptInvite(workspaceId: string, workspaceName: string) {
+    this.isProcessingInvitation.set(true);
+    this.workspaceService.acceptInvitation(workspaceId).subscribe({
+      next: () => {
+        this.isProcessingInvitation.set(false);
+        this.uiService.success(`Successfully joined "${workspaceName}"!`);
+        this.loadPendingInvitations();
+        this.workspaceService.getAll().subscribe(data => this.workspaces.set(data));
+      },
+      error: (err) => {
+        this.isProcessingInvitation.set(false);
+        console.error(err);
+        this.uiService.error(err.error?.message ?? 'Failed to accept invitation.');
+      }
+    });
+  }
+
+  rejectInvite(workspaceId: string, workspaceName: string) {
+    this.isProcessingInvitation.set(true);
+    this.workspaceService.rejectInvitation(workspaceId).subscribe({
+      next: () => {
+        this.isProcessingInvitation.set(false);
+        this.uiService.success(`Rejected invitation to "${workspaceName}".`);
+        this.loadPendingInvitations();
+      },
+      error: (err) => {
+        this.isProcessingInvitation.set(false);
+        console.error(err);
+        this.uiService.error(err.error?.message ?? 'Failed to reject invitation.');
+      }
     });
   }
 }

@@ -225,7 +225,7 @@ export class WorkspacesService implements OnModuleInit {
 
   async findAllForUser(userId: string): Promise<Workspace[]> {
     const memberships = await this.memberRepo.find({
-      where: { userId },
+      where: { userId, status: 'joined' },
       relations: { workspace: true },
     });
     return memberships.map((m) => m.workspace);
@@ -290,7 +290,7 @@ export class WorkspacesService implements OnModuleInit {
   async getMembers(workspaceId: string, userId: string): Promise<WorkspaceMember[]> {
     await this.ensureMember(workspaceId, userId);
     return this.memberRepo.find({
-      where: { workspaceId },
+      where: { workspaceId, status: 'joined' },
       relations: { user: true, role: { permissions: true } },
       order: { joinedAt: 'ASC' },
     });
@@ -312,6 +312,9 @@ export class WorkspacesService implements OnModuleInit {
       where: { workspaceId, userId: user.id },
     });
     if (existing) {
+      if (existing.status === 'pending') {
+        throw new ConflictException('User already has a pending invitation');
+      }
       throw new ConflictException('User is already a member of this workspace');
     }
 
@@ -324,6 +327,7 @@ export class WorkspacesService implements OnModuleInit {
       workspaceId,
       userId: user.id,
       roleId: role.id,
+      status: 'pending',
     });
     const saved = await this.memberRepo.save(member);
     saved.user = user;
@@ -345,6 +349,10 @@ export class WorkspacesService implements OnModuleInit {
       relations: { user: true, role: true },
     });
     if (existing) {
+      if (existing.status === 'pending') {
+        existing.status = 'joined';
+        return this.memberRepo.save(existing);
+      }
       return existing;
     }
 
@@ -354,6 +362,7 @@ export class WorkspacesService implements OnModuleInit {
       workspaceId,
       userId,
       roleId: role.id,
+      status: 'joined',
     });
     const saved = await this.memberRepo.save(member);
     
@@ -362,6 +371,35 @@ export class WorkspacesService implements OnModuleInit {
       relations: { user: true, role: true },
     });
     return fullMember!;
+  }
+
+  async getPendingInvitations(userId: string): Promise<WorkspaceMember[]> {
+    return this.memberRepo.find({
+      where: { userId, status: 'pending' },
+      relations: { workspace: true },
+    });
+  }
+
+  async acceptInvitation(workspaceId: string, userId: string): Promise<WorkspaceMember> {
+    const member = await this.memberRepo.findOne({
+      where: { workspaceId, userId, status: 'pending' },
+      relations: { user: true, role: true },
+    });
+    if (!member) {
+      throw new NotFoundException('Invitation not found or already accepted/rejected');
+    }
+    member.status = 'joined';
+    return this.memberRepo.save(member);
+  }
+
+  async rejectInvitation(workspaceId: string, userId: string): Promise<void> {
+    const member = await this.memberRepo.findOne({
+      where: { workspaceId, userId, status: 'pending' },
+    });
+    if (!member) {
+      throw new NotFoundException('Invitation not found or already accepted/rejected');
+    }
+    await this.memberRepo.remove(member);
   }
 
   async updateMemberRole(
@@ -549,7 +587,7 @@ export class WorkspacesService implements OnModuleInit {
 
   async ensureMember(workspaceId: string, userId: string): Promise<WorkspaceMember> {
     const member = await this.memberRepo.findOne({
-      where: { workspaceId, userId },
+      where: { workspaceId, userId, status: 'joined' },
       relations: { role: true },
     });
     if (!member) throw new ForbiddenException('You are not a member of this workspace');
@@ -572,7 +610,7 @@ export class WorkspacesService implements OnModuleInit {
 
   private async ensurePermission(workspaceId: string, userId: string, permissionSlug: string): Promise<void> {
     const member = await this.memberRepo.findOne({
-      where: { workspaceId, userId },
+      where: { workspaceId, userId, status: 'joined' },
       relations: { role: { permissions: true } },
     });
     if (!member) throw new ForbiddenException('You are not a member of this workspace');

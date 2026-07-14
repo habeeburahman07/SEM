@@ -33,6 +33,11 @@ export class WorkspaceDetailComponent implements OnInit {
   error = signal('');
   activeTab = signal<'overview' | 'members' | 'settings' | 'teams' | 'players' | 'events' | 'venues'>('overview');
   isSidebarOpen = signal(false);
+
+  // Invitation signals
+  pendingInvitations = signal<WorkspaceMember[]>([]);
+  isNotificationOpen = signal(false);
+  isProcessingInvitation = signal(false);
   enableExtraTime = signal(true);
   enablePenaltyShootout = signal(true);
   extraTimeHalfDuration = signal(15);
@@ -504,6 +509,7 @@ export class WorkspaceDetailComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.loadPendingInvitations();
     const id = this.route.snapshot.paramMap.get('id')!;
     this.workspaceService.getOne(id).subscribe({
       next: (ws) => {
@@ -5073,5 +5079,48 @@ export class WorkspaceDetailComponent implements OnInit {
     } finally {
       this.isResettingStages.set(false);
     }
+  }
+
+  loadPendingInvitations() {
+    this.workspaceService.getPendingInvitations().subscribe({
+      next: (data) => {
+        this.pendingInvitations.set(data);
+      },
+      error: (err) => {
+        console.error('Failed to load invitations', err);
+      }
+    });
+  }
+
+  acceptInvite(workspaceId: string, workspaceName: string) {
+    this.isProcessingInvitation.set(true);
+    this.workspaceService.acceptInvitation(workspaceId).subscribe({
+      next: () => {
+        this.isProcessingInvitation.set(false);
+        this.uiService.success(`Successfully joined "${workspaceName}"!`);
+        this.loadPendingInvitations();
+      },
+      error: (err) => {
+        this.isProcessingInvitation.set(false);
+        console.error(err);
+        this.uiService.error(err.error?.message ?? 'Failed to accept invitation.');
+      }
+    });
+  }
+
+  rejectInvite(workspaceId: string, workspaceName: string) {
+    this.isProcessingInvitation.set(true);
+    this.workspaceService.rejectInvitation(workspaceId).subscribe({
+      next: () => {
+        this.isProcessingInvitation.set(false);
+        this.uiService.success(`Rejected invitation to "${workspaceName}".`);
+        this.loadPendingInvitations();
+      },
+      error: (err) => {
+        this.isProcessingInvitation.set(false);
+        console.error(err);
+        this.uiService.error(err.error?.message ?? 'Failed to reject invitation.');
+      }
+    });
   }
 }

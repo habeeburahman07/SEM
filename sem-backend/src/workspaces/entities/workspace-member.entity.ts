@@ -76,4 +76,7 @@ export class WorkspaceMember {
 
   @CreateDateColumn({ name: 'joined_at' })
   joinedAt: Date;
+
+  @Column({ name: 'status', type: 'varchar', length: 20, default: 'joined' })
+  status: string; // 'pending' | 'joined' | 'rejected'
 }

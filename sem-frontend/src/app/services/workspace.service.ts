@@ -174,6 +174,8 @@ export interface WorkspaceMember {
   role: Role;
   joinedAt: string;
   user: { id: string; username: string; avatarUrl?: string | null };
+  status?: string;
+  workspace?: Workspace;
 }
 
 export interface CreateWorkspacePayload {
@@ -240,6 +242,28 @@ export class WorkspaceService {
       `${this.apiUrl}/${workspaceId}/join`,
       {},
       { headers: this.headers }
+    );
+  }
+
+  getPendingInvitations(): Observable<WorkspaceMember[]> {
+    return this.http.get<WorkspaceMember[]>(`${this.apiUrl}/invitations/pending`, {
+      headers: this.headers,
+    });
+  }
+
+  acceptInvitation(workspaceId: string): Observable<WorkspaceMember> {
+    return this.http.post<WorkspaceMember>(
+      `${this.apiUrl}/invitations/${workspaceId}/accept`,
+      {},
+      { headers: this.headers },
+    );
+  }
+
+  rejectInvitation(workspaceId: string): Observable<void> {
+    return this.http.post<void>(
+      `${this.apiUrl}/invitations/${workspaceId}/reject`,
+      {},
+      { headers: this.headers },
     );
   }
 

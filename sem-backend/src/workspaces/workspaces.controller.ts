@@ -58,6 +58,21 @@ export class WorkspacesController {
     return this.workspacesService.getSports();
   }
 
+  @Get('invitations/pending')
+  getPendingInvitations(@Request() req: any) {
+    return this.workspacesService.getPendingInvitations(req.user.id);
+  }
+
+  @Post('invitations/:workspaceId/accept')
+  acceptInvitation(@Param('workspaceId') workspaceId: string, @Request() req: any) {
+    return this.workspacesService.acceptInvitation(workspaceId, req.user.id);
+  }
+
+  @Post('invitations/:workspaceId/reject')
+  rejectInvitation(@Param('workspaceId') workspaceId: string, @Request() req: any) {
+    return this.workspacesService.rejectInvitation(workspaceId, req.user.id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string, @Request() req: any) {
     return this.workspacesService.findOne(id, req.user.id);
