@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { AuthService } from './auth.service';
+import { environment } from '../../environments/environment';
 
 export interface Workspace {
   id: string;
@@ -204,7 +205,7 @@ export interface UpdateWorkspacePayload {
 export class WorkspaceService {
   private http = inject(HttpClient);
   private authService = inject(AuthService);
-  private readonly apiUrl = 'http://localhost:3001/api/workspaces';
+  private readonly apiUrl = `${environment.apiUrl}/workspaces`;
 
   private get headers(): HttpHeaders {
     const token = this.authService.token();
@@ -334,34 +335,34 @@ export class WorkspaceService {
   // ─── Global System Roles ──────────────────────────────────────────────────
 
   getGlobalRoles(): Observable<Role[]> {
-    return this.http.get<Role[]>(`http://localhost:3001/api/system-settings/roles`, {
+    return this.http.get<Role[]>(`${environment.apiUrl}/system-settings/roles`, {
       headers: this.headers,
     });
   }
 
   createGlobalRole(name: string, description?: string): Observable<Role> {
     return this.http.post<Role>(
-      `http://localhost:3001/api/system-settings/roles`,
+      `${environment.apiUrl}/system-settings/roles`,
       { name, description },
       { headers: this.headers },
     );
   }
 
   removeGlobalRole(roleId: string): Observable<void> {
-    return this.http.delete<void>(`http://localhost:3001/api/system-settings/roles/${roleId}`, {
+    return this.http.delete<void>(`${environment.apiUrl}/system-settings/roles/${roleId}`, {
       headers: this.headers,
     });
   }
 
   getGlobalPermissions(): Observable<Permission[]> {
-    return this.http.get<Permission[]>(`http://localhost:3001/api/system-settings/permissions`, {
+    return this.http.get<Permission[]>(`${environment.apiUrl}/system-settings/permissions`, {
       headers: this.headers,
     });
   }
 
   updateRolePermissions(roleId: string, permissionIds: string[]): Observable<Role> {
     return this.http.post<Role>(
-      `http://localhost:3001/api/system-settings/roles/${roleId}/permissions`,
+      `${environment.apiUrl}/system-settings/roles/${roleId}/permissions`,
       { permissionIds },
       { headers: this.headers }
     );
@@ -712,7 +713,7 @@ export class WorkspaceService {
     const formData = new FormData();
     formData.append('file', file);
     return this.http.post<{ url: string; publicId: string }>(
-      `http://localhost:3001/api/upload?type=${type}`,
+      `${environment.apiUrl}/upload?type=${type}`,
       formData,
       { headers: this.headers }
     );

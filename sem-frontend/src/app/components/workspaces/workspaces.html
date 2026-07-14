@@ -57,7 +57,7 @@
                           <div class="min-w-0">
                             <p class="text-xs font-bold text-white truncate">{{ invite.workspace?.name }}</p>
                             <p class="text-[9px] text-slate-400 mt-0.5 capitalize">
-                              Role: {{ invite.role?.name || 'Viewer' }}
+                              Role: {{ invite.role.name || 'Viewer' }}
                             </p>
                           </div>
                         </div>
@@ -145,6 +145,13 @@
                 <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Signed in as</p>
                 <p class="text-xs font-bold text-white truncate mt-0.5">{{ authService.currentUser()?.username }}</p>
               </div>
+
+              <!-- My Profile Option -->
+              <a routerLink="/profile" (click)="isUserDropdownOpen.set(false)"
+                class="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer">
+                <i class="fi fi-rr-user text-sm"></i>
+                My Profile
+              </a>
 
               <!-- System Settings option -->
               <a routerLink="/system-settings" (click)="isUserDropdownOpen.set(false)"
@@ -388,4 +395,5 @@
     </div>
   </div>
   }
+
 </div>

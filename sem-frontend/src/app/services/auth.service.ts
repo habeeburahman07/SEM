@@ -1,6 +1,7 @@
 import { Injectable, signal, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap, catchError, throwError, of } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface User {
   id: string;
@@ -18,7 +19,7 @@ export interface AuthResponse {
 })
 export class AuthService {
   private http = inject(HttpClient);
-  private apiUrl = 'http://localhost:3001/api/auth';
+  private apiUrl = `${environment.apiUrl}/auth`;
 
   // Signals for reactive auth state
   currentUser = signal<User | null>(null);
@@ -101,5 +102,39 @@ export class AuthService {
         localStorage.setItem('user', JSON.stringify(user));
       })
     );
+  }
+
+  changePassword(oldPassword: string, newPassword: string): Observable<any> {
+    const currentToken = this.token();
+    return this.http.patch(`${this.apiUrl}/change-password`, { oldPassword, newPassword }, {
+      headers: {
+        Authorization: `Bearer ${currentToken}`
+      }
+    });
+  }
+
+  fetchProfileDetails(): Observable<{
+    user: User & { createdAt: string };
+    workspaces: Array<{
+      id: string;
+      name: string;
+      slug: string;
+      role: { slug: string; name: string };
+    }>;
+    teams: Array<{
+      id: string;
+      name: string;
+      code: string;
+      logoUrl?: string;
+      jerseyNumber?: string;
+      workspace: { id: string; name: string };
+    }>;
+  }> {
+    const currentToken = this.token();
+    return this.http.get<any>(`${this.apiUrl}/profile/details`, {
+      headers: {
+        Authorization: `Bearer ${currentToken}`
+      }
+    });
   }
 }
