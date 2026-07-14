@@ -245,6 +245,14 @@ export class WorkspaceService {
     );
   }
 
+  bulkImportMembers(workspaceId: string, payload: { members: { username: string; role?: string }[]; password: string }): Observable<{ success: any[]; failed: any[] }> {
+    return this.http.post<{ success: any[]; failed: any[] }>(
+      `${this.apiUrl}/${workspaceId}/members/bulk`,
+      payload,
+      { headers: this.headers }
+    );
+  }
+
   joinWorkspace(workspaceId: string): Observable<WorkspaceMember> {
     return this.http.post<WorkspaceMember>(
       `${this.apiUrl}/${workspaceId}/join`,

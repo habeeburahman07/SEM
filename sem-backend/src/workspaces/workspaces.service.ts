@@ -42,6 +42,7 @@ import { CreateMatchDto } from './dto/create-match.dto';
 import { UpdateMatchDto } from './dto/update-match.dto';
 import { CreateVenueDto } from './dto/create-venue.dto';
 import { UpdateVenueDto } from './dto/update-venue.dto';
+import { BulkImportMembersDto } from './dto/bulk-import-members.dto';
 
 @Injectable()
 export class WorkspacesService implements OnModuleInit {
@@ -337,6 +338,73 @@ export class WorkspacesService implements OnModuleInit {
     saved.user = user;
     saved.role = role;
     return saved;
+  }
+
+  async bulkImportMembers(
+    workspaceId: string,
+    dto: BulkImportMembersDto,
+    requesterId: string,
+  ): Promise<{ success: any[]; failed: any[] }> {
+    await this.ensurePermission(workspaceId, requesterId, 'member.invite');
+
+    const success = [];
+    const failed = [];
+
+    for (const item of dto.members) {
+      try {
+        let user = await this.usersService.findOneByUsername(item.username);
+        let isNew = false;
+        if (!user) {
+          user = await this.usersService.create(item.username, dto.password);
+          isNew = true;
+        }
+
+        const existing = await this.memberRepo.findOne({
+          where: { workspaceId, userId: user.id },
+        });
+
+        if (existing) {
+          failed.push({
+            username: item.username,
+            error: 'User is already a member of this workspace',
+          });
+          continue;
+        }
+
+        const roleSlug = item.role || 'viewer';
+        const role = await this.findRoleBySlug(roleSlug, workspaceId);
+        if (role.slug === WorkspaceRole.OWNER) {
+          failed.push({
+            username: item.username,
+            error: 'Cannot import a user as Owner',
+          });
+          continue;
+        }
+
+        const member = this.memberRepo.create({
+          workspaceId,
+          userId: user.id,
+          roleId: role.id,
+          status: 'joined',
+          invitedById: requesterId,
+        });
+
+        const saved = await this.memberRepo.save(member);
+        success.push({
+          username: item.username,
+          isNew,
+          memberId: saved.id,
+          role: role.name,
+        });
+      } catch (err) {
+        failed.push({
+          username: item.username,
+          error: err.message || 'Import failed',
+        });
+      }
+    }
+
+    return { success, failed };
   }
 
   async joinWorkspace(

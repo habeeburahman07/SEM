@@ -507,7 +507,13 @@
           <!-- Left Column: Invite Form -->
           <div class="flex flex-col justify-between">
             <div>
-              <h2 class="text-base font-bold text-white mb-1">Invite Member</h2>
+              <div class="flex items-center justify-between mb-1">
+                <h2 class="text-base font-bold text-white">Invite Member</h2>
+                <button (click)="openMemberBulkModal()"
+                  class="px-2.5 py-1 text-[10px] bg-slate-800 hover:bg-slate-700 text-violet-400 hover:text-violet-300 font-bold rounded-lg border border-white/5 transition-all cursor-pointer flex items-center gap-1.5">
+                  <i class="fi fi-rr-file-import text-[11px]"></i> Bulk Import
+                </button>
+              </div>
               <p class="text-xs text-slate-400 mb-5">Invite collaborators by username and assign them a role.</p>
 
               @if (inviteSuccess()) {
@@ -1382,7 +1388,7 @@
               </svg>
               Importing...
               } @else {
-              Confirm Import
+              Import Players
               }
             </button>
           </div>
@@ -5984,6 +5990,155 @@
           Generating...
           } @else {
           <i class="fi fi-rr-bolt"></i> Generate Fixtures
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- Bulk Import Members Modal -->
+  @if (isMemberBulkModalOpen()) {
+  <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    (click)="closeMemberBulkModal()">
+    <div
+      class="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden"
+      (click)="$event.stopPropagation()">
+      <!-- Gradient top line -->
+      <div class="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-violet-500 to-indigo-500"></div>
+
+      <!-- Header -->
+      <div class="px-6 py-5 border-b border-white/5 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i class="fi fi-rr-file-import text-violet-400 text-lg"></i>
+            <span>Bulk Import Members</span>
+          </h3>
+          <p class="text-xs text-slate-400 mt-1">Upload a spreadsheet or Excel file to import and register multiple
+            members.</p>
+        </div>
+        <button (click)="closeMemberBulkModal()" class="text-slate-400 hover:text-white transition cursor-pointer">
+          <i class="fi fi-rr-cross text-xs"></i>
+        </button>
+      </div>
+
+      <!-- Content -->
+      <div class="p-6 overflow-y-auto flex-1 flex flex-col gap-5">
+        <!-- Step 1: Password Configuration -->
+        <div class="bg-slate-950/50 border border-white/5 rounded-xl p-4 flex flex-col gap-3">
+          <h4 class="text-xs font-bold text-white uppercase tracking-wider">1. Set Registration Password</h4>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            This password will be applied to newly registered users in the spreadsheet. Standard users already in the
+            system will keep their existing passwords.
+          </p>
+          <div class="relative w-full">
+            <input [type]="showBulkImportPassword() ? 'text' : 'password'" placeholder="Enter common password"
+              class="w-full bg-slate-900 border border-white/10 focus:border-violet-500 rounded-xl pl-4 pr-10 py-2.5 text-xs text-white placeholder-slate-500 outline-none transition-all"
+              [ngModel]="memberBulkImportPassword()" (ngModelChange)="memberBulkImportPassword.set($event)" />
+            <button (click)="showBulkImportPassword.set(!showBulkImportPassword())"
+              class="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 transition cursor-pointer">
+              <i class="fi text-sm" [class.fi-rr-eye]="showBulkImportPassword()"
+                [class.fi-rr-eye-crossed]="!showBulkImportPassword()"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2: Download format -->
+        <div class="bg-slate-950/50 border border-white/5 rounded-xl p-4 flex flex-col gap-3">
+          <h4 class="text-xs font-bold text-white uppercase tracking-wider">2. Prepare your spreadsheet</h4>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Download our formatted spreadsheet template and fill in usernames. Roles are optional and default to <strong
+              class="text-slate-300">viewer</strong>.
+          </p>
+          <button (click)="downloadMemberTemplate()"
+            class="self-start flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg border border-white/10 transition cursor-pointer">
+            <i class="fi fi-rr-file-download text-violet-400"></i>
+            Download Excel Template
+          </button>
+        </div>
+
+        <!-- Step 3: Upload File -->
+        <div class="flex flex-col gap-2">
+          <h4 class="text-xs font-bold text-white uppercase tracking-wider">3. Upload spreadsheet file</h4>
+
+          <label
+            class="flex flex-col items-center justify-center border-2 border-dashed border-white/10 hover:border-violet-500/50 rounded-xl p-6 cursor-pointer bg-slate-950/20 hover:bg-slate-950/40 transition">
+            <i class="fi fi-rr-file-medical text-2xl text-slate-500 mb-2"></i>
+            <span class="text-xs font-bold text-white">Choose Excel File</span>
+            <span class="text-[10px] text-slate-500 mt-1">Supports .xlsx, .xls</span>
+            <input type="file" (change)="onMemberExcelUpload($event)" accept=".xlsx,.xls" class="hidden" />
+          </label>
+        </div>
+
+        <!-- Status Banners -->
+        @if (memberBulkImportError()) {
+        <div
+          class="rounded-xl bg-rose-500/10 border border-rose-500/30 p-3 text-rose-300 text-xs flex items-center gap-2">
+          <i class="fi fi-rr-exclamation-triangle flex-shrink-0 text-sm"></i>
+          {{ memberBulkImportError() }}
+        </div>
+        }
+        @if (memberBulkImportSuccess()) {
+        <div
+          class="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3 text-emerald-300 text-xs flex items-center gap-2">
+          <i class="fi fi-rr-check-circle flex-shrink-0 text-sm"></i>
+          {{ memberBulkImportSuccess() }}
+        </div>
+        }
+
+        <!-- Preview & Progress -->
+        @if (bulkImportMembersList().length > 0) {
+        <div class="flex flex-col gap-2">
+          <h4 class="text-xs font-bold text-white uppercase tracking-wider flex justify-between">
+            <span>Preview Members ({{ bulkImportMembersList().length }} found)</span>
+            <span class="text-violet-400 capitalize">Ready</span>
+          </h4>
+          <div
+            class="max-h-64 overflow-y-auto border border-white/5 rounded-xl bg-slate-950/40 p-2 text-xs flex flex-col gap-1.5">
+            @for (item of bulkImportMembersList(); track item.username; let idx = $index) {
+            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-white/5">
+              <div class="flex flex-col gap-0.5">
+                <span class="font-bold text-white">{{ item.username }}</span>
+                <span class="text-[10px] text-slate-400 capitalize">Role: {{ item.role || 'viewer' }}</span>
+              </div>
+              <div class="flex items-center gap-2">
+                @if (item.status === 'success') {
+                <span
+                  class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[9px] font-bold">Success</span>
+                } @else if (item.status === 'failed') {
+                <span class="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 text-[9px] font-bold"
+                  [title]="item.error">Failed</span>
+                } @else if (item.status === 'exist') {
+                <span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 text-[9px] font-bold"
+                  [title]="item.error">Exists</span>
+                } @else {
+                <span class="px-1.5 py-0.5 rounded bg-slate-950 text-slate-500 text-[9px] font-medium">Pending</span>
+                }
+              </div>
+            </div>
+            }
+          </div>
+        </div>
+        }
+      </div>
+
+      <!-- Footer Action Buttons -->
+      <div class="px-6 py-5 border-t border-white/5 flex justify-end gap-3 bg-slate-900">
+        <button type="button" (click)="closeMemberBulkModal()" [disabled]="isImportingMemberBulk()"
+          class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white hover:text-slate-950 text-xs font-bold rounded-xl transition cursor-pointer disabled:opacity-50">
+          Cancel
+        </button>
+        <button type="button" (click)="onConfirmMemberBulkImport()"
+          [disabled]="isImportingMemberBulk() || bulkImportMembersList().length === 0 || !memberBulkImportPassword()"
+          class="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-2">
+          @if (isImportingMemberBulk()) {
+          <svg class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          Importing...
+          } @else {
+          Import Members
           }
         </button>
       </div>
