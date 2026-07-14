@@ -1,15 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { v2 as cloudinary } from 'cloudinary';
 import { UploadApiResponse } from 'cloudinary';
 import { Readable } from 'stream';
 
 @Injectable()
 export class CloudinaryService {
-  constructor() {
+  constructor(private readonly configService: ConfigService) {
     cloudinary.config({
-      cloud_name: 'lmekaycw',
-      api_key: '417186344657729',
-      api_secret: '7lvDAEc7d0R1tR1HbgEA_3DpCzE',
+      cloud_name: this.configService.get<string>('CLOUDINARY_CLOUD_NAME'),
+      api_key: this.configService.get<string>('CLOUDINARY_API_KEY'),
+      api_secret: this.configService.get<string>('CLOUDINARY_API_SECRET'),
     });
   }
 
