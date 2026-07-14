@@ -2583,5 +2583,51 @@ export class WorkspacesService implements OnModuleInit {
     }
     await this.venueRepo.remove(venue);
   }
+
+  async getUserProfileDetails(userId: string) {
+    const user = await this.usersService.findOneById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const memberships = await this.memberRepo.find({
+      where: { userId, status: 'joined' },
+      relations: { workspace: true, role: true },
+    });
+
+    const players = await this.playerRepo.find({
+      where: { userId },
+      relations: { team: true, workspace: true },
+    });
+
+    return {
+      user: {
+        id: user.id,
+        username: user.username,
+        avatarUrl: user.avatarUrl,
+        createdAt: user.createdAt,
+      },
+      workspaces: memberships.map(m => ({
+        id: m.workspace.id,
+        name: m.workspace.name,
+        slug: m.workspace.slug,
+        role: {
+          slug: m.role.slug,
+          name: m.role.name,
+        }
+      })),
+      teams: players.map(p => ({
+        id: p.team.id,
+        name: p.team.name,
+        code: p.team.code,
+        logoUrl: p.team.logoUrl,
+        jerseyNumber: p.jerseyNumber,
+        workspace: {
+          id: p.workspace.id,
+          name: p.workspace.name,
+        }
+      }))
+    };
+  }
 }
 

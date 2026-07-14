@@ -2,15 +2,18 @@ import { Controller, Post, Body, HttpCode, HttpStatus, Get, Patch, UseGuards, Re
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { User } from '../users/entities/user.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UsersService } from '../users/users.service';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
+    private readonly workspacesService: WorkspacesService,
   ) {}
 
   @Post('register')
@@ -37,11 +40,27 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('profile/details')
+  async getProfileDetails(@Request() req: any) {
+    return await this.workspacesService.getUserProfileDetails(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Patch('profile')
   async updateProfile(
     @Request() req: any,
     @Body() body: { username?: string; avatarUrl?: string },
   ) {
     return await this.usersService.update(req.user.id, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('change-password')
+  async changePassword(
+    @Request() req: any,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    await this.usersService.changePassword(req.user.id, dto.oldPassword, dto.newPassword);
+    return { message: 'Password changed successfully' };
   }
 }

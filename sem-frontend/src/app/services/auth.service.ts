@@ -102,4 +102,38 @@ export class AuthService {
       })
     );
   }
+
+  changePassword(oldPassword: string, newPassword: string): Observable<any> {
+    const currentToken = this.token();
+    return this.http.patch(`${this.apiUrl}/change-password`, { oldPassword, newPassword }, {
+      headers: {
+        Authorization: `Bearer ${currentToken}`
+      }
+    });
+  }
+
+  fetchProfileDetails(): Observable<{
+    user: User & { createdAt: string };
+    workspaces: Array<{
+      id: string;
+      name: string;
+      slug: string;
+      role: { slug: string; name: string };
+    }>;
+    teams: Array<{
+      id: string;
+      name: string;
+      code: string;
+      logoUrl?: string;
+      jerseyNumber?: string;
+      workspace: { id: string; name: string };
+    }>;
+  }> {
+    const currentToken = this.token();
+    return this.http.get<any>(`${this.apiUrl}/profile/details`, {
+      headers: {
+        Authorization: `Bearer ${currentToken}`
+      }
+    });
+  }
 }

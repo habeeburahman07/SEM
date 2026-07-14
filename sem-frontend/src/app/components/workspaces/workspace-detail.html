@@ -354,6 +354,22 @@
                 <p class="text-xs font-bold text-white truncate mt-0.5">{{ authService.currentUser()?.username }}</p>
               </div>
 
+              <!-- My Profile Option -->
+              <a routerLink="/profile" (click)="isUserDropdownOpen.set(false)"
+                class="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer">
+                <i class="fi fi-rr-user text-sm"></i>
+                My Profile
+              </a>
+
+              <!-- System Settings option -->
+              <a routerLink="/system-settings" (click)="isUserDropdownOpen.set(false)"
+                class="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer">
+                <i class="fi fi-rr-settings text-sm"></i>
+                System Settings
+              </a>
+
+              <div class="border-t border-white/5 my-1.5"></div>
+
               <button (click)="onSignOut(); isUserDropdownOpen.set(false)"
                 class="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/5 transition-all cursor-pointer text-left">
                 <i class="fi fi-rr-sign-out-alt text-sm"></i>
@@ -6145,4 +6161,5 @@
     </div>
   </div>
   }
+
 </div>

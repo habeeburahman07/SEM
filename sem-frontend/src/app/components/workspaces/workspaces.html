@@ -146,6 +146,13 @@
                 <p class="text-xs font-bold text-white truncate mt-0.5">{{ authService.currentUser()?.username }}</p>
               </div>
 
+              <!-- My Profile Option -->
+              <a routerLink="/profile" (click)="isUserDropdownOpen.set(false)"
+                class="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer">
+                <i class="fi fi-rr-user text-sm"></i>
+                My Profile
+              </a>
+
               <!-- System Settings option -->
               <a routerLink="/system-settings" (click)="isUserDropdownOpen.set(false)"
                 class="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer">
@@ -388,4 +395,5 @@
     </div>
   </div>
   }
+
 </div>

@@ -57,4 +57,20 @@ export class UsersService {
     delete savedUser.password;
     return savedUser;
   }
+
+  async changePassword(id: string, oldPassword: string, newPassword: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
+      throw new ConflictException('User not found');
+    }
+
+    const isPasswordValid = await bcrypt.compare(oldPassword, user.password || '');
+    if (!isPasswordValid) {
+      throw new ConflictException('Invalid current password');
+    }
+
+    const salt = await bcrypt.genSalt();
+    user.password = await bcrypt.hash(newPassword, salt);
+    await this.userRepository.save(user);
+  }
 }
