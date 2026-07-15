@@ -3,18 +3,17 @@ import {
   PrimaryGeneratedColumn,
   Column,
   Index,
-  CreateDateColumn,
-  UpdateDateColumn,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
 import { Workspace } from './workspace.entity';
+import { AuditableEntity } from '../../common/auditable.entity';
 
 @Entity('teams')
 @Index('idx_teams_workspace_id', ['workspaceId'])             // FK: all teams in a workspace
 @Index('idx_teams_workspace_name', ['workspaceId', 'name'])   // Composite: search teams by name within workspace
 @Index('idx_teams_code', ['code'])                            // Unique code lookup
-export class Team {
+export class Team extends AuditableEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -36,10 +35,4 @@ export class Team {
   @ManyToOne(() => Workspace, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'workspace_id' })
   workspace: Workspace;
-
-  @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt: Date;
 }
