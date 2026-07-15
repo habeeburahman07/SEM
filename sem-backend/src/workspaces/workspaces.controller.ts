@@ -34,6 +34,7 @@ import { UpdateMatchDto } from './dto/update-match.dto';
 import { CreateVenueDto } from './dto/create-venue.dto';
 import { UpdateVenueDto } from './dto/update-venue.dto';
 import { BulkImportMembersDto } from './dto/bulk-import-members.dto';
+import { UpdateMatchLineupDto } from './dto/update-match-lineup.dto';
 
 
 @Controller('workspaces')
@@ -533,5 +534,30 @@ export class WorkspacesController {
     @Request() req: any,
   ) {
     return this.workspacesService.removeMatch(id, eventId, competitionId, stageId, matchId, req.user.id);
+  }
+
+  @Get(':id/events/:eventId/competitions/:competitionId/stages/:stageId/matches/:matchId/lineup')
+  getMatchLineup(
+    @Param('id') id: string,
+    @Param('eventId') eventId: string,
+    @Param('competitionId') competitionId: string,
+    @Param('stageId') stageId: string,
+    @Param('matchId') matchId: string,
+    @Request() req: any,
+  ) {
+    return this.workspacesService.getMatchLineup(id, eventId, competitionId, stageId, matchId, req.user.id);
+  }
+
+  @Post(':id/events/:eventId/competitions/:competitionId/stages/:stageId/matches/:matchId/lineup')
+  saveMatchLineup(
+    @Param('id') id: string,
+    @Param('eventId') eventId: string,
+    @Param('competitionId') competitionId: string,
+    @Param('stageId') stageId: string,
+    @Param('matchId') matchId: string,
+    @Body() dto: UpdateMatchLineupDto,
+    @Request() req: any,
+  ) {
+    return this.workspacesService.saveMatchLineup(id, eventId, competitionId, stageId, matchId, dto.lineups, req.user.id);
   }
 }

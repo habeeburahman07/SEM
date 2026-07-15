@@ -22,6 +22,7 @@ import { Match, MatchType } from './entities/match.entity';
 import { CompetitionTeam } from './entities/competition-team.entity';
 import { Venue } from './entities/venue.entity';
 import { Notification } from './entities/notification.entity';
+import { MatchPlayer } from './entities/match-player.entity';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import { UsersService } from '../users/users.service';
@@ -75,6 +76,8 @@ export class WorkspacesService implements OnModuleInit {
     private readonly venueRepo: Repository<Venue>,
     @InjectRepository(Notification)
     private readonly notificationRepo: Repository<Notification>,
+    @InjectRepository(MatchPlayer)
+    private readonly matchPlayerRepo: Repository<MatchPlayer>,
     private readonly usersService: UsersService,
   ) {}
 
@@ -2634,6 +2637,112 @@ export class WorkspacesService implements OnModuleInit {
         }
       }))
     };
+  }
+
+  // ─── Match Lineups ─────────────────────────────────────────────────────────
+
+  async getMatchLineup(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string,
+    matchId: string,
+    userId: string,
+  ): Promise<MatchPlayer[]> {
+    await this.ensureMember(workspaceId, userId);
+
+    const match = await this.matchRepo.findOne({
+      where: { id: matchId, stageId },
+    });
+    if (!match) {
+      throw new NotFoundException('Match not found');
+    }
+
+    return this.matchPlayerRepo.find({
+      where: { matchId },
+      relations: {
+        player: {
+          user: true,
+        },
+        team: true,
+      },
+    });
+  }
+
+  async saveMatchLineup(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string,
+    matchId: string,
+    lineups: { playerId: string; isPlaying: boolean; teamId: string; isGoalkeeper?: boolean }[],
+    userId: string,
+  ): Promise<MatchPlayer[]> {
+    await this.ensurePermission(workspaceId, userId, 'match.score');
+
+    const match = await this.matchRepo.findOne({
+      where: { id: matchId, stageId },
+    });
+    if (!match) {
+      throw new NotFoundException('Match not found');
+    }
+
+    // Fetch existing entries
+    const existing = await this.matchPlayerRepo.find({
+      where: { matchId },
+    });
+    const existingMap = new Map<string, MatchPlayer>();
+    for (const entry of existing) {
+      existingMap.set(entry.playerId, entry);
+    }
+
+    const toSave: MatchPlayer[] = [];
+    const processedPlayerIds = new Set<string>();
+
+    for (const item of lineups) {
+      processedPlayerIds.add(item.playerId);
+      let entry = existingMap.get(item.playerId);
+      const isGK = item.isGoalkeeper ?? false;
+      if (entry) {
+        entry.isPlaying = item.isPlaying;
+        entry.teamId = item.teamId;
+        entry.isGoalkeeper = isGK;
+      } else {
+        entry = this.matchPlayerRepo.create({
+          matchId,
+          playerId: item.playerId,
+          teamId: item.teamId,
+          isPlaying: item.isPlaying,
+          isGoalkeeper: isGK,
+        });
+      }
+      toSave.push(entry);
+    }
+
+    // Save the new/updated ones
+    await this.matchPlayerRepo.save(toSave);
+
+    // Delete any existing entries that were not present in the update payload
+    const toDelete: MatchPlayer[] = [];
+    for (const entry of existing) {
+      if (!processedPlayerIds.has(entry.playerId)) {
+        toDelete.push(entry);
+      }
+    }
+    if (toDelete.length > 0) {
+      await this.matchPlayerRepo.remove(toDelete);
+    }
+
+    // Return the updated list with relations
+    return this.matchPlayerRepo.find({
+      where: { matchId },
+      relations: {
+        player: {
+          user: true,
+        },
+        team: true,
+      },
+    });
   }
 }
 

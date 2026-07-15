@@ -170,6 +170,19 @@ export interface CompetitionTeam {
   createdAt: string;
 }
 
+export interface MatchPlayer {
+  id: string;
+  matchId: string;
+  playerId: string;
+  player?: Player;
+  teamId: string;
+  team?: Team;
+  isPlaying: boolean;
+  isGoalkeeper?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 
 export interface WorkspaceMember {
   id: string;
@@ -708,6 +721,34 @@ export class WorkspaceService {
   ): Observable<void> {
     return this.http.delete<void>(
       `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${matchId}`,
+      { headers: this.headers }
+    );
+  }
+
+  getMatchLineup(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string,
+    matchId: string
+  ): Observable<MatchPlayer[]> {
+    return this.http.get<MatchPlayer[]>(
+      `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${matchId}/lineup`,
+      { headers: this.headers }
+    );
+  }
+
+  saveMatchLineup(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string,
+    matchId: string,
+    lineups: { playerId: string; isPlaying: boolean; teamId: string; isGoalkeeper?: boolean }[]
+  ): Observable<MatchPlayer[]> {
+    return this.http.post<MatchPlayer[]>(
+      `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${matchId}/lineup`,
+      { lineups },
       { headers: this.headers }
     );
   }

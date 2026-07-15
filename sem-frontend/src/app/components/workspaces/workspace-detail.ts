@@ -3,7 +3,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { WorkspaceService, Workspace, WorkspaceMember, AppNotification, Role, Team, Player, WorkspaceEvent, Sport, Competition, CompetitionStage, CompetitionTeam, Match, Venue, PointsConfigEntry } from '../../services/workspace.service';
+import { WorkspaceService, Workspace, WorkspaceMember, AppNotification, Role, Team, Player, WorkspaceEvent, Sport, Competition, CompetitionStage, CompetitionTeam, Match, Venue, PointsConfigEntry, MatchPlayer } from '../../services/workspace.service';
 import { AuthService } from '../../services/auth.service';
 import { UiService } from '../../services/ui.service';
 
@@ -218,6 +218,9 @@ export class WorkspaceDetailComponent implements OnInit {
   matches = signal<Match[]>([]);
   selectedMatch = signal<Match | null>(null);
   selectedPointsTableGroup = signal<string>('Group A');
+  matchLineup = signal<MatchPlayer[]>([]);
+  isLineupModalOpen = signal(false);
+  lineupForm = signal<{ playerId: string; isPlaying: boolean; isGoalkeeper: boolean; teamId: string; player: Player }[]>([]);
 
   // Cricket Scoring Inputs
   cricketBowler = signal<string>('');
@@ -2947,8 +2950,10 @@ export class WorkspaceDetailComponent implements OnInit {
     this.selectedMatch.set(match);
     this.stopBadmintonTimer();
     this.badmintonDuration.set(0);
+    this.matchLineup.set([]);
     
     if (match) {
+      this.loadMatchLineup(match.id);
       const sportCode = this.selectedCompetition()?.sport?.code;
       if (sportCode === 'football' && match.status === 'live') {
         this.startFootballTimer();
@@ -3027,7 +3032,200 @@ export class WorkspaceDetailComponent implements OnInit {
         }
       }
     }
-    return this.players().filter(p => p.teamId === teamId && !inactiveIds.has(p.userId));
+    
+    const teamPlayers = this.players().filter(p => p.teamId === teamId && !inactiveIds.has(p.userId));
+    const lineup = this.matchLineup();
+    const hasMappedLineup = lineup.some(le => le.teamId === teamId && le.isPlaying);
+    
+    if (hasMappedLineup) {
+      const playingPlayerIds = new Set(lineup.filter(le => le.isPlaying).map(le => le.playerId));
+      return teamPlayers.filter(p => playingPlayerIds.has(p.id));
+    }
+    
+    return teamPlayers;
+  }
+
+  loadMatchLineup(matchId: string) {
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!ws || !event || !comp || !stage) return;
+
+    this.workspaceService.getMatchLineup(ws.id, event.id, comp.id, stage.id, matchId).subscribe({
+      next: (lineup) => this.matchLineup.set(lineup),
+      error: (err) => console.error('Failed to load match lineup', err)
+    });
+  }
+
+  openLineupModal() {
+    const match = this.selectedMatch();
+    if (!match) return;
+
+    const homePlayers = this.players().filter(p => p.teamId === match.homeTeamId);
+    const awayPlayers = this.players().filter(p => p.teamId === match.awayTeamId);
+    const currentLineup = this.matchLineup();
+
+    const form: { playerId: string; isPlaying: boolean; isGoalkeeper: boolean; teamId: string; player: Player }[] = [];
+
+    // Map home players
+    for (const p of homePlayers) {
+      const matchEntry = currentLineup.find(le => le.playerId === p.id);
+      form.push({
+        playerId: p.id,
+        teamId: p.teamId,
+        isPlaying: matchEntry ? matchEntry.isPlaying : false,
+        isGoalkeeper: matchEntry ? !!matchEntry.isGoalkeeper : false,
+        player: p
+      });
+    }
+
+    // Map away players
+    for (const p of awayPlayers) {
+      const matchEntry = currentLineup.find(le => le.playerId === p.id);
+      form.push({
+        playerId: p.id,
+        teamId: p.teamId,
+        isPlaying: matchEntry ? matchEntry.isPlaying : false,
+        isGoalkeeper: matchEntry ? !!matchEntry.isGoalkeeper : false,
+        player: p
+      });
+    }
+
+    this.lineupForm.set(form);
+    this.isLineupModalOpen.set(true);
+  }
+
+  togglePlayerInLineup(playerId: string) {
+    this.lineupForm.update(prev => prev.map(item => {
+      if (item.playerId === playerId) {
+        const nextPlaying = !item.isPlaying;
+        return {
+          ...item,
+          isPlaying: nextPlaying,
+          isGoalkeeper: nextPlaying ? item.isGoalkeeper : false
+        };
+      }
+      return item;
+    }));
+  }
+
+  setGoalkeeper(teamId: string, playerId: string) {
+    this.lineupForm.update(prev => prev.map(item => {
+      if (item.teamId === teamId) {
+        return { ...item, isGoalkeeper: item.playerId === playerId };
+      }
+      return item;
+    }));
+  }
+
+  saveLineup() {
+    const match = this.selectedMatch();
+    const ws = this.workspace();
+    const event = this.selectedEvent();
+    const comp = this.selectedCompetition();
+    const stage = this.selectedStage();
+    if (!ws || !event || !comp || !stage || !match) return;
+
+    const payload = this.lineupForm().map(item => ({
+      playerId: item.playerId,
+      isPlaying: item.isPlaying,
+      isGoalkeeper: item.isGoalkeeper,
+      teamId: item.teamId
+    }));
+
+    this.workspaceService.saveMatchLineup(ws.id, event.id, comp.id, stage.id, match.id, payload).subscribe({
+      next: (updatedLineup) => {
+        this.matchLineup.set(updatedLineup);
+        this.isLineupModalOpen.set(false);
+        this.uiService.success('Match lineup saved successfully!');
+      },
+      error: (err) => {
+        this.uiService.error(err.error?.message ?? 'Failed to save match lineup.');
+      }
+    });
+  }
+
+  getSortedMatchLineup(teamId: string | null): any[] {
+    if (!teamId) return [];
+    const teamPlayers = this.players().filter(p => p.teamId === teamId);
+    const lineup = this.matchLineup();
+    
+    return teamPlayers.map(p => {
+      const matchEntry = lineup.find(le => le.playerId === p.id);
+      return {
+        id: p.id,
+        player: p,
+        isPlaying: matchEntry ? matchEntry.isPlaying : false,
+        isGoalkeeper: matchEntry ? !!matchEntry.isGoalkeeper : false
+      };
+    }).sort((a, b) => {
+      if (a.isPlaying && !b.isPlaying) return -1;
+      if (!a.isPlaying && b.isPlaying) return 1;
+      if (a.isGoalkeeper && !b.isGoalkeeper) return -1;
+      if (!a.isGoalkeeper && b.isGoalkeeper) return 1;
+      const nameA = a.player?.user?.username || '';
+      const nameB = b.player?.user?.username || '';
+      return nameA.localeCompare(nameB);
+    });
+  }
+
+  getHomePlayersInForm(): any[] {
+    const match = this.selectedMatch();
+    if (!match) return [];
+    return this.lineupForm().filter(item => item.teamId === match.homeTeamId);
+  }
+
+  getAwayPlayersInForm(): any[] {
+    const match = this.selectedMatch();
+    if (!match) return [];
+    return this.lineupForm().filter(item => item.teamId === match.awayTeamId);
+  }
+
+  getBenchPlayersForTeam(teamId: string | null): Player[] {
+    if (!teamId) return [];
+    const match = this.selectedMatch();
+    const inactiveIds = new Set<string>();
+    const subbedInIds = new Set<string>();
+    
+    if (match?.liveData?.events) {
+      for (const ev of match.liveData.events) {
+        if (ev.type === 'card' && (ev.cardType === 'red' || ev.cardType === 'second_yellow')) {
+          if (ev.playerUserId) {
+            inactiveIds.add(ev.playerUserId);
+          }
+        }
+        if (ev.type === 'substitution') {
+          if (ev.playerOutId) {
+            inactiveIds.add(ev.playerOutId);
+          }
+          if (ev.playerInId) {
+            subbedInIds.add(ev.playerInId);
+          }
+        }
+        if (ev.type === 'injury' && ev.substituted) {
+          if (ev.playerUserId) {
+            inactiveIds.add(ev.playerUserId);
+          }
+        }
+      }
+    }
+
+    const teamPlayers = this.players().filter(p => 
+      p.teamId === teamId && 
+      !inactiveIds.has(p.userId) && 
+      !subbedInIds.has(p.userId)
+    );
+
+    const lineup = this.matchLineup();
+    const hasMappedLineup = lineup.some(le => le.teamId === teamId && le.isPlaying);
+
+    if (hasMappedLineup) {
+      const benchPlayerIds = new Set(lineup.filter(le => !le.isPlaying).map(le => le.playerId));
+      return teamPlayers.filter(p => benchPlayerIds.has(p.id));
+    }
+
+    return teamPlayers;
   }
 
   // ─── Football Live Actions ─────────────────────────────────────────────────
