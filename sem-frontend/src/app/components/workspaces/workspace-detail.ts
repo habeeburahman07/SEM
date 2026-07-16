@@ -27,11 +27,16 @@ export class WorkspaceDetailComponent implements OnInit {
   isLoadingTeamStats = signal<boolean>(false);
   activeTeamDetailTab = signal<'overview' | 'competitions' | 'squad'>('overview');
 
+  selectedPlayerForDetails = signal<any | null>(null);
+  isLoadingPlayerStats = signal<boolean>(false);
+  activePlayerDetailTab = signal<'overview' | 'competitions'>('overview');
+
   constructor() {
     effect(() => {
-      // Clear team details when main tab changes
+      // Clear team/player details when main tab changes
       this.activeTab();
       this.selectedTeamForDetails.set(null);
+      this.selectedPlayerForDetails.set(null);
     });
   }
 
@@ -1509,6 +1514,27 @@ export class WorkspaceDetailComponent implements OnInit {
       next: (players) => this.players.set(players),
       error: (err) => console.error('Failed to load players', err),
     });
+  }
+
+  onViewPlayerDetails(player: Player) {
+    const ws = this.workspace();
+    if (!ws) return;
+    this.isLoadingPlayerStats.set(true);
+    this.workspaceService.getPlayerStats(ws.id, player.id).subscribe({
+      next: (stats) => {
+        this.selectedPlayerForDetails.set(stats);
+        this.activePlayerDetailTab.set('overview');
+        this.isLoadingPlayerStats.set(false);
+      },
+      error: (err) => {
+        this.isLoadingPlayerStats.set(false);
+        this.uiService.error('Failed to load player statistics.');
+      }
+    });
+  }
+
+  onBackToPlayers() {
+    this.selectedPlayerForDetails.set(null);
   }
 
   onAddPlayer() {

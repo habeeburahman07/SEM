@@ -301,6 +301,15 @@ export class WorkspacesController {
     return this.workspacesService.removePlayer(id, playerId, req.user.id);
   }
 
+  @Get(':id/players/:playerId/stats')
+  getPlayerStats(
+    @Param('id') id: string,
+    @Param('playerId') playerId: string,
+    @Request() req: any,
+  ) {
+    return this.workspacesService.getPlayerStats(id, playerId, req.user.id);
+  }
+
   // ─── Events ───────────────────────────────────────────────────────────────
 
   @Get(':id/events')

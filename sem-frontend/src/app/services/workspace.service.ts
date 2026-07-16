@@ -841,4 +841,11 @@ export class WorkspaceService {
       { headers: this.headers }
     );
   }
+
+  getPlayerStats(workspaceId: string, playerId: string): Observable<any> {
+    return this.http.get<any>(
+      `${this.apiUrl}/${workspaceId}/players/${playerId}/stats`,
+      { headers: this.headers }
+    );
+  }
 }

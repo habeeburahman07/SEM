@@ -1162,6 +1162,288 @@ export class WorkspacesService implements OnModuleInit {
     };
   }
 
+  async getPlayerStats(workspaceId: string, playerId: string, userId: string) {
+    await this.ensureMember(workspaceId, userId);
+
+    const player = await this.playerRepo.findOne({
+      where: { id: playerId, workspaceId },
+      relations: { user: true, team: true }
+    });
+    if (!player) {
+      throw new NotFoundException('Player not found');
+    }
+
+    // 1. Find all competitions this team is registered in
+    const compTeams = await this.memberRepo.manager.find(CompetitionTeam, {
+      where: { teamId: player.teamId },
+      relations: {
+        competition: {
+          sport: true
+        }
+      }
+    });
+
+    const competitionIds = compTeams.map(ct => ct.competitionId);
+
+    // 2. Fetch all completed match-player entries for this player
+    const completedMatchPlayers = await this.matchPlayerRepo.find({
+      where: { playerId, isPlaying: true, match: { status: 'completed' } },
+      relations: {
+        match: {
+          stage: {
+            competition: {
+              sport: true
+            }
+          },
+          homeTeam: true,
+          awayTeam: true
+        }
+      }
+    });
+
+    const matchIds = completedMatchPlayers.map(mp => mp.matchId);
+
+    // 3. Fetch all ratings in these matches to calculate MVPs
+    const maxRatings = new Map<string, number>();
+    if (matchIds.length > 0) {
+      const allMatchPlayersInMatches = await this.matchPlayerRepo.find({
+        where: { matchId: In(matchIds), isPlaying: true }
+      });
+      for (const amp of allMatchPlayersInMatches) {
+        if (amp.rating !== null) {
+          const rVal = Number(amp.rating);
+          const currentMax = maxRatings.get(amp.matchId) ?? -1;
+          if (rVal > currentMax) {
+            maxRatings.set(amp.matchId, rVal);
+          }
+        }
+      }
+    }
+
+    // Career totals
+    let allTimeGames = completedMatchPlayers.length;
+    let allTimeGoals = 0;
+    let allTimeAssists = 0;
+    let allTimeYellowCards = 0;
+    let allTimeRedCards = 0;
+    let allTimeRuns = 0;
+    let allTimeWickets = 0;
+    let allTimeRalliesWon = 0;
+    let allTimeRalliesLost = 0;
+    let allTimeMvps = 0;
+    
+    // Ratings variables
+    let totalRatingPoints = 0;
+    let ratedMatchesCount = 0;
+
+    // Process all-time stats
+    for (const cmp of completedMatchPlayers) {
+      const m = cmp.match;
+      if (!m) continue;
+      const sport = m.stage?.competition?.sport?.code ?? 'football';
+      const liveData = m.liveData || {};
+
+      // MVP calculation
+      if (cmp.rating !== null) {
+        const rVal = Number(cmp.rating);
+        totalRatingPoints += rVal;
+        ratedMatchesCount++;
+        
+        const maxR = maxRatings.get(cmp.matchId);
+        if (maxR !== undefined && rVal === maxR) {
+          allTimeMvps++;
+        }
+      }
+
+      if (sport === 'football') {
+        const events = liveData.events || [];
+        for (const ev of events) {
+          const isSelfScorer = (ev.playerUserId === player.userId) || (ev.playerId === player.id);
+          const isSelfAssist = (ev.assistPlayerUserId === player.userId) || (ev.assistPlayerId === player.id);
+          
+          if (ev.type === 'goal' && ev.goalType !== 'own_goal' && isSelfScorer) {
+            allTimeGoals++;
+          }
+          if ((ev.type === 'goal' && ev.goalType !== 'own_goal' && isSelfAssist) || (ev.type === 'assist' && isSelfAssist)) {
+            allTimeAssists++;
+          }
+          if (ev.type === 'card' && isSelfScorer) {
+            if (ev.cardType === 'yellow') {
+              allTimeYellowCards++;
+            } else if (ev.cardType === 'red' || ev.cardType === 'second_yellow') {
+              allTimeRedCards++;
+            }
+          }
+        }
+      } else if (sport === 'cricket') {
+        const inningsList = liveData.inningsData || [];
+        for (const inn of inningsList) {
+          const batStats = inn.batsmanStats || {};
+          if (player.user?.username && batStats[player.user.username]) {
+            allTimeRuns += batStats[player.user.username]?.runs ?? 0;
+          }
+          const bowlStats = inn.bowlerStats || {};
+          if (player.user?.username && bowlStats[player.user.username]) {
+            allTimeWickets += bowlStats[player.user.username]?.wickets ?? 0;
+          }
+        }
+      } else if (sport === 'badminton') {
+        const rallies = liveData.rallies || [];
+        const isHome = m.homeTeamId === player.teamId;
+        for (const r of rallies) {
+          if (r.winnerSide === 'none') continue;
+          if (isHome) {
+            if (r.winnerSide === 'home') allTimeRalliesWon++;
+            else allTimeRalliesLost++;
+          } else {
+            if (r.winnerSide === 'away') allTimeRalliesWon++;
+            else allTimeRalliesLost++;
+          }
+        }
+      }
+    }
+
+    const allTimeAvgRating = ratedMatchesCount > 0 ? Math.round((totalRatingPoints / ratedMatchesCount) * 100) / 100 : null;
+
+    // Statistics by Competition
+    const competitionsStatsList: any[] = [];
+    for (const ct of compTeams) {
+      const comp = ct.competition;
+      const compMatchPlayers = completedMatchPlayers.filter(cmp => cmp.match?.stage?.competitionId === comp.id);
+      
+      let compGoals = 0;
+      let compAssists = 0;
+      let compYellowCards = 0;
+      let compRedCards = 0;
+      let compRuns = 0;
+      let compWickets = 0;
+      let compRalliesWon = 0;
+      let compRalliesLost = 0;
+      let compMvps = 0;
+      let compTotalRatingPoints = 0;
+      let compRatedMatchesCount = 0;
+
+      for (const cmp of compMatchPlayers) {
+        const m = cmp.match;
+        if (!m) continue;
+        const liveData = m.liveData || {};
+
+        if (cmp.rating !== null) {
+          const rVal = Number(cmp.rating);
+          compTotalRatingPoints += rVal;
+          compRatedMatchesCount++;
+
+          const maxR = maxRatings.get(cmp.matchId);
+          if (maxR !== undefined && rVal === maxR) {
+            compMvps++;
+          }
+        }
+
+        if (comp.sport?.code === 'football') {
+          const events = liveData.events || [];
+          for (const ev of events) {
+            const isSelfScorer = (ev.playerUserId === player.userId) || (ev.playerId === player.id);
+            const isSelfAssist = (ev.assistPlayerUserId === player.userId) || (ev.assistPlayerId === player.id);
+            
+            if (ev.type === 'goal' && ev.goalType !== 'own_goal' && isSelfScorer) {
+              compGoals++;
+            }
+            if ((ev.type === 'goal' && ev.goalType !== 'own_goal' && isSelfAssist) || (ev.type === 'assist' && isSelfAssist)) {
+              compAssists++;
+            }
+            if (ev.type === 'card' && isSelfScorer) {
+              if (ev.cardType === 'yellow') {
+                compYellowCards++;
+              } else if (ev.cardType === 'red' || ev.cardType === 'second_yellow') {
+                compRedCards++;
+              }
+            }
+          }
+        } else if (comp.sport?.code === 'cricket') {
+          const inningsList = liveData.inningsData || [];
+          for (const inn of inningsList) {
+            const batStats = inn.batsmanStats || {};
+            if (player.user?.username && batStats[player.user.username]) {
+              compRuns += batStats[player.user.username]?.runs ?? 0;
+            }
+            const bowlStats = inn.bowlerStats || {};
+            if (player.user?.username && bowlStats[player.user.username]) {
+              compWickets += bowlStats[player.user.username]?.wickets ?? 0;
+            }
+          }
+        } else if (comp.sport?.code === 'badminton') {
+          const rallies = liveData.rallies || [];
+          const isHome = m.homeTeamId === player.teamId;
+          for (const r of rallies) {
+            if (r.winnerSide === 'none') continue;
+            if (isHome) {
+              if (r.winnerSide === 'home') compRalliesWon++;
+              else compRalliesLost++;
+            } else {
+              if (r.winnerSide === 'away') compRalliesWon++;
+              else compRalliesLost++;
+            }
+          }
+        }
+      }
+
+      const compAvgRating = compRatedMatchesCount > 0 ? Math.round((compTotalRatingPoints / compRatedMatchesCount) * 100) / 100 : null;
+
+      competitionsStatsList.push({
+        competitionId: comp.id,
+        competitionName: comp.name,
+        sportCode: comp.sport?.code ?? 'football',
+        gamesPlayed: compMatchPlayers.length,
+        goals: compGoals,
+        assists: compAssists,
+        yellowCards: compYellowCards,
+        redCards: compRedCards,
+        runs: compRuns,
+        wickets: compWickets,
+        ralliesWon: compRalliesWon,
+        ralliesLost: compRalliesLost,
+        mvps: compMvps,
+        avgRating: compAvgRating
+      });
+    }
+
+    return {
+      player: {
+        id: player.id,
+        jerseyNumber: player.jerseyNumber,
+        createdAt: player.createdAt,
+        user: {
+          id: player.user?.id,
+          username: player.user?.username,
+          avatarUrl: player.user?.avatarUrl
+        },
+        team: {
+          id: player.team?.id,
+          name: player.team?.name,
+          code: player.team?.code,
+          logoUrl: player.team?.logoUrl,
+          primaryColor: player.team?.primaryColor,
+          secondaryColor: player.team?.secondaryColor
+        }
+      },
+      allTime: {
+        participations: competitionIds.length,
+        totalGames: allTimeGames,
+        goals: allTimeGoals,
+        assists: allTimeAssists,
+        yellowCards: allTimeYellowCards,
+        redCards: allTimeRedCards,
+        runs: allTimeRuns,
+        wickets: allTimeWickets,
+        ralliesWon: allTimeRalliesWon,
+        ralliesLost: allTimeRalliesLost,
+        mvps: allTimeMvps,
+        avgRating: allTimeAvgRating
+      },
+      competitions: competitionsStatsList
+    };
+  }
+
   async getPlayers(workspaceId: string, userId: string): Promise<Player[]> {
     await this.ensureMember(workspaceId, userId);
     return this.playerRepo.find({
