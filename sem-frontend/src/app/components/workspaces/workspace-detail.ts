@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, inject, computed } from '@angular/core';
+import { Component, OnInit, signal, inject, computed, effect } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { DatePipe, NgClass } from '@angular/common';
@@ -22,6 +22,18 @@ export class WorkspaceDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private uiService = inject(UiService);
+
+  selectedTeamForDetails = signal<any | null>(null);
+  isLoadingTeamStats = signal<boolean>(false);
+  activeTeamDetailTab = signal<'overview' | 'competitions' | 'squad'>('overview');
+
+  constructor() {
+    effect(() => {
+      // Clear team details when main tab changes
+      this.activeTab();
+      this.selectedTeamForDetails.set(null);
+    });
+  }
 
   map: any = null;
   marker: any = null;
@@ -1134,6 +1146,27 @@ export class WorkspaceDetailComponent implements OnInit {
       next: (teams) => this.teams.set(teams),
       error: (err) => console.error('Failed to load teams', err),
     });
+  }
+
+  onViewTeamDetails(team: Team) {
+    const ws = this.workspace();
+    if (!ws) return;
+    this.isLoadingTeamStats.set(true);
+    this.workspaceService.getTeamStats(ws.id, team.id).subscribe({
+      next: (stats) => {
+        this.selectedTeamForDetails.set(stats);
+        this.activeTeamDetailTab.set('overview');
+        this.isLoadingTeamStats.set(false);
+      },
+      error: (err) => {
+        this.isLoadingTeamStats.set(false);
+        this.uiService.error('Failed to load team statistics.');
+      }
+    });
+  }
+
+  onBackToTeams() {
+    this.selectedTeamForDetails.set(null);
   }
 
   onAddTeam() {

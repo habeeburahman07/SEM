@@ -821,6 +821,347 @@ export class WorkspacesService implements OnModuleInit {
     await this.teamRepo.remove(team);
   }
 
+  async getTeamStats(workspaceId: string, teamId: string, userId: string) {
+    await this.ensureMember(workspaceId, userId);
+    
+    const team = await this.teamRepo.findOne({ where: { id: teamId, workspaceId } });
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+
+    // 1. Find all competitions this team is registered in
+    const compTeams = await this.memberRepo.manager.find(CompetitionTeam, {
+      where: { teamId },
+      relations: {
+        competition: {
+          sport: true
+        }
+      }
+    });
+
+    const competitionIds = compTeams.map(ct => ct.competitionId);
+
+    // 2. Fetch squad/players of this team
+    const squad = await this.playerRepo.find({
+      where: { teamId },
+      relations: { user: true }
+    });
+    const squadPlayerIds = squad.map(p => p.id);
+    const squadUserIds = squad.map(p => p.userId);
+    const squadUsernames = squad.map(p => p.user?.username).filter(Boolean) as string[];
+
+    // 3. Fetch completed matches involving this team
+    const matches = await this.matchRepo.find({
+      where: [
+        { homeTeamId: teamId, status: 'completed' },
+        { awayTeamId: teamId, status: 'completed' }
+      ],
+      relations: {
+        stage: {
+          competition: {
+            sport: true
+          }
+        },
+        homeTeam: true,
+        awayTeam: true
+      }
+    });
+
+    const matchIds = matches.map(m => m.id);
+
+    // 4. Fetch all rated match players from our team in these matches
+    let squadMatchPlayers: MatchPlayer[] = [];
+    if (matchIds.length > 0 && squadPlayerIds.length > 0) {
+      squadMatchPlayers = await this.matchPlayerRepo.find({
+        where: { matchId: In(matchIds), playerId: In(squadPlayerIds), isPlaying: true },
+        relations: { player: { user: true } }
+      });
+    }
+
+    // Calculate maximum rating for each match in the completed matches to find MVPs
+    const maxRatings = new Map<string, number>();
+    if (matchIds.length > 0) {
+      const allMatchPlayersInMatches = await this.matchPlayerRepo.find({
+        where: { matchId: In(matchIds), isPlaying: true }
+      });
+      for (const amp of allMatchPlayersInMatches) {
+        if (amp.rating !== null) {
+          const rVal = Number(amp.rating);
+          const currentMax = maxRatings.get(amp.matchId) ?? -1;
+          if (rVal > currentMax) {
+            maxRatings.set(amp.matchId, rVal);
+          }
+        }
+      }
+    }
+
+    // Career totals
+    let allTimeGoals = 0;
+    let allTimeAssists = 0;
+    let allTimeRuns = 0;
+    let allTimeWickets = 0;
+    let allTimeRalliesWon = 0;
+    let allTimeRalliesLost = 0;
+    let allTimeMvps = 0;
+
+    // Process goals & other stats from matches
+    for (const m of matches) {
+      const sport = m.stage?.competition?.sport?.code ?? 'football';
+      const liveData = m.liveData || {};
+
+      if (sport === 'football') {
+        const isHome = m.homeTeamId === teamId;
+        allTimeGoals += isHome ? m.homeScore : m.awayScore;
+
+        const events = liveData.events || [];
+        for (const ev of events) {
+          const isSelfAssist = (ev.assistPlayerUserId && squadUserIds.includes(ev.assistPlayerUserId)) ||
+                              (ev.assistPlayerId && squadPlayerIds.includes(ev.assistPlayerId));
+          if (ev.type === 'goal' && ev.goalType !== 'own_goal' && isSelfAssist) {
+            allTimeAssists++;
+          } else if (ev.type === 'assist' && isSelfAssist) {
+            allTimeAssists++;
+          }
+        }
+      } else if (sport === 'cricket') {
+        const inningsList = liveData.inningsData || [];
+        for (const inn of inningsList) {
+          const batStats = inn.batsmanStats || {};
+          for (const username of Object.keys(batStats)) {
+            if (squadUsernames.includes(username)) {
+              allTimeRuns += batStats[username]?.runs ?? 0;
+            }
+          }
+          const bowlStats = inn.bowlerStats || {};
+          for (const username of Object.keys(bowlStats)) {
+            if (squadUsernames.includes(username)) {
+              allTimeWickets += bowlStats[username]?.wickets ?? 0;
+            }
+          }
+        }
+      } else if (sport === 'badminton') {
+        const rallies = liveData.rallies || [];
+        const isHome = m.homeTeamId === teamId;
+        for (const r of rallies) {
+          if (r.winnerSide === 'none') continue;
+          if (isHome) {
+            if (r.winnerSide === 'home') allTimeRalliesWon++;
+            else allTimeRalliesLost++;
+          } else {
+            if (r.winnerSide === 'away') allTimeRalliesWon++;
+            else allTimeRalliesLost++;
+          }
+        }
+      }
+    }
+
+    // Tally squad MVPs count
+    for (const smp of squadMatchPlayers) {
+      if (smp.rating !== null) {
+        const rVal = Number(smp.rating);
+        const maxR = maxRatings.get(smp.matchId);
+        if (maxR !== undefined && rVal === maxR) {
+          allTimeMvps++;
+        }
+      }
+    }
+
+    // Best player of this club in each sport
+    // Group squadMatchPlayers by sport
+    const sportRatings = new Map<string, Map<string, { ratings: number[]; player: Player }>>();
+    for (const smp of squadMatchPlayers) {
+      const matchObj = matches.find(m => m.id === smp.matchId);
+      const sport = matchObj?.stage?.competition?.sport?.code ?? 'football';
+      if (smp.rating === null) continue;
+
+      if (!sportRatings.has(sport)) {
+        sportRatings.set(sport, new Map());
+      }
+      const playersInSport = sportRatings.get(sport)!;
+      if (!playersInSport.has(smp.playerId)) {
+        playersInSport.set(smp.playerId, { ratings: [], player: smp.player! });
+      }
+      playersInSport.get(smp.playerId)!.ratings.push(Number(smp.rating));
+    }
+
+    const bestPlayers: Record<string, { playerId: string; playerName: string; avatarUrl?: string | null; avgRating: number; appearances: number } | null> = {
+      football: null,
+      cricket: null,
+      badminton: null
+    };
+
+    for (const [sport, playersMap] of sportRatings.entries()) {
+      let topAvgRating = -1;
+      let topPlayerInfo: any = null;
+
+      for (const [playerId, data] of playersMap.entries()) {
+        const avg = data.ratings.reduce((a, b) => a + b, 0) / data.ratings.length;
+        if (avg > topAvgRating) {
+          topAvgRating = avg;
+          topPlayerInfo = {
+            playerId,
+            playerName: data.player.user?.username ?? data.player.jerseyNumber?.toString() ?? 'Player',
+            avatarUrl: data.player.user?.avatarUrl,
+            avgRating: Math.round(avg * 100) / 100,
+            appearances: data.ratings.length
+          };
+        }
+      }
+      bestPlayers[sport] = topPlayerInfo;
+    }
+
+    // Statistics by Competition
+    const competitionsStatsList: any[] = [];
+    for (const ct of compTeams) {
+      const comp = ct.competition;
+      const compMatches = matches.filter(m => m.stage?.competitionId === comp.id);
+      
+      let compGoals = 0;
+      let compAssists = 0;
+      let compRuns = 0;
+      let compWickets = 0;
+      let compRalliesWon = 0;
+      let compRalliesLost = 0;
+      let compMvps = 0;
+
+      for (const m of compMatches) {
+        const liveData = m.liveData || {};
+        if (comp.sport?.code === 'football') {
+          const isHome = m.homeTeamId === teamId;
+          compGoals += isHome ? m.homeScore : m.awayScore;
+
+          const events = liveData.events || [];
+          for (const ev of events) {
+            const isSelfAssist = (ev.assistPlayerUserId && squadUserIds.includes(ev.assistPlayerUserId)) ||
+                                (ev.assistPlayerId && squadPlayerIds.includes(ev.assistPlayerId));
+            if (ev.type === 'goal' && ev.goalType !== 'own_goal' && isSelfAssist) {
+              compAssists++;
+            } else if (ev.type === 'assist' && isSelfAssist) {
+              compAssists++;
+            }
+          }
+        } else if (comp.sport?.code === 'cricket') {
+          const inningsList = liveData.inningsData || [];
+          for (const inn of inningsList) {
+            const batStats = inn.batsmanStats || {};
+            for (const username of Object.keys(batStats)) {
+              if (squadUsernames.includes(username)) {
+                compRuns += batStats[username]?.runs ?? 0;
+              }
+            }
+            const bowlStats = inn.bowlerStats || {};
+            for (const username of Object.keys(bowlStats)) {
+              if (squadUsernames.includes(username)) {
+                compWickets += bowlStats[username]?.wickets ?? 0;
+              }
+            }
+          }
+        } else if (comp.sport?.code === 'badminton') {
+          const rallies = liveData.rallies || [];
+          const isHome = m.homeTeamId === teamId;
+          for (const r of rallies) {
+            if (r.winnerSide === 'none') continue;
+            if (isHome) {
+              if (r.winnerSide === 'home') compRalliesWon++;
+              else compRalliesLost++;
+            } else {
+              if (r.winnerSide === 'away') compRalliesWon++;
+              else compRalliesLost++;
+            }
+          }
+        }
+      }
+
+      // Tally MVPs for this competition
+      const compMatchIds = compMatches.map(m => m.id);
+      const compSquadMatchPlayers = squadMatchPlayers.filter(smp => compMatchIds.includes(smp.matchId));
+      for (const smp of compSquadMatchPlayers) {
+        if (smp.rating !== null) {
+          const rVal = Number(smp.rating);
+          const maxR = maxRatings.get(smp.matchId);
+          if (maxR !== undefined && rVal === maxR) {
+            compMvps++;
+          }
+        }
+      }
+
+      // Best player for this team in this competition
+      const compPlayerRatings = new Map<string, { ratings: number[]; player: Player }>();
+      for (const smp of compSquadMatchPlayers) {
+        if (smp.rating === null) continue;
+        if (!compPlayerRatings.has(smp.playerId)) {
+          compPlayerRatings.set(smp.playerId, { ratings: [], player: smp.player! });
+        }
+        compPlayerRatings.get(smp.playerId)!.ratings.push(Number(smp.rating));
+      }
+
+      let compBestPlayer: any = null;
+      let compTopAvgRating = -1;
+      for (const [playerId, data] of compPlayerRatings.entries()) {
+        const avg = data.ratings.reduce((a, b) => a + b, 0) / data.ratings.length;
+        if (avg > compTopAvgRating) {
+          compTopAvgRating = avg;
+          compBestPlayer = {
+            playerId,
+            playerName: data.player.user?.username ?? data.player.jerseyNumber?.toString() ?? 'Player',
+            avatarUrl: data.player.user?.avatarUrl,
+            avgRating: Math.round(avg * 100) / 100,
+            appearances: data.ratings.length
+          };
+        }
+      }
+
+      competitionsStatsList.push({
+        competitionId: comp.id,
+        competitionName: comp.name,
+        sportCode: comp.sport?.code ?? 'football',
+        gamesPlayed: compMatches.length,
+        goals: compGoals,
+        assists: compAssists,
+        runs: compRuns,
+        wickets: compWickets,
+        ralliesWon: compRalliesWon,
+        ralliesLost: compRalliesLost,
+        mvps: compMvps,
+        bestPlayer: compBestPlayer
+      });
+    }
+
+    return {
+      team: {
+        id: team.id,
+        name: team.name,
+        code: team.code,
+        logoUrl: team.logoUrl,
+        primaryColor: team.primaryColor,
+        secondaryColor: team.secondaryColor,
+        createdAt: team.createdAt
+      },
+      allTime: {
+        participations: competitionIds.length,
+        totalGames: matches.length,
+        goals: allTimeGoals,
+        assists: allTimeAssists,
+        runs: allTimeRuns,
+        wickets: allTimeWickets,
+        ralliesWon: allTimeRalliesWon,
+        ralliesLost: allTimeRalliesLost,
+        mvps: allTimeMvps
+      },
+      bestPlayers,
+      competitions: competitionsStatsList,
+      squad: squad.map(p => ({
+        id: p.id,
+        jerseyNumber: p.jerseyNumber,
+        user: {
+          id: p.user?.id,
+          username: p.user?.username,
+          avatarUrl: p.user?.avatarUrl
+        }
+      }))
+    };
+  }
+
   async getPlayers(workspaceId: string, userId: string): Promise<Player[]> {
     await this.ensureMember(workspaceId, userId);
     return this.playerRepo.find({
@@ -1631,6 +1972,48 @@ export class WorkspacesService implements OnModuleInit {
       relations: { homeTeam: true, awayTeam: true, venue: true },
       order: { createdAt: 'ASC' },
     });
+
+    const completedMatches = matches.filter(m => m.status === 'completed');
+    if (completedMatches.length > 0) {
+      const matchIds = completedMatches.map(m => m.id);
+      const matchPlayers = await this.matchPlayerRepo.find({
+        where: { matchId: In(matchIds), isPlaying: true },
+        relations: { player: { user: true }, team: true },
+      });
+
+      const playersByMatch = new Map<string, MatchPlayer[]>();
+      for (const mp of matchPlayers) {
+        if (!playersByMatch.has(mp.matchId)) {
+          playersByMatch.set(mp.matchId, []);
+        }
+        playersByMatch.get(mp.matchId)!.push(mp);
+      }
+
+      for (const m of matches) {
+        if (m.status !== 'completed') continue;
+        const players = playersByMatch.get(m.id) ?? [];
+        let maxRating = -1;
+        let mvpMp: MatchPlayer | null = null;
+        for (const mp of players) {
+          if (mp.rating !== null) {
+            const r = Number(mp.rating);
+            if (r > maxRating) {
+              maxRating = r;
+              mvpMp = mp;
+            }
+          }
+        }
+        if (mvpMp && maxRating >= 5.0) {
+          const playerName = mvpMp.player?.user?.username ?? mvpMp.player?.jerseyNumber?.toString() ?? 'Player';
+          (m as any).mvp = {
+            playerId: mvpMp.playerId,
+            playerName,
+            teamName: mvpMp.team?.name ?? 'Unknown',
+            rating: maxRating,
+          };
+        }
+      }
+    }
 
     const statusWeight = {
       'live': 1,
@@ -2980,6 +3363,288 @@ export class WorkspacesService implements OnModuleInit {
       relations: { team: true, workspace: true },
     });
 
+    let statistics = {
+      allTime: {
+        appearances: 0,
+        mvps: 0,
+        avgRating: null as number | null,
+        football: { goals: 0, assists: 0, yellowCards: 0, redCards: 0, ownGoals: 0 },
+        cricket: { runs: 0, wickets: 0, oversBowled: 0, ballsBowled: 0, runsConceded: 0, maidens: 0, bowledOut: 0, fours: 0, sixes: 0 },
+        badminton: { ralliesWon: 0, ralliesLost: 0 },
+      },
+      competitions: [] as any[]
+    };
+
+    const playerIds = players.map(p => p.id);
+    if (playerIds.length > 0) {
+      const playerEntries = await this.matchPlayerRepo.find({
+        where: { playerId: In(playerIds) },
+        relations: {
+          match: {
+            stage: {
+              competition: {
+                sport: true,
+              },
+            },
+          },
+          player: {
+            user: true,
+          },
+          team: true,
+        },
+      });
+
+      const completedEntries = playerEntries.filter(pe => pe.match && pe.match.status === 'completed');
+      if (completedEntries.length > 0) {
+        const matchIds = completedEntries.map(pe => pe.matchId);
+        const maxRatings = new Map<string, number>();
+
+        const allMatchPlayersInUserMatches = await this.matchPlayerRepo.find({
+          where: { matchId: In(matchIds), isPlaying: true },
+        });
+        for (const amp of allMatchPlayersInUserMatches) {
+          if (amp.rating !== null) {
+            const rVal = Number(amp.rating);
+            const currentMax = maxRatings.get(amp.matchId) ?? -1;
+            if (rVal > currentMax) {
+              maxRatings.set(amp.matchId, rVal);
+            }
+          }
+        }
+
+        const competitionGroups = new Map<string, { competitionId: string; competitionName: string; sportCode: string; entries: MatchPlayer[] }>();
+        for (const pe of completedEntries) {
+          const stage = pe.match?.stage;
+          const competition = stage?.competition;
+          if (!competition) continue;
+
+          let group = competitionGroups.get(competition.id);
+          if (!group) {
+            group = {
+              competitionId: competition.id,
+              competitionName: competition.name,
+              sportCode: competition.sport?.code ?? 'football',
+              entries: [],
+            };
+            competitionGroups.set(competition.id, group);
+          }
+          group.entries.push(pe);
+        }
+
+        const statsByCompetition: any[] = [];
+        const allTimeStats = {
+          appearances: 0,
+          mvps: 0,
+          ratings: [] as number[],
+          football: { goals: 0, assists: 0, yellowCards: 0, redCards: 0, ownGoals: 0 },
+          cricket: { runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, runsConceded: 0, oversBowled: 0, ballsBowled: 0, bowledOut: 0 },
+          badminton: { ralliesWon: 0, ralliesLost: 0 }
+        };
+
+        for (const group of competitionGroups.values()) {
+          const compStats: any = {
+            competitionId: group.competitionId,
+            competitionName: group.competitionName,
+            sportCode: group.sportCode,
+            appearances: group.entries.length,
+            mvps: 0,
+            avgRating: null as number | null,
+            ratings: [] as number[],
+          };
+
+          if (group.sportCode === 'football') {
+            compStats.football = { goals: 0, assists: 0, yellowCards: 0, redCards: 0, ownGoals: 0 };
+          } else if (group.sportCode === 'cricket') {
+            compStats.cricket = { runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, runsConceded: 0, oversBowled: 0, ballsBowled: 0, bowledOut: 0 };
+          } else if (group.sportCode === 'badminton') {
+            compStats.badminton = { ralliesWon: 0, ralliesLost: 0 };
+          }
+
+          for (const pe of group.entries) {
+            if (pe.rating !== null) {
+              const ratingVal = Number(pe.rating);
+              compStats.ratings.push(ratingVal);
+              allTimeStats.ratings.push(ratingVal);
+
+              const maxR = maxRatings.get(pe.matchId);
+              if (maxR !== undefined && ratingVal === maxR) {
+                compStats.mvps++;
+                allTimeStats.mvps++;
+              }
+            }
+
+            allTimeStats.appearances++;
+
+            const liveData = pe.match?.liveData;
+            if (!liveData) continue;
+
+            if (group.sportCode === 'football') {
+              const events = liveData.events || [];
+              for (const ev of events) {
+                const isSelf = (ev.playerUserId === userId) || (ev.playerId === pe.playerId);
+                const isSelfAssist = (ev.assistPlayerUserId === userId) || (ev.assistPlayerId === pe.playerId);
+
+                if (ev.type === 'goal') {
+                  if (ev.goalType === 'own_goal') {
+                    if (isSelf) {
+                      compStats.football.ownGoals++;
+                      allTimeStats.football.ownGoals++;
+                    }
+                  } else {
+                    if (isSelf) {
+                      compStats.football.goals++;
+                      allTimeStats.football.goals++;
+                    }
+                    if (isSelfAssist) {
+                      compStats.football.assists++;
+                      allTimeStats.football.assists++;
+                    }
+                  }
+                } else if (ev.type === 'own_goal') {
+                  if (isSelf) {
+                    compStats.football.ownGoals++;
+                    allTimeStats.football.ownGoals++;
+                  }
+                } else if (ev.type === 'assist') {
+                  if (isSelf) {
+                    compStats.football.assists++;
+                    allTimeStats.football.assists++;
+                  }
+                } else if (ev.type === 'card') {
+                  if (isSelf) {
+                    if (ev.cardType === 'yellow') {
+                      compStats.football.yellowCards++;
+                      allTimeStats.football.yellowCards++;
+                    } else if (ev.cardType === 'red' || ev.cardType === 'second_yellow') {
+                      compStats.football.redCards++;
+                      allTimeStats.football.redCards++;
+                    }
+                  }
+                } else if (ev.type === 'yellow_card') {
+                  if (isSelf) {
+                    compStats.football.yellowCards++;
+                    allTimeStats.football.yellowCards++;
+                  }
+                } else if (ev.type === 'red_card') {
+                  if (isSelf) {
+                    compStats.football.redCards++;
+                    allTimeStats.football.redCards++;
+                  }
+                }
+              }
+            } else if (group.sportCode === 'cricket') {
+              const inningsList = liveData.inningsData || [];
+              const username = pe.player?.user?.username;
+              if (username) {
+                for (const inn of inningsList) {
+                  const bStats = inn.batsmanStats?.[username];
+                  if (bStats) {
+                    const r = bStats.runs ?? 0;
+                    const b = bStats.balls ?? 0;
+                    const f = bStats.fours ?? 0;
+                    const s = bStats.sixes ?? 0;
+                    compStats.cricket.runs += r;
+                    compStats.cricket.ballsFaced += b;
+                    compStats.cricket.fours += f;
+                    compStats.cricket.sixes += s;
+
+                    allTimeStats.cricket.runs += r;
+                    allTimeStats.cricket.ballsFaced += b;
+                    allTimeStats.cricket.fours += f;
+                    allTimeStats.cricket.sixes += s;
+                  }
+                  const bwStats = inn.bowlerStats?.[username];
+                  if (bwStats) {
+                    const o = bwStats.overs ?? 0;
+                    const b = bwStats.balls ?? 0;
+                    const rc = bwStats.runsConceded ?? 0;
+                    const w = bwStats.wickets ?? 0;
+                    const m = bwStats.maidens ?? 0;
+
+                    compStats.cricket.oversBowled += o;
+                    compStats.cricket.ballsBowled += b;
+                    compStats.cricket.runsConceded += rc;
+                    compStats.cricket.wickets += w;
+                    compStats.cricket.maidens += m;
+
+                    allTimeStats.cricket.oversBowled += o;
+                    allTimeStats.cricket.ballsBowled += b;
+                    allTimeStats.cricket.runsConceded += rc;
+                    allTimeStats.cricket.wickets += w;
+                    allTimeStats.cricket.maidens += m;
+                  }
+                  if (inn.ballsHistory) {
+                    for (const ball of inn.ballsHistory) {
+                      if (ball.wicket && ball.striker === username && ball.wicketType !== 'Retired Hurt') {
+                        compStats.cricket.bowledOut++;
+                        allTimeStats.cricket.bowledOut++;
+                      }
+                    }
+                  }
+                }
+              }
+            } else if (group.sportCode === 'badminton') {
+              const rallies = liveData.rallies || [];
+              const isHomeTeam = pe.teamId === pe.match.homeTeamId;
+              for (const r of rallies) {
+                if (r.winnerSide === 'none') continue;
+                if (isHomeTeam) {
+                  if (r.winnerSide === 'home') {
+                    compStats.badminton.ralliesWon++;
+                    allTimeStats.badminton.ralliesWon++;
+                  } else {
+                    compStats.badminton.ralliesLost++;
+                    allTimeStats.badminton.ralliesLost++;
+                  }
+                } else {
+                  if (r.winnerSide === 'away') {
+                    compStats.badminton.ralliesWon++;
+                    allTimeStats.badminton.ralliesWon++;
+                  } else {
+                    compStats.badminton.ralliesLost++;
+                    allTimeStats.badminton.ralliesLost++;
+                  }
+                }
+              }
+            }
+          }
+
+          compStats.avgRating = compStats.ratings.length > 0
+            ? Math.round((compStats.ratings.reduce((a: any, b: any) => a + b, 0) / compStats.ratings.length) * 100) / 100
+            : null;
+          delete compStats.ratings;
+
+          statsByCompetition.push(compStats);
+        }
+
+        const allTimeAvgRating = allTimeStats.ratings.length > 0
+          ? Math.round((allTimeStats.ratings.reduce((a: any, b: any) => a + b, 0) / allTimeStats.ratings.length) * 100) / 100
+          : null;
+
+        statistics = {
+          allTime: {
+            appearances: allTimeStats.appearances,
+            mvps: allTimeStats.mvps,
+            avgRating: allTimeAvgRating,
+            football: allTimeStats.football,
+            cricket: {
+              runs: allTimeStats.cricket.runs,
+              wickets: allTimeStats.cricket.wickets,
+              oversBowled: allTimeStats.cricket.oversBowled,
+              ballsBowled: allTimeStats.cricket.ballsBowled,
+              runsConceded: allTimeStats.cricket.runsConceded,
+              maidens: allTimeStats.cricket.maidens,
+              bowledOut: allTimeStats.cricket.bowledOut,
+              fours: allTimeStats.cricket.fours,
+              sixes: allTimeStats.cricket.sixes,
+            },
+            badminton: allTimeStats.badminton,
+          },
+          competitions: statsByCompetition
+        };
+      }
+    }
+
     return {
       user: {
         id: user.id,
@@ -3006,7 +3671,8 @@ export class WorkspacesService implements OnModuleInit {
           id: p.workspace.id,
           name: p.workspace.name,
         }
-      }))
+      })),
+      statistics
     };
   }
 
@@ -3384,6 +4050,44 @@ export class WorkspacesService implements OnModuleInit {
       };
     }).sort((a, b) => b.avgRating - a.avgRating).slice(0, 10);
 
+    // Calculate most MVPs
+    const mvpCounts = new Map<string, { playerId: string; playerName: string; teamName: string; mvps: number }>();
+    const matchPlayersMap = new Map<string, MatchPlayer[]>();
+    for (const mp of allMatchPlayers) {
+      if (!matchPlayersMap.has(mp.matchId)) {
+        matchPlayersMap.set(mp.matchId, []);
+      }
+      matchPlayersMap.get(mp.matchId)!.push(mp);
+    }
+    for (const [matchId, playersInMatch] of matchPlayersMap.entries()) {
+      let maxRating = -1;
+      let mvpCandidates: MatchPlayer[] = [];
+      for (const mp of playersInMatch) {
+        if (mp.rating !== null) {
+          const r = Number(mp.rating);
+          if (r > maxRating) {
+            maxRating = r;
+            mvpCandidates = [mp];
+          } else if (r === maxRating) {
+            mvpCandidates.push(mp);
+          }
+        }
+      }
+      if (maxRating >= 5.0) {
+        for (const mvpMp of mvpCandidates) {
+          let entry = mvpCounts.get(mvpMp.playerId);
+          if (!entry) {
+            const playerName = mvpMp.player?.user?.username ?? mvpMp.player?.jerseyNumber?.toString() ?? mvpMp.playerId;
+            const teamName = mvpMp.team?.name ?? 'Unknown';
+            entry = { playerId: mvpMp.playerId, playerName, teamName, mvps: 0 };
+            mvpCounts.set(mvpMp.playerId, entry);
+          }
+          entry.mvps++;
+        }
+      }
+    }
+    const mostMvps = Array.from(mvpCounts.values()).sort((a, b) => b.mvps - a.mvps).slice(0, 10);
+
     if (sportCode === 'football') {
       const scorers = new Map<string, { playerId: string; playerName: string; teamName: string; goals: number }>();
       const assists = new Map<string, { playerId: string; playerName: string; teamName: string; assists: number }>();
@@ -3438,6 +4142,7 @@ export class WorkspacesService implements OnModuleInit {
       return {
         sportCode,
         topRated,
+        mostMvps,
         topScorers: Array.from(scorers.values()).sort((a, b) => b.goals - a.goals).slice(0, 10),
         topAssists: Array.from(assists.values()).sort((a, b) => b.assists - a.assists).slice(0, 10),
         mostYellowCards: Array.from(yellowCards.values()).sort((a, b) => b.cards - a.cards).slice(0, 10),
@@ -3489,6 +4194,7 @@ export class WorkspacesService implements OnModuleInit {
       return {
         sportCode,
         topRated,
+        mostMvps,
         topRuns: Array.from(runs.values()).sort((a, b) => b.runs - a.runs).slice(0, 10),
         topWickets: Array.from(wickets.values()).sort((a, b) => b.wickets - a.wickets).slice(0, 10),
       };
@@ -3523,11 +4229,12 @@ export class WorkspacesService implements OnModuleInit {
       return {
         sportCode,
         topRated,
+        mostMvps,
         topRalliesWon: Array.from(ralliesWon.values()).sort((a, b) => b.ralliesWon - a.ralliesWon).slice(0, 10),
       };
     }
 
-    return { sportCode, topRated };
+    return { sportCode, topRated, mostMvps };
   }
 
   /**

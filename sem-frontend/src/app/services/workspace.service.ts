@@ -160,6 +160,12 @@ export interface Match {
   liveData: any;
   createdAt: string;
   updatedAt: string;
+  mvp?: {
+    playerId: string;
+    playerName: string;
+    teamName: string;
+    rating: number;
+  };
 }
 
 export interface CompetitionTeam {
@@ -196,6 +202,10 @@ export interface RatedPlayerStats extends LeaderboardPlayer {
   appearances: number;
 }
 
+export interface MvpPlayerStats extends LeaderboardPlayer {
+  mvps: number;
+}
+
 export interface FootballScorerStats extends LeaderboardPlayer {
   goals: number;
 }
@@ -225,6 +235,7 @@ export interface BadmintonRallyStats extends LeaderboardPlayer {
 export interface CompetitionStats {
   sportCode: string;
   topRated: RatedPlayerStats[];
+  mostMvps?: MvpPlayerStats[];
   topScorers?: FootballScorerStats[];
   topAssists?: FootballAssistStats[];
   mostYellowCards?: FootballCardStats[];
@@ -820,6 +831,13 @@ export class WorkspaceService {
   ): Observable<CompetitionStats> {
     return this.http.get<CompetitionStats>(
       `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}/stats`,
+      { headers: this.headers }
+    );
+  }
+
+  getTeamStats(workspaceId: string, teamId: string): Observable<any> {
+    return this.http.get<any>(
+      `${this.apiUrl}/${workspaceId}/teams/${teamId}/stats`,
       { headers: this.headers }
     );
   }

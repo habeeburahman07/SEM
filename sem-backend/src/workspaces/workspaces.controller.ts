@@ -256,6 +256,15 @@ export class WorkspacesController {
     return this.workspacesService.removeTeam(id, teamId, req.user.id);
   }
 
+  @Get(':id/teams/:teamId/stats')
+  getTeamStats(
+    @Param('id') id: string,
+    @Param('teamId') teamId: string,
+    @Request() req: any,
+  ) {
+    return this.workspacesService.getTeamStats(id, teamId, req.user.id);
+  }
+
   // ─── Players ──────────────────────────────────────────────────────────────
 
   @Get(':id/players')
