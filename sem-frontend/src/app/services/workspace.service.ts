@@ -261,6 +261,10 @@ export interface AppNotification {
   userId: string;
   message: string;
   isRead: boolean;
+  type: string;
+  workspaceId: string | null;
+  icon: string | null;
+  metadata: Record<string, any> | null;
   createdAt: string;
 }
 

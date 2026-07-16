@@ -3,15 +3,30 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { User } from './entities/user.entity';
+import { Notification, NotificationType, NOTIFICATION_ICONS } from '../workspaces/entities/notification.entity';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Notification)
+    private readonly notificationRepository: Repository<Notification>,
   ) {}
 
-  async create(username: string, password: string): Promise<User> {
+  private async sendNotification(userId: string, type: NotificationType, message: string): Promise<void> {
+    const notification = this.notificationRepository.create({
+      userId,
+      type,
+      message,
+      icon: NOTIFICATION_ICONS[type] || null,
+      workspaceId: null,
+      metadata: null,
+    });
+    await this.notificationRepository.save(notification);
+  }
+
+  async create(username: string, password: string, needsPasswordChange = false): Promise<User> {
     const existingUser = await this.userRepository.findOne({ where: { username } });
     if (existingUser) {
       throw new ConflictException('Username is already taken');
@@ -23,9 +38,20 @@ export class UsersService {
     const user = this.userRepository.create({
       username,
       password: hashedPassword,
+      needsPasswordChange,
     });
 
     const savedUser = await this.userRepository.save(user);
+
+    // 8.1 — Welcome notification on user self-registration
+    if (!needsPasswordChange) {
+      await this.sendNotification(
+        savedUser.id,
+        NotificationType.WELCOME,
+        `Welcome to SEM! Start by creating or joining a workspace.`,
+      );
+    }
+
     delete savedUser.password;
     return savedUser;
   }
@@ -54,6 +80,14 @@ export class UsersService {
       user.avatarUrl = updateData.avatarUrl;
     }
     const savedUser = await this.userRepository.save(user);
+
+    // 8.4 — Profile updated notification
+    await this.sendNotification(
+      savedUser.id,
+      NotificationType.PROFILE_UPDATED,
+      `Your profile has been updated.`,
+    );
+
     delete savedUser.password;
     return savedUser;
   }
@@ -71,6 +105,14 @@ export class UsersService {
 
     const salt = await bcrypt.genSalt();
     user.password = await bcrypt.hash(newPassword, salt);
+    user.needsPasswordChange = false; // Reset warning since they changed password
     await this.userRepository.save(user);
+
+    // 8.3 — Password changed successfully notification
+    await this.sendNotification(
+      user.id,
+      NotificationType.PASSWORD_CHANGED,
+      `Your password has been changed successfully.`,
+    );
   }
 }

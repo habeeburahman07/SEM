@@ -21,7 +21,7 @@ import { CompetitionStage } from './entities/competition-stage.entity';
 import { Match, MatchType } from './entities/match.entity';
 import { CompetitionTeam } from './entities/competition-team.entity';
 import { Venue } from './entities/venue.entity';
-import { Notification } from './entities/notification.entity';
+import { Notification, NotificationType, NOTIFICATION_ICONS } from './entities/notification.entity';
 import { MatchPlayer } from './entities/match-player.entity';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
@@ -226,6 +226,15 @@ export class WorkspacesService implements OnModuleInit {
     });
     await this.memberRepo.save(ownerMember);
 
+    // 1.1 — Notify the creator
+    await this.sendNotification(
+      ownerId,
+      NotificationType.WORKSPACE_CREATED,
+      `Welcome! Your workspace ${savedWorkspace.name} has been created successfully.`,
+      savedWorkspace.id,
+      { workspaceName: savedWorkspace.name },
+    );
+
     return savedWorkspace;
   }
 
@@ -281,7 +290,18 @@ export class WorkspacesService implements OnModuleInit {
       ...(dto.logoUrl !== undefined && { logoUrl: dto.logoUrl }),
     });
 
-    return this.workspaceRepo.save(workspace);
+    return this.workspaceRepo.save(workspace).then(async (saved) => {
+      // 1.2 — Notify all workspace members
+      const memberIds = await this.getWorkspaceMemberUserIds(id, userId);
+      await this.sendNotificationToMany(
+        memberIds,
+        NotificationType.WORKSPACE_UPDATED,
+        `Workspace ${saved.name} settings have been updated.`,
+        id,
+        { workspaceName: saved.name },
+      );
+      return saved;
+    });
   }
 
   // ─── Delete ───────────────────────────────────────────────────────────────
@@ -290,6 +310,17 @@ export class WorkspacesService implements OnModuleInit {
     await this.ensurePermission(id, userId, 'workspace.delete');
     const workspace = await this.workspaceRepo.findOne({ where: { id } });
     if (!workspace) throw new NotFoundException('Workspace not found');
+
+    // 1.3 — Notify all members (except owner) before deleting
+    const memberIds = await this.getWorkspaceMemberUserIds(id, userId);
+    await this.sendNotificationToMany(
+      memberIds,
+      NotificationType.WORKSPACE_DELETED,
+      `The workspace ${workspace.name} has been deleted by the owner.`,
+      null,
+      { workspaceName: workspace.name },
+    );
+
     await this.workspaceRepo.remove(workspace);
   }
 
@@ -341,6 +372,17 @@ export class WorkspacesService implements OnModuleInit {
     const saved = await this.memberRepo.save(member);
     saved.user = user;
     saved.role = role;
+
+    // 2.1 — Notify invited user
+    const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+    await this.sendNotification(
+      user.id,
+      NotificationType.MEMBER_INVITED,
+      `You've been invited to join ${workspace?.name ?? 'a workspace'} as ${role.name}.`,
+      workspaceId,
+      { role: role.name, invitedBy: requesterId },
+    );
+
     return saved;
   }
 
@@ -359,7 +401,7 @@ export class WorkspacesService implements OnModuleInit {
         let user = await this.usersService.findOneByUsername(item.username);
         let isNew = false;
         if (!user) {
-          user = await this.usersService.create(item.username, dto.password);
+          user = await this.usersService.create(item.username, dto.password, true);
           isNew = true;
         }
 
@@ -408,6 +450,42 @@ export class WorkspacesService implements OnModuleInit {
       }
     }
 
+    // 2.8 / 2.9 / 2.10 — Bulk import notifications
+    const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+    const wsName = workspace?.name ?? 'the workspace';
+    for (const item of success) {
+      const user = await this.usersService.findOneByUsername(item.username);
+      if (user) {
+        if (item.isNew) {
+          // 2.8 — New user: welcome + change password
+          await this.sendNotification(
+            user.id,
+            NotificationType.BULK_IMPORT_CHANGE_PASSWORD,
+            `Welcome to SEM! You've been added to ${wsName}. Please change your default password for security.`,
+            workspaceId,
+            { workspaceName: wsName, role: item.role },
+          );
+        } else {
+          // 2.9 — Existing user added
+          await this.sendNotification(
+            user.id,
+            NotificationType.BULK_IMPORT_USER,
+            `You've been added to ${wsName} as ${item.role}.`,
+            workspaceId,
+            { workspaceName: wsName, role: item.role },
+          );
+        }
+      }
+    }
+    // 2.10 — Notify the admin who ran the import
+    await this.sendNotification(
+      requesterId,
+      NotificationType.BULK_IMPORT_COMPLETED,
+      `Bulk import completed: ${success.length} added, ${failed.length} failed.`,
+      workspaceId,
+      { successCount: success.length, failedCount: failed.length },
+    );
+
     return { success, failed };
   }
 
@@ -446,6 +524,17 @@ export class WorkspacesService implements OnModuleInit {
       where: { id: saved.id },
       relations: { user: true, role: true },
     });
+
+    // 2.5 — Notify workspace admins/owner that a user joined
+    const adminIds = await this.getWorkspaceAdminUserIds(workspaceId);
+    await this.sendNotificationToMany(
+      adminIds.filter((id) => id !== userId),
+      NotificationType.MEMBER_JOINED,
+      `${fullMember!.user.username} joined ${workspace.name}.`,
+      workspaceId,
+      { username: fullMember!.user.username },
+    );
+
     return fullMember!;
   }
 
@@ -467,20 +556,24 @@ export class WorkspacesService implements OnModuleInit {
     member.status = 'joined';
     const saved = await this.memberRepo.save(member);
 
-    // Create notification for joining user
-    const userNotification = this.notificationRepo.create({
-      userId: userId,
-      message: `You joined the ${member.workspace.name} workspace`,
-    });
-    await this.notificationRepo.save(userNotification);
+    // 2.3 — Notify the user who joined
+    await this.sendNotification(
+      userId,
+      NotificationType.INVITATION_ACCEPTED,
+      `You joined the ${member.workspace.name} workspace.`,
+      workspaceId,
+      { workspaceName: member.workspace.name },
+    );
 
-    // Create notification for inviter
+    // 2.2 — Notify the inviter
     if (member.invitedById) {
-      const inviterNotification = this.notificationRepo.create({
-        userId: member.invitedById,
-        message: `${member.user.username} accepted your invitation to the ${member.workspace.name} workspace`,
-      });
-      await this.notificationRepo.save(inviterNotification);
+      await this.sendNotification(
+        member.invitedById,
+        NotificationType.INVITATION_ACCEPTED,
+        `${member.user.username} accepted your invitation to the ${member.workspace.name} workspace.`,
+        workspaceId,
+        { username: member.user.username, workspaceName: member.workspace.name },
+      );
     }
 
     return saved;
@@ -495,13 +588,15 @@ export class WorkspacesService implements OnModuleInit {
       throw new NotFoundException('Invitation not found or already accepted/rejected');
     }
 
-    // Create notification for inviter
+    // 2.4 — Notify the inviter
     if (member.invitedById) {
-      const inviterNotification = this.notificationRepo.create({
-        userId: member.invitedById,
-        message: `${member.user.username} rejected your invitation to the ${member.workspace.name} workspace`,
-      });
-      await this.notificationRepo.save(inviterNotification);
+      await this.sendNotification(
+        member.invitedById,
+        NotificationType.INVITATION_REJECTED,
+        `${member.user.username} rejected your invitation to the ${member.workspace.name} workspace.`,
+        workspaceId,
+        { username: member.user.username, workspaceName: member.workspace.name },
+      );
     }
 
     await this.memberRepo.remove(member);
@@ -516,6 +611,103 @@ export class WorkspacesService implements OnModuleInit {
 
   async markNotificationsRead(userId: string): Promise<void> {
     await this.notificationRepo.update({ userId, isRead: false }, { isRead: true });
+  }
+
+  // ─── Notification Helpers ────────────────────────────────────────────────────
+
+  /**
+   * Send a single notification to one user.
+   */
+  private async sendNotification(
+    userId: string,
+    type: NotificationType,
+    message: string,
+    workspaceId?: string | null,
+    metadata?: Record<string, any> | null,
+  ): Promise<void> {
+    const notification = this.notificationRepo.create({
+      userId,
+      type,
+      message,
+      icon: NOTIFICATION_ICONS[type] || null,
+      workspaceId: workspaceId ?? null,
+      metadata: metadata ?? null,
+    });
+    await this.notificationRepo.save(notification);
+  }
+
+  /**
+   * Send the same notification to multiple users at once.
+   */
+  private async sendNotificationToMany(
+    userIds: string[],
+    type: NotificationType,
+    message: string,
+    workspaceId?: string | null,
+    metadata?: Record<string, any> | null,
+  ): Promise<void> {
+    if (userIds.length === 0) return;
+    const uniqueIds = [...new Set(userIds)];
+    const notifications = uniqueIds.map((uid) =>
+      this.notificationRepo.create({
+        userId: uid,
+        type,
+        message,
+        icon: NOTIFICATION_ICONS[type] || null,
+        workspaceId: workspaceId ?? null,
+        metadata: metadata ?? null,
+      }),
+    );
+    await this.notificationRepo.save(notifications);
+  }
+
+  /**
+   * Get all member user IDs for a workspace (status = 'joined').
+   */
+  private async getWorkspaceMemberUserIds(workspaceId: string, excludeUserId?: string): Promise<string[]> {
+    const members = await this.memberRepo.find({
+      where: { workspaceId, status: 'joined' },
+      select: { userId: true },
+    });
+    const ids = members.map((m) => m.userId);
+    if (excludeUserId) return ids.filter((id) => id !== excludeUserId);
+    return ids;
+  }
+
+  /**
+   * Get admin/owner user IDs for a workspace.
+   */
+  private async getWorkspaceAdminUserIds(workspaceId: string): Promise<string[]> {
+    const members = await this.memberRepo.find({
+      where: { workspaceId, status: 'joined' },
+      relations: { role: true },
+    });
+    return members
+      .filter((m) => MANAGEMENT_ROLES.includes(m.role.slug))
+      .map((m) => m.userId);
+  }
+
+  /**
+   * Get all player user IDs for a given team.
+   */
+  private async getTeamPlayerUserIds(teamId: string): Promise<string[]> {
+    const players = await this.playerRepo.find({
+      where: { teamId },
+      select: { userId: true },
+    });
+    return players.map((p) => p.userId);
+  }
+
+  /**
+   * Get player user IDs for multiple teams.
+   */
+  private async getTeamsPlayerUserIds(teamIds: string[]): Promise<string[]> {
+    if (teamIds.length === 0) return [];
+    const players = await this.playerRepo.find({
+      where: { teamId: In(teamIds) },
+      select: { userId: true },
+    });
+    return [...new Set(players.map((p) => p.userId))];
   }
 
   async updateMemberRole(
@@ -545,7 +737,19 @@ export class WorkspacesService implements OnModuleInit {
 
     member.roleId = role.id;
     member.role = role;
-    return this.memberRepo.save(member);
+    const saved = await this.memberRepo.save(member);
+
+    // 2.6 — Notify the affected member
+    const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+    await this.sendNotification(
+      targetUserId,
+      NotificationType.MEMBER_ROLE_CHANGED,
+      `Your role in ${workspace?.name ?? 'the workspace'} has been changed to ${role.name}.`,
+      workspaceId,
+      { newRole: role.name, workspaceName: workspace?.name },
+    );
+
+    return saved;
   }
 
   async removeMember(
@@ -566,6 +770,16 @@ export class WorkspacesService implements OnModuleInit {
     if (member.role.slug === WorkspaceRole.OWNER) {
       throw new ForbiddenException('Cannot remove the workspace owner');
     }
+
+    // 2.7 — Notify the removed member
+    const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+    await this.sendNotification(
+      targetUserId,
+      NotificationType.MEMBER_REMOVED,
+      `You have been removed from the ${workspace?.name ?? 'workspace'} workspace.`,
+      null,
+      { workspaceName: workspace?.name },
+    );
 
     await this.memberRepo.remove(member);
   }
@@ -810,7 +1024,19 @@ export class WorkspacesService implements OnModuleInit {
       secondaryColor: dto.secondaryColor ?? null,
       workspaceId,
     });
-    return this.teamRepo.save(team);
+    const saved = await this.teamRepo.save(team);
+
+    // 3.4 — Notify workspace members
+    const memberIds = await this.getWorkspaceMemberUserIds(workspaceId, userId);
+    await this.sendNotificationToMany(
+      memberIds,
+      NotificationType.TEAM_CREATED,
+      `New team ${saved.name} has been created.`,
+      workspaceId,
+      { teamName: saved.name, teamId: saved.id },
+    );
+
+    return saved;
   }
 
   async updateTeam(
@@ -851,6 +1077,16 @@ export class WorkspacesService implements OnModuleInit {
     if (!team) {
       throw new NotFoundException('Team not found in this workspace');
     }
+    // 3.5 — Notify team players before deleting
+    const playerUserIds = await this.getTeamPlayerUserIds(teamId);
+    await this.sendNotificationToMany(
+      playerUserIds,
+      NotificationType.TEAM_DELETED,
+      `Team ${team.name} has been deleted.`,
+      workspaceId,
+      { teamName: team.name },
+    );
+
     await this.teamRepo.remove(team);
   }
 
@@ -1512,6 +1748,17 @@ export class WorkspacesService implements OnModuleInit {
     const saved = await this.playerRepo.save(player);
     saved.team = team;
     saved.user = user;
+
+    // 3.1 — Notify the player
+    const jerseyText = dto.jerseyNumber ? ` with jersey #${dto.jerseyNumber}` : '';
+    await this.sendNotification(
+      dto.userId,
+      NotificationType.PLAYER_ADDED_TO_TEAM,
+      `You've been added to team ${team.name}${jerseyText}.`,
+      workspaceId,
+      { teamName: team.name, teamId: team.id, jerseyNumber: dto.jerseyNumber },
+    );
+
     return saved;
   }
 
@@ -1526,6 +1773,10 @@ export class WorkspacesService implements OnModuleInit {
     if (!player) {
       throw new NotFoundException('Player not found in this workspace');
     }
+
+    // 3.3 — If team changed, notify player of transfer
+    const oldTeamName = player.team?.name;
+    const isTransfer = dto.teamId !== undefined && dto.teamId !== player.teamId;
 
     if (dto.teamId !== undefined) {
       const team = await this.teamRepo.findOne({ where: { id: dto.teamId, workspaceId } });
@@ -1546,7 +1797,19 @@ export class WorkspacesService implements OnModuleInit {
       ...(dto.jerseyNumber !== undefined && { jerseyNumber: dto.jerseyNumber }),
     });
 
-    return this.playerRepo.save(player);
+    const saved = await this.playerRepo.save(player);
+
+    if (isTransfer) {
+      await this.sendNotification(
+        player.userId,
+        NotificationType.PLAYER_TRANSFERRED,
+        `You've been transferred from ${oldTeamName} to ${player.team.name}.`,
+        workspaceId,
+        { oldTeam: oldTeamName, newTeam: player.team.name },
+      );
+    }
+
+    return saved;
   }
 
   async removePlayer(workspaceId: string, playerId: string, userId: string): Promise<void> {
@@ -1555,6 +1818,17 @@ export class WorkspacesService implements OnModuleInit {
     if (!player) {
       throw new NotFoundException('Player not found in this workspace');
     }
+
+    // 3.2 — Notify the player
+    const team = await this.teamRepo.findOne({ where: { id: player.teamId } });
+    await this.sendNotification(
+      player.userId,
+      NotificationType.PLAYER_REMOVED_FROM_TEAM,
+      `You've been removed from team ${team?.name ?? 'Unknown'}.`,
+      workspaceId,
+      { teamName: team?.name },
+    );
+
     await this.playerRepo.remove(player);
   }
 
@@ -1588,7 +1862,19 @@ export class WorkspacesService implements OnModuleInit {
       workspaceId,
       teams,
     });
-    return this.eventRepo.save(event);
+    const saved = await this.eventRepo.save(event);
+
+    // 4.1 — Notify workspace members of new event
+    const memberIds = await this.getWorkspaceMemberUserIds(workspaceId, userId);
+    await this.sendNotificationToMany(
+      memberIds,
+      NotificationType.EVENT_CREATED,
+      `New event "${saved.name}" has been created.`,
+      workspaceId,
+      { eventId: saved.id, eventName: saved.name },
+    );
+
+    return saved;
   }
 
   async updateEvent(
@@ -1605,6 +1891,8 @@ export class WorkspacesService implements OnModuleInit {
     if (!event) {
       throw new NotFoundException('Event not found in this workspace');
     }
+
+    const oldStatus = event.status;
 
     if (dto.teamIds !== undefined) {
       if (dto.teamIds.length > 0) {
@@ -1626,7 +1914,66 @@ export class WorkspacesService implements OnModuleInit {
       ...(dto.logoUrl !== undefined && { logoUrl: dto.logoUrl }),
     });
 
-    return this.eventRepo.save(event);
+    const saved = await this.eventRepo.save(event);
+
+    // 4.2 / 4.3 / 4.4 / 4.5 / 4.6 — Notify about status changes
+    if (dto.status !== undefined && dto.status !== oldStatus) {
+      const memberIds = await this.getWorkspaceMemberUserIds(workspaceId, userId);
+      if (dto.status === 'ongoing') {
+        await this.sendNotificationToMany(
+          memberIds,
+          NotificationType.EVENT_STARTED,
+          `Event "${saved.name}" has started!`,
+          workspaceId,
+          { eventId: saved.id, eventName: saved.name },
+        );
+      } else if (dto.status === 'cancelled') {
+        await this.sendNotificationToMany(
+          memberIds,
+          NotificationType.EVENT_CANCELLED,
+          `Event "${saved.name}" has been cancelled.`,
+          workspaceId,
+          { eventId: saved.id, eventName: saved.name },
+        );
+      } else if (dto.status === 'completed') {
+        await this.sendNotificationToMany(
+          memberIds,
+          NotificationType.EVENT_COMPLETED,
+          `Event "${saved.name}" has been completed!`,
+          workspaceId,
+          { eventId: saved.id, eventName: saved.name },
+        );
+
+        // 4.5 & 4.6 — Determine Event Champions
+        try {
+          const standings = await this.getEventStandings(workspaceId, eventId, userId);
+          if (standings && standings.length > 0) {
+            const champion = standings[0];
+            // Announcement to all
+            await this.sendNotificationToMany(
+              memberIds,
+              NotificationType.EVENT_CHAMPION_ANNOUNCEMENT,
+              `🏆 ${champion.teamName} has won the ${saved.name} event with ${champion.points} points!`,
+              workspaceId,
+              { eventId: saved.id, eventName: saved.name, championTeamId: champion.teamId, championTeamName: champion.teamName, points: champion.points },
+            );
+            // Notify winning team players
+            const winningPlayers = await this.getTeamPlayerUserIds(champion.teamId);
+            await this.sendNotificationToMany(
+              winningPlayers,
+              NotificationType.EVENT_CHAMPION,
+              `🏆 Congratulations! Your team ${champion.teamName} is the overall champion of ${saved.name}!`,
+              workspaceId,
+              { eventId: saved.id, eventName: saved.name, points: champion.points },
+            );
+          }
+        } catch (e) {
+          // Ignore error silently to prevent blocking the event completion save
+        }
+      }
+    }
+
+    return saved;
   }
 
   async removeEvent(workspaceId: string, eventId: string, userId: string): Promise<void> {
@@ -1976,7 +2323,7 @@ export class WorkspacesService implements OnModuleInit {
   private async checkAndAutoCompleteCompetition(competitionId: string): Promise<void> {
     const comp = await this.competitionRepo.findOne({
       where: { id: competitionId },
-      relations: { stages: true }
+      relations: { stages: true, event: true }
     });
     if (!comp || comp.stages.length === 0) return;
 
@@ -1986,9 +2333,109 @@ export class WorkspacesService implements OnModuleInit {
     const matches = await this.matchRepo.find({ where: { stageId: lastStage.id } });
     if (matches && matches.length > 0) {
       const allCompleted = matches.every((m: any) => m.status === 'completed');
-      if (allCompleted) {
+      if (allCompleted && comp.status !== 'completed') {
         comp.status = 'completed';
-        await this.competitionRepo.save(comp);
+        const savedComp = await this.competitionRepo.save(comp);
+        const workspaceId = comp.event.workspaceId;
+
+        // 5.6 — Notify competing players of completion
+        const compTeams = await this.competitionTeamRepo.find({ where: { competitionId } });
+        const teamIds = compTeams.map(ct => ct.teamId);
+        const allCompetingPlayers = await this.getTeamsPlayerUserIds(teamIds);
+        await this.sendNotificationToMany(
+          allCompetingPlayers,
+          NotificationType.COMPETITION_COMPLETED,
+          `Competition "${savedComp.name}" has been completed!`,
+          workspaceId,
+          { competitionId, competitionName: savedComp.name }
+        );
+
+        // 5.7 / 5.8 / 5.9 — Champions & Runner-Up
+        try {
+          const rankings = await this.getCompetitionRankings(competitionId);
+          let championTeamId: string | null = null;
+          let runnerUpTeamId: string | null = null;
+          for (const [tId, pos] of rankings.entries()) {
+            if (pos === 1) championTeamId = tId;
+            if (pos === 2) runnerUpTeamId = tId;
+          }
+
+          if (championTeamId) {
+            const championTeam = await this.teamRepo.findOne({ where: { id: championTeamId } });
+            if (championTeam) {
+              // 5.8 - Announcement to all workspace members
+              const memberIds = await this.getWorkspaceMemberUserIds(workspaceId);
+              await this.sendNotificationToMany(
+                memberIds,
+                NotificationType.COMPETITION_CHAMPION_ANNOUNCEMENT,
+                `🥇 ${championTeam.name} has won the ${savedComp.name} competition!`,
+                workspaceId,
+                { competitionId, competitionName: savedComp.name, championTeamId, championTeamName: championTeam.name }
+              );
+
+              // 5.7 - Notify players of winning team
+              const winningPlayers = await this.getTeamPlayerUserIds(championTeamId);
+              await this.sendNotificationToMany(
+                winningPlayers,
+                NotificationType.COMPETITION_CHAMPION,
+                `🥇 Congratulations! Your team ${championTeam.name} won ${savedComp.name}!`,
+                workspaceId,
+                { competitionId, competitionName: savedComp.name }
+              );
+            }
+          }
+
+          if (runnerUpTeamId) {
+            const runnerUpTeam = await this.teamRepo.findOne({ where: { id: runnerUpTeamId } });
+            if (runnerUpTeam) {
+              // 5.9 - Notify players of 2nd place team
+              const runnerUpPlayers = await this.getTeamPlayerUserIds(runnerUpTeamId);
+              await this.sendNotificationToMany(
+                runnerUpPlayers,
+                NotificationType.COMPETITION_RUNNER_UP,
+                `🥈 Great performance! Your team ${runnerUpTeam.name} finished as runner-up in ${savedComp.name}.`,
+                workspaceId,
+                { competitionId, competitionName: savedComp.name }
+              );
+            }
+          }
+        } catch (e) {
+          // ignore rankings error
+        }
+
+        // 5.10 / 5.11 — Best Player of Tournament
+        try {
+          const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+          const ownerId = workspace?.ownerId ?? '';
+          const bestPlayerData = await this.getCompetitionBestPlayer(workspaceId, comp.eventId, competitionId, ownerId);
+          if (bestPlayerData && bestPlayerData.bestPlayer) {
+            const bestPlayer = bestPlayerData.bestPlayer;
+            const playerName = bestPlayer.player?.user?.username ?? 'a player';
+            const teamName = bestPlayer.team?.name ?? 'their team';
+            const rating = bestPlayer.rating;
+
+            // 5.10 - Notify the best player
+            await this.sendNotification(
+              bestPlayer.player.userId,
+              NotificationType.BEST_PLAYER_OF_TOURNAMENT,
+              `⭐ You've been named the Best Player of ${savedComp.name} with a rating of ${rating}!`,
+              workspaceId,
+              { competitionId, competitionName: savedComp.name, rating }
+            );
+
+            // 5.11 - Announcement to all
+            const memberIds = await this.getWorkspaceMemberUserIds(workspaceId);
+            await this.sendNotificationToMany(
+              memberIds,
+              NotificationType.BEST_PLAYER_ANNOUNCEMENT,
+              `⭐ ${playerName} (${teamName}) is the Best Player of ${savedComp.name}!`,
+              workspaceId,
+              { competitionId, competitionName: savedComp.name, playerId: bestPlayer.playerId, playerName, teamName, rating }
+            );
+          }
+        } catch (e) {
+          // ignore best player error
+        }
       }
     }
   }
@@ -2064,6 +2511,17 @@ export class WorkspacesService implements OnModuleInit {
     if (!found) {
       throw new NotFoundException(`Competition "${saved.id}" not found`);
     }
+
+    // 5.1 — Notify workspace members of new competition
+    const memberIds = await this.getWorkspaceMemberUserIds(workspaceId, userId);
+    await this.sendNotificationToMany(
+      memberIds,
+      NotificationType.COMPETITION_CREATED,
+      `New competition "${found.name}" added to ${event.name}.`,
+      workspaceId,
+      { eventId, competitionId: found.id, competitionName: found.name, eventName: event.name },
+    );
+
     return found;
   }
 
@@ -2252,6 +2710,18 @@ export class WorkspacesService implements OnModuleInit {
     if (stages.length > 0) {
       await this.stageRepo.remove(stages);
     }
+
+    // 5.5 — Notify competing team players that fixtures for this competition have been reset
+    const compTeams = await this.competitionTeamRepo.find({ where: { competitionId } });
+    const teamIds = compTeams.map((ct) => ct.teamId);
+    const players = await this.getTeamsPlayerUserIds(teamIds);
+    await this.sendNotificationToMany(
+      players,
+      NotificationType.FIXTURES_RESET,
+      `Fixtures for competition "${competition.name}" have been reset.`,
+      workspaceId,
+      { competitionId, competitionName: competition.name },
+    );
   }
 
   // ─── Matches ──────────────────────────────────────────────────────────────
@@ -2428,10 +2898,26 @@ export class WorkspacesService implements OnModuleInit {
     });
 
     const saved = await this.matchRepo.save(match);
-    return (await this.matchRepo.findOne({
+    const populated = (await this.matchRepo.findOne({
       where: { id: saved.id },
       relations: { homeTeam: true, awayTeam: true, venue: true },
     }))!;
+
+    // 6.1 — Notify players of both teams that a match has been scheduled
+    if (populated.homeTeamId && populated.awayTeamId) {
+      const homePlayers = await this.getTeamPlayerUserIds(populated.homeTeamId);
+      const awayPlayers = await this.getTeamPlayerUserIds(populated.awayTeamId);
+      const allPlayers = [...homePlayers, ...awayPlayers];
+      await this.sendNotificationToMany(
+        allPlayers,
+        NotificationType.MATCH_SCHEDULED,
+        `New match scheduled: ${populated.homeTeam?.name ?? 'Home'} vs ${populated.awayTeam?.name ?? 'Away'} in ${comp.name}.`,
+        workspaceId,
+        { matchId: populated.id, competitionId, competitionName: comp.name, homeTeamName: populated.homeTeam?.name, awayTeamName: populated.awayTeam?.name },
+      );
+    }
+
+    return populated;
   }
 
   async updateMatch(
@@ -2473,6 +2959,8 @@ export class WorkspacesService implements OnModuleInit {
       }
       match.status = dto.status;
     }
+    const oldStatus = match.status;
+
     if (dto.config !== undefined) {
       match.config = { ...match.config, ...dto.config };
     }
@@ -2481,6 +2969,10 @@ export class WorkspacesService implements OnModuleInit {
     }
 
     const saved = await this.matchRepo.save(match);
+    const populated = (await this.matchRepo.findOne({
+      where: { id: saved.id },
+      relations: { homeTeam: true, awayTeam: true, venue: true },
+    }))!;
 
     // If match was completed, run knockout advancement and auto-rate players
     if (saved.status === 'completed') {
@@ -2499,10 +2991,82 @@ export class WorkspacesService implements OnModuleInit {
       await this.autoRateMatchPlayers(saved);
     }
 
-    return (await this.matchRepo.findOne({
-      where: { id: saved.id },
-      relations: { homeTeam: true, awayTeam: true, venue: true },
-    }))!;
+    // 6.3 / 6.4 / 6.5 / 6.6 / 6.7 — Notify status changes
+    if (dto.status !== undefined && dto.status !== oldStatus) {
+      if (populated.homeTeamId && populated.awayTeamId) {
+        const homePlayers = await this.getTeamPlayerUserIds(populated.homeTeamId);
+        const awayPlayers = await this.getTeamPlayerUserIds(populated.awayTeamId);
+        const allPlayers = [...homePlayers, ...awayPlayers];
+
+        if (dto.status === 'live') {
+          await this.sendNotificationToMany(
+            allPlayers,
+            NotificationType.MATCH_STARTED,
+            `🔴 LIVE: ${populated.homeTeam?.name} vs ${populated.awayTeam?.name} has started!`,
+            workspaceId,
+            { matchId: populated.id, homeTeamName: populated.homeTeam?.name, awayTeamName: populated.awayTeam?.name },
+          );
+        } else if (dto.status === 'completed') {
+          const live = populated.liveData || {};
+          const isWalkover = live.matchStatus === 'Walkover' || live.matchStatus === 'Retired' || String(live.result || '').toLowerCase().includes('walkover');
+          const isAbandoned = live.matchStatus === 'Abandoned';
+
+          if (isWalkover || isAbandoned) {
+            const displayStatus = isWalkover ? 'Walkover' : 'Abandoned';
+            await this.sendNotificationToMany(
+              allPlayers,
+              NotificationType.MATCH_WALKOVER,
+              `Match ${populated.homeTeam?.name} vs ${populated.awayTeam?.name} has been marked as ${displayStatus}.`,
+              workspaceId,
+              { matchId: populated.id, status: displayStatus },
+            );
+          } else {
+            await this.sendNotificationToMany(
+              allPlayers,
+              NotificationType.MATCH_COMPLETED,
+              `Match completed: ${populated.homeTeam?.name} ${populated.homeScore} - ${populated.awayScore} ${populated.awayTeam?.name}.`,
+              workspaceId,
+              { matchId: populated.id, homeScore: populated.homeScore, awayScore: populated.awayScore },
+            );
+
+            const scoreText = `${populated.homeScore} - ${populated.awayScore}`;
+            if (populated.homeScore > populated.awayScore) {
+              await this.sendNotificationToMany(
+                homePlayers,
+                NotificationType.MATCH_WON,
+                `🎉 Victory! ${populated.homeTeam?.name} won against ${populated.awayTeam?.name} (${scoreText}).`,
+                workspaceId,
+                { matchId: populated.id, opponent: populated.awayTeam?.name, score: scoreText },
+              );
+              await this.sendNotificationToMany(
+                awayPlayers,
+                NotificationType.MATCH_LOST,
+                `Match lost: ${populated.awayTeam?.name} lost to ${populated.homeTeam?.name} (${scoreText}).`,
+                workspaceId,
+                { matchId: populated.id, opponent: populated.homeTeam?.name, score: scoreText },
+              );
+            } else if (populated.awayScore > populated.homeScore) {
+              await this.sendNotificationToMany(
+                awayPlayers,
+                NotificationType.MATCH_WON,
+                `🎉 Victory! ${populated.awayTeam?.name} won against ${populated.homeTeam?.name} (${scoreText}).`,
+                workspaceId,
+                { matchId: populated.id, opponent: populated.homeTeam?.name, score: scoreText },
+              );
+              await this.sendNotificationToMany(
+                homePlayers,
+                NotificationType.MATCH_LOST,
+                `Match lost: ${populated.homeTeam?.name} lost to ${populated.awayTeam?.name} (${scoreText}).`,
+                workspaceId,
+                { matchId: populated.id, opponent: populated.awayTeam?.name, score: scoreText },
+              );
+            }
+          }
+        }
+      }
+    }
+
+    return populated;
   }
 
   private async advanceKnockoutWinner(completedMatch: Match, stage: CompetitionStage): Promise<void> {
@@ -2700,6 +3264,41 @@ export class WorkspacesService implements OnModuleInit {
           }
         }
       }
+    }
+
+    // 9.1 & 9.2 — Team advanced & eliminated notifications
+    try {
+      const comp = await this.competitionRepo.findOne({
+        where: { id: stage.competitionId },
+        relations: { event: true }
+      });
+      if (comp) {
+        const workspaceId = comp.event?.workspaceId || null;
+        if (winnerId) {
+          const winnerTeam = await this.teamRepo.findOne({ where: { id: winnerId } });
+          const winningPlayers = await this.getTeamPlayerUserIds(winnerId);
+          await this.sendNotificationToMany(
+            winningPlayers,
+            NotificationType.TEAM_ADVANCED,
+            `🎯 ${winnerTeam?.name ?? 'Your team'} has advanced to the ${nextRoundName} in ${comp.name}!`,
+            workspaceId,
+            { competitionId: comp.id, competitionName: comp.name, nextRound: nextRoundName },
+          );
+        }
+        if (loserId) {
+          const loserTeam = await this.teamRepo.findOne({ where: { id: loserId } });
+          const losingPlayers = await this.getTeamPlayerUserIds(loserId);
+          await this.sendNotificationToMany(
+            losingPlayers,
+            NotificationType.TEAM_ELIMINATED,
+            `💔 ${loserTeam?.name ?? 'Your team'} has been eliminated from ${comp.name}.`,
+            workspaceId,
+            { competitionId: comp.id, competitionName: comp.name },
+          );
+        }
+      }
+    } catch (e) {
+      // ignore silently to prevent blocking knockout advancement
     }
   }
 
@@ -2950,6 +3549,52 @@ export class WorkspacesService implements OnModuleInit {
           await this.matchRepo.save(targetLeg2Match);
         }
       }
+    }
+
+    // 9.2 & 9.3 — Team qualified / eliminated notifications
+    try {
+      const comp = await this.competitionRepo.findOne({
+        where: { id: stage.competitionId },
+        relations: { event: true }
+      });
+      if (comp) {
+        const workspaceId = comp.event?.workspaceId || null;
+        const qualifiedTeamIds = [...new Set(promotedTeams.flatMap((p) => [p.home, p.away]))];
+        
+        for (const tId of qualifiedTeamIds) {
+          const team = await this.teamRepo.findOne({ where: { id: tId } });
+          if (team) {
+            const players = await this.getTeamPlayerUserIds(tId);
+            await this.sendNotificationToMany(
+              players,
+              NotificationType.TEAM_QUALIFIED_FROM_GROUP,
+              `🎯 ${team.name} has qualified from the group stage in ${comp.name}!`,
+              workspaceId,
+              { competitionId: comp.id, competitionName: comp.name },
+            );
+          }
+        }
+
+        const allCompTeams = await this.competitionTeamRepo.find({ where: { competitionId: stage.competitionId } });
+        const enrolledTeamIds = allCompTeams.map((ct) => ct.teamId);
+        const eliminatedTeamIds = enrolledTeamIds.filter((id) => !qualifiedTeamIds.includes(id));
+
+        for (const tId of eliminatedTeamIds) {
+          const team = await this.teamRepo.findOne({ where: { id: tId } });
+          if (team) {
+            const players = await this.getTeamPlayerUserIds(tId);
+            await this.sendNotificationToMany(
+              players,
+              NotificationType.TEAM_ELIMINATED,
+              `💔 ${team.name} has been eliminated from ${comp.name}.`,
+              workspaceId,
+              { competitionId: comp.id, competitionName: comp.name },
+            );
+          }
+        }
+      }
+    } catch (e) {
+      // ignore silently to prevent blocking group stage advancement
     }
   }
 
@@ -3304,7 +3949,21 @@ export class WorkspacesService implements OnModuleInit {
     if (existing) throw new ConflictException(`Team is already enrolled in this competition`);
     const entry = this.competitionTeamRepo.create({ competitionId, teamId });
     const saved = await this.competitionTeamRepo.save(entry);
-    return this.competitionTeamRepo.findOne({ where: { id: saved.id }, relations: { team: true } }) as Promise<CompetitionTeam>;
+    const foundEntry = await this.competitionTeamRepo.findOne({ where: { id: saved.id }, relations: { team: true } });
+
+    if (foundEntry) {
+      const comp = await this.competitionRepo.findOne({ where: { id: competitionId } });
+      const players = await this.getTeamPlayerUserIds(teamId);
+      await this.sendNotificationToMany(
+        players,
+        NotificationType.TEAM_ADDED_TO_COMPETITION,
+        `Your team ${foundEntry.team.name} has been registered for ${comp?.name ?? 'a competition'}.`,
+        workspaceId,
+        { teamId, teamName: foundEntry.team.name, competitionId, competitionName: comp?.name },
+      );
+    }
+
+    return foundEntry as any;
   }
 
   async removeTeamFromCompetition(
@@ -3318,7 +3977,20 @@ export class WorkspacesService implements OnModuleInit {
     await this.validateCompetitionContext(workspaceId, eventId, competitionId);
     const entry = await this.competitionTeamRepo.findOne({ where: { competitionId, teamId } });
     if (!entry) throw new NotFoundException(`Team is not enrolled in this competition`);
+    
+    const team = await this.teamRepo.findOne({ where: { id: teamId } });
+    const comp = await this.competitionRepo.findOne({ where: { id: competitionId } });
+
     await this.competitionTeamRepo.remove(entry);
+
+    const players = await this.getTeamPlayerUserIds(teamId);
+    await this.sendNotificationToMany(
+      players,
+      NotificationType.TEAM_REMOVED_FROM_COMPETITION,
+      `Your team ${team?.name ?? 'Unknown'} has been withdrawn from ${comp?.name ?? 'the competition'}.`,
+      workspaceId,
+      { teamId, teamName: team?.name, competitionId, competitionName: comp?.name },
+    );
   }
 
   // ─── Fixture Generator ─────────────────────────────────────────────────────
@@ -3560,6 +4232,20 @@ export class WorkspacesService implements OnModuleInit {
 
       await this.matchRepo.save(matchEntities);
       totalMatches += matchEntities.length;
+    }
+
+    // 5.4 — Notify players in competing teams that fixtures have been generated
+    if (totalMatches > 0) {
+      const compTeams = await this.competitionTeamRepo.find({ where: { competitionId } });
+      const teamIds = compTeams.map((ct) => ct.teamId);
+      const players = await this.getTeamsPlayerUserIds(teamIds);
+      await this.sendNotificationToMany(
+        players,
+        NotificationType.FIXTURES_GENERATED,
+        `Fixtures have been generated for "${competition.name}". Check your schedule!`,
+        workspaceId,
+        { competitionId, competitionName: competition.name },
+      );
     }
 
     return { stagesGenerated: stages.length, matchesCreated: totalMatches };
@@ -4090,7 +4776,7 @@ export class WorkspacesService implements OnModuleInit {
     }
 
     // Return the updated list with relations
-    return this.matchPlayerRepo.find({
+    const result = await this.matchPlayerRepo.find({
       where: { matchId },
       relations: {
         player: {
@@ -4099,6 +4785,26 @@ export class WorkspacesService implements OnModuleInit {
         team: true,
       },
     });
+
+    // 6.2 — Notify selected players
+    const matchDetails = await this.matchRepo.findOne({
+      where: { id: matchId },
+      relations: { homeTeam: true, awayTeam: true }
+    });
+    const selectedPlayers = result.filter(mp => mp.isPlaying);
+    for (const sp of selectedPlayers) {
+      if (sp.player?.userId) {
+        await this.sendNotification(
+          sp.player.userId,
+          NotificationType.MATCH_LINEUP_SET,
+          `You've been selected in the lineup for ${matchDetails?.homeTeam?.name ?? 'Home'} vs ${matchDetails?.awayTeam?.name ?? 'Away'}.`,
+          workspaceId,
+          { matchId, homeTeamName: matchDetails?.homeTeam?.name, awayTeamName: matchDetails?.awayTeam?.name }
+        );
+      }
+    }
+
+    return result;
   }
 
   // ─── Player Ratings ────────────────────────────────────────────────────────
@@ -4158,7 +4864,28 @@ export class WorkspacesService implements OnModuleInit {
       toSave.push(entry);
     }
 
-    await this.matchPlayerRepo.save(toSave);
+    const savedRatings = await this.matchPlayerRepo.save(toSave);
+    const populatedSaved = await this.matchPlayerRepo.find({
+      where: { id: In(savedRatings.map((s) => s.id)) },
+      relations: { player: { user: true }, team: true },
+    });
+
+    const matchDetails = await this.matchRepo.findOne({
+      where: { id: matchId },
+      relations: { homeTeam: true, awayTeam: true },
+    });
+
+    for (const entry of populatedSaved) {
+      if (entry.player?.userId && entry.rating !== null) {
+        await this.sendNotification(
+          entry.player.userId,
+          NotificationType.PLAYER_RATING_UPDATED,
+          `Your match rating has been updated to ${entry.rating}/10 for ${matchDetails?.homeTeam?.name} vs ${matchDetails?.awayTeam?.name}.`,
+          workspaceId,
+          { matchId, rating: entry.rating },
+        );
+      }
+    }
 
     return this.matchPlayerRepo.find({
       where: { matchId, isPlaying: true },
@@ -4831,6 +5558,65 @@ export class WorkspacesService implements OnModuleInit {
 
     if (toSave.length > 0) {
       await this.matchPlayerRepo.save(toSave);
+
+      // 7.1 — Notify each auto-rated player
+      const populatedSaved = await this.matchPlayerRepo.find({
+        where: { id: In(toSave.map((s) => s.id)) },
+        relations: { player: { user: true }, team: true },
+      });
+
+      const workspaceId = stage?.competition?.event?.workspaceId || null;
+
+      for (const entry of populatedSaved) {
+        if (entry.player?.userId && entry.rating !== null) {
+          await this.sendNotification(
+            entry.player.userId,
+            NotificationType.PLAYER_RATED,
+            `Your performance rating for ${match.homeTeam?.name ?? 'Home'} vs ${match.awayTeam?.name ?? 'Away'}: ${entry.rating}/10.`,
+            workspaceId,
+            { matchId: match.id, rating: entry.rating },
+          );
+        }
+      }
+
+      // 7.3 & 7.4 — Identify Match MVP
+      let maxRating = -1;
+      let mvpMp: MatchPlayer | null = null;
+      for (const entry of populatedSaved) {
+        if (entry.rating !== null) {
+          const r = Number(entry.rating);
+          if (r > maxRating) {
+            maxRating = r;
+            mvpMp = entry;
+          }
+        }
+      }
+
+      if (mvpMp && maxRating >= 5.0 && mvpMp.player?.userId) {
+        const playerName = mvpMp.player.user?.username ?? 'Player';
+        const teamName = mvpMp.team?.name ?? 'Unknown';
+
+        // 7.3 - Notify the MVP player
+        await this.sendNotification(
+          mvpMp.player.userId,
+          NotificationType.MATCH_MVP,
+          `🌟 MVP! You were the highest-rated player (${maxRating}) in ${match.homeTeam?.name ?? 'Home'} vs ${match.awayTeam?.name ?? 'Away'}!`,
+          workspaceId,
+          { matchId: match.id, rating: maxRating },
+        );
+
+        // 7.4 - Announcement to all workspace members
+        if (workspaceId) {
+          const memberIds = await this.getWorkspaceMemberUserIds(workspaceId);
+          await this.sendNotificationToMany(
+            memberIds,
+            NotificationType.MATCH_MVP_ANNOUNCEMENT,
+            `🌟 ${playerName} (${teamName}) is the Man of the Match in ${match.homeTeam?.name ?? 'Home'} vs ${match.awayTeam?.name ?? 'Away'} (rating: ${maxRating})!`,
+            workspaceId,
+            { matchId: match.id, playerId: mvpMp.playerId, playerName, teamName, rating: maxRating },
+          );
+        }
+      }
     }
   }
 }
