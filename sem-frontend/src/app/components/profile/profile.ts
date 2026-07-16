@@ -171,6 +171,12 @@ export class ProfileComponent implements OnInit {
     });
   }
 
+  formatOvers(overs: number, balls: number): string {
+    const totalOvers = overs + Math.floor(balls / 6);
+    const extraBalls = balls % 6;
+    return `${totalOvers}.${extraBalls}`;
+  }
+
   logout() {
     this.authService.logout();
     this.router.navigate(['/login']);

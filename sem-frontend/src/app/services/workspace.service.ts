@@ -160,6 +160,12 @@ export interface Match {
   liveData: any;
   createdAt: string;
   updatedAt: string;
+  mvp?: {
+    playerId: string;
+    playerName: string;
+    teamName: string;
+    rating: number;
+  };
 }
 
 export interface CompetitionTeam {
@@ -185,6 +191,59 @@ export interface MatchPlayer {
   updatedAt: string;
 }
 
+export interface LeaderboardPlayer {
+  playerId: string;
+  playerName: string;
+  teamName: string;
+}
+
+export interface RatedPlayerStats extends LeaderboardPlayer {
+  avgRating: number;
+  appearances: number;
+}
+
+export interface MvpPlayerStats extends LeaderboardPlayer {
+  mvps: number;
+}
+
+export interface FootballScorerStats extends LeaderboardPlayer {
+  goals: number;
+}
+
+export interface FootballAssistStats extends LeaderboardPlayer {
+  assists: number;
+}
+
+export interface FootballCardStats extends LeaderboardPlayer {
+  cards: number;
+}
+
+export interface CricketRunsStats extends LeaderboardPlayer {
+  runs: number;
+  innings: number;
+}
+
+export interface CricketWicketsStats extends LeaderboardPlayer {
+  wickets: number;
+  innings: number;
+}
+
+export interface BadmintonRallyStats extends LeaderboardPlayer {
+  ralliesWon: number;
+}
+
+export interface CompetitionStats {
+  sportCode: string;
+  topRated: RatedPlayerStats[];
+  mostMvps?: MvpPlayerStats[];
+  topScorers?: FootballScorerStats[];
+  topAssists?: FootballAssistStats[];
+  mostYellowCards?: FootballCardStats[];
+  mostRedCards?: FootballCardStats[];
+  topRuns?: CricketRunsStats[];
+  topWickets?: CricketWicketsStats[];
+  topRalliesWon?: BadmintonRallyStats[];
+}
 
 export interface WorkspaceMember {
   id: string;
@@ -202,6 +261,10 @@ export interface AppNotification {
   userId: string;
   message: string;
   isRead: boolean;
+  type: string;
+  workspaceId: string | null;
+  icon: string | null;
+  metadata: Record<string, any> | null;
   createdAt: string;
 }
 
@@ -761,6 +824,31 @@ export class WorkspaceService {
     return this.http.post<{ url: string; publicId: string }>(
       `${environment.apiUrl}/upload?type=${type}`,
       formData,
+      { headers: this.headers }
+    );
+  }
+
+  getCompetitionStats(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string
+  ): Observable<CompetitionStats> {
+    return this.http.get<CompetitionStats>(
+      `${this.apiUrl}/${workspaceId}/events/${eventId}/competitions/${competitionId}/stats`,
+      { headers: this.headers }
+    );
+  }
+
+  getTeamStats(workspaceId: string, teamId: string): Observable<any> {
+    return this.http.get<any>(
+      `${this.apiUrl}/${workspaceId}/teams/${teamId}/stats`,
+      { headers: this.headers }
+    );
+  }
+
+  getPlayerStats(workspaceId: string, playerId: string): Observable<any> {
+    return this.http.get<any>(
+      `${this.apiUrl}/${workspaceId}/players/${playerId}/stats`,
       { headers: this.headers }
     );
   }

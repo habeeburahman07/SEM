@@ -21,7 +21,7 @@ import { CompetitionStage } from './entities/competition-stage.entity';
 import { Match, MatchType } from './entities/match.entity';
 import { CompetitionTeam } from './entities/competition-team.entity';
 import { Venue } from './entities/venue.entity';
-import { Notification } from './entities/notification.entity';
+import { Notification, NotificationType, NOTIFICATION_ICONS } from './entities/notification.entity';
 import { MatchPlayer } from './entities/match-player.entity';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
@@ -226,6 +226,15 @@ export class WorkspacesService implements OnModuleInit {
     });
     await this.memberRepo.save(ownerMember);
 
+    // 1.1 — Notify the creator
+    await this.sendNotification(
+      ownerId,
+      NotificationType.WORKSPACE_CREATED,
+      `Welcome! Your workspace ${savedWorkspace.name} has been created successfully.`,
+      savedWorkspace.id,
+      { workspaceName: savedWorkspace.name },
+    );
+
     return savedWorkspace;
   }
 
@@ -281,7 +290,18 @@ export class WorkspacesService implements OnModuleInit {
       ...(dto.logoUrl !== undefined && { logoUrl: dto.logoUrl }),
     });
 
-    return this.workspaceRepo.save(workspace);
+    return this.workspaceRepo.save(workspace).then(async (saved) => {
+      // 1.2 — Notify all workspace members
+      const memberIds = await this.getWorkspaceMemberUserIds(id, userId);
+      await this.sendNotificationToMany(
+        memberIds,
+        NotificationType.WORKSPACE_UPDATED,
+        `Workspace ${saved.name} settings have been updated.`,
+        id,
+        { workspaceName: saved.name },
+      );
+      return saved;
+    });
   }
 
   // ─── Delete ───────────────────────────────────────────────────────────────
@@ -290,6 +310,17 @@ export class WorkspacesService implements OnModuleInit {
     await this.ensurePermission(id, userId, 'workspace.delete');
     const workspace = await this.workspaceRepo.findOne({ where: { id } });
     if (!workspace) throw new NotFoundException('Workspace not found');
+
+    // 1.3 — Notify all members (except owner) before deleting
+    const memberIds = await this.getWorkspaceMemberUserIds(id, userId);
+    await this.sendNotificationToMany(
+      memberIds,
+      NotificationType.WORKSPACE_DELETED,
+      `The workspace ${workspace.name} has been deleted by the owner.`,
+      null,
+      { workspaceName: workspace.name },
+    );
+
     await this.workspaceRepo.remove(workspace);
   }
 
@@ -341,6 +372,17 @@ export class WorkspacesService implements OnModuleInit {
     const saved = await this.memberRepo.save(member);
     saved.user = user;
     saved.role = role;
+
+    // 2.1 — Notify invited user
+    const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+    await this.sendNotification(
+      user.id,
+      NotificationType.MEMBER_INVITED,
+      `You've been invited to join ${workspace?.name ?? 'a workspace'} as ${role.name}.`,
+      workspaceId,
+      { role: role.name, invitedBy: requesterId },
+    );
+
     return saved;
   }
 
@@ -359,7 +401,7 @@ export class WorkspacesService implements OnModuleInit {
         let user = await this.usersService.findOneByUsername(item.username);
         let isNew = false;
         if (!user) {
-          user = await this.usersService.create(item.username, dto.password);
+          user = await this.usersService.create(item.username, dto.password, true);
           isNew = true;
         }
 
@@ -408,6 +450,42 @@ export class WorkspacesService implements OnModuleInit {
       }
     }
 
+    // 2.8 / 2.9 / 2.10 — Bulk import notifications
+    const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+    const wsName = workspace?.name ?? 'the workspace';
+    for (const item of success) {
+      const user = await this.usersService.findOneByUsername(item.username);
+      if (user) {
+        if (item.isNew) {
+          // 2.8 — New user: welcome + change password
+          await this.sendNotification(
+            user.id,
+            NotificationType.BULK_IMPORT_CHANGE_PASSWORD,
+            `Welcome to SEM! You've been added to ${wsName}. Please change your default password for security.`,
+            workspaceId,
+            { workspaceName: wsName, role: item.role },
+          );
+        } else {
+          // 2.9 — Existing user added
+          await this.sendNotification(
+            user.id,
+            NotificationType.BULK_IMPORT_USER,
+            `You've been added to ${wsName} as ${item.role}.`,
+            workspaceId,
+            { workspaceName: wsName, role: item.role },
+          );
+        }
+      }
+    }
+    // 2.10 — Notify the admin who ran the import
+    await this.sendNotification(
+      requesterId,
+      NotificationType.BULK_IMPORT_COMPLETED,
+      `Bulk import completed: ${success.length} added, ${failed.length} failed.`,
+      workspaceId,
+      { successCount: success.length, failedCount: failed.length },
+    );
+
     return { success, failed };
   }
 
@@ -446,6 +524,17 @@ export class WorkspacesService implements OnModuleInit {
       where: { id: saved.id },
       relations: { user: true, role: true },
     });
+
+    // 2.5 — Notify workspace admins/owner that a user joined
+    const adminIds = await this.getWorkspaceAdminUserIds(workspaceId);
+    await this.sendNotificationToMany(
+      adminIds.filter((id) => id !== userId),
+      NotificationType.MEMBER_JOINED,
+      `${fullMember!.user.username} joined ${workspace.name}.`,
+      workspaceId,
+      { username: fullMember!.user.username },
+    );
+
     return fullMember!;
   }
 
@@ -467,20 +556,24 @@ export class WorkspacesService implements OnModuleInit {
     member.status = 'joined';
     const saved = await this.memberRepo.save(member);
 
-    // Create notification for joining user
-    const userNotification = this.notificationRepo.create({
-      userId: userId,
-      message: `You joined the ${member.workspace.name} workspace`,
-    });
-    await this.notificationRepo.save(userNotification);
+    // 2.3 — Notify the user who joined
+    await this.sendNotification(
+      userId,
+      NotificationType.INVITATION_ACCEPTED,
+      `You joined the ${member.workspace.name} workspace.`,
+      workspaceId,
+      { workspaceName: member.workspace.name },
+    );
 
-    // Create notification for inviter
+    // 2.2 — Notify the inviter
     if (member.invitedById) {
-      const inviterNotification = this.notificationRepo.create({
-        userId: member.invitedById,
-        message: `${member.user.username} accepted your invitation to the ${member.workspace.name} workspace`,
-      });
-      await this.notificationRepo.save(inviterNotification);
+      await this.sendNotification(
+        member.invitedById,
+        NotificationType.INVITATION_ACCEPTED,
+        `${member.user.username} accepted your invitation to the ${member.workspace.name} workspace.`,
+        workspaceId,
+        { username: member.user.username, workspaceName: member.workspace.name },
+      );
     }
 
     return saved;
@@ -495,13 +588,15 @@ export class WorkspacesService implements OnModuleInit {
       throw new NotFoundException('Invitation not found or already accepted/rejected');
     }
 
-    // Create notification for inviter
+    // 2.4 — Notify the inviter
     if (member.invitedById) {
-      const inviterNotification = this.notificationRepo.create({
-        userId: member.invitedById,
-        message: `${member.user.username} rejected your invitation to the ${member.workspace.name} workspace`,
-      });
-      await this.notificationRepo.save(inviterNotification);
+      await this.sendNotification(
+        member.invitedById,
+        NotificationType.INVITATION_REJECTED,
+        `${member.user.username} rejected your invitation to the ${member.workspace.name} workspace.`,
+        workspaceId,
+        { username: member.user.username, workspaceName: member.workspace.name },
+      );
     }
 
     await this.memberRepo.remove(member);
@@ -516,6 +611,103 @@ export class WorkspacesService implements OnModuleInit {
 
   async markNotificationsRead(userId: string): Promise<void> {
     await this.notificationRepo.update({ userId, isRead: false }, { isRead: true });
+  }
+
+  // ─── Notification Helpers ────────────────────────────────────────────────────
+
+  /**
+   * Send a single notification to one user.
+   */
+  private async sendNotification(
+    userId: string,
+    type: NotificationType,
+    message: string,
+    workspaceId?: string | null,
+    metadata?: Record<string, any> | null,
+  ): Promise<void> {
+    const notification = this.notificationRepo.create({
+      userId,
+      type,
+      message,
+      icon: NOTIFICATION_ICONS[type] || null,
+      workspaceId: workspaceId ?? null,
+      metadata: metadata ?? null,
+    });
+    await this.notificationRepo.save(notification);
+  }
+
+  /**
+   * Send the same notification to multiple users at once.
+   */
+  private async sendNotificationToMany(
+    userIds: string[],
+    type: NotificationType,
+    message: string,
+    workspaceId?: string | null,
+    metadata?: Record<string, any> | null,
+  ): Promise<void> {
+    if (userIds.length === 0) return;
+    const uniqueIds = [...new Set(userIds)];
+    const notifications = uniqueIds.map((uid) =>
+      this.notificationRepo.create({
+        userId: uid,
+        type,
+        message,
+        icon: NOTIFICATION_ICONS[type] || null,
+        workspaceId: workspaceId ?? null,
+        metadata: metadata ?? null,
+      }),
+    );
+    await this.notificationRepo.save(notifications);
+  }
+
+  /**
+   * Get all member user IDs for a workspace (status = 'joined').
+   */
+  private async getWorkspaceMemberUserIds(workspaceId: string, excludeUserId?: string): Promise<string[]> {
+    const members = await this.memberRepo.find({
+      where: { workspaceId, status: 'joined' },
+      select: { userId: true },
+    });
+    const ids = members.map((m) => m.userId);
+    if (excludeUserId) return ids.filter((id) => id !== excludeUserId);
+    return ids;
+  }
+
+  /**
+   * Get admin/owner user IDs for a workspace.
+   */
+  private async getWorkspaceAdminUserIds(workspaceId: string): Promise<string[]> {
+    const members = await this.memberRepo.find({
+      where: { workspaceId, status: 'joined' },
+      relations: { role: true },
+    });
+    return members
+      .filter((m) => MANAGEMENT_ROLES.includes(m.role.slug))
+      .map((m) => m.userId);
+  }
+
+  /**
+   * Get all player user IDs for a given team.
+   */
+  private async getTeamPlayerUserIds(teamId: string): Promise<string[]> {
+    const players = await this.playerRepo.find({
+      where: { teamId },
+      select: { userId: true },
+    });
+    return players.map((p) => p.userId);
+  }
+
+  /**
+   * Get player user IDs for multiple teams.
+   */
+  private async getTeamsPlayerUserIds(teamIds: string[]): Promise<string[]> {
+    if (teamIds.length === 0) return [];
+    const players = await this.playerRepo.find({
+      where: { teamId: In(teamIds) },
+      select: { userId: true },
+    });
+    return [...new Set(players.map((p) => p.userId))];
   }
 
   async updateMemberRole(
@@ -545,7 +737,19 @@ export class WorkspacesService implements OnModuleInit {
 
     member.roleId = role.id;
     member.role = role;
-    return this.memberRepo.save(member);
+    const saved = await this.memberRepo.save(member);
+
+    // 2.6 — Notify the affected member
+    const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+    await this.sendNotification(
+      targetUserId,
+      NotificationType.MEMBER_ROLE_CHANGED,
+      `Your role in ${workspace?.name ?? 'the workspace'} has been changed to ${role.name}.`,
+      workspaceId,
+      { newRole: role.name, workspaceName: workspace?.name },
+    );
+
+    return saved;
   }
 
   async removeMember(
@@ -566,6 +770,16 @@ export class WorkspacesService implements OnModuleInit {
     if (member.role.slug === WorkspaceRole.OWNER) {
       throw new ForbiddenException('Cannot remove the workspace owner');
     }
+
+    // 2.7 — Notify the removed member
+    const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+    await this.sendNotification(
+      targetUserId,
+      NotificationType.MEMBER_REMOVED,
+      `You have been removed from the ${workspace?.name ?? 'workspace'} workspace.`,
+      null,
+      { workspaceName: workspace?.name },
+    );
 
     await this.memberRepo.remove(member);
   }
@@ -736,6 +950,39 @@ export class WorkspacesService implements OnModuleInit {
     }
   }
 
+  private async validateCompetitionContext(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+  ): Promise<Competition> {
+    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    if (!event) {
+      throw new NotFoundException(`Event "${eventId}" not found in this workspace`);
+    }
+    const competition = await this.competitionRepo.findOne({
+      where: { id: competitionId, eventId },
+      relations: { sport: true },
+    });
+    if (!competition) {
+      throw new NotFoundException(`Competition "${competitionId}" not found in this event`);
+    }
+    return competition;
+  }
+
+  private async validateStageContext(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    stageId: string,
+  ): Promise<CompetitionStage> {
+    await this.validateCompetitionContext(workspaceId, eventId, competitionId);
+    const stage = await this.stageRepo.findOne({ where: { id: stageId, competitionId } });
+    if (!stage) {
+      throw new NotFoundException(`Stage "${stageId}" not found in this competition`);
+    }
+    return stage;
+  }
+
   // ─── Teams Management ──────────────────────────────────────────────────────
 
   async getTeams(workspaceId: string, userId: string): Promise<Team[]> {
@@ -777,7 +1024,19 @@ export class WorkspacesService implements OnModuleInit {
       secondaryColor: dto.secondaryColor ?? null,
       workspaceId,
     });
-    return this.teamRepo.save(team);
+    const saved = await this.teamRepo.save(team);
+
+    // 3.4 — Notify workspace members
+    const memberIds = await this.getWorkspaceMemberUserIds(workspaceId, userId);
+    await this.sendNotificationToMany(
+      memberIds,
+      NotificationType.TEAM_CREATED,
+      `New team ${saved.name} has been created.`,
+      workspaceId,
+      { teamName: saved.name, teamId: saved.id },
+    );
+
+    return saved;
   }
 
   async updateTeam(
@@ -818,7 +1077,640 @@ export class WorkspacesService implements OnModuleInit {
     if (!team) {
       throw new NotFoundException('Team not found in this workspace');
     }
+    // 3.5 — Notify team players before deleting
+    const playerUserIds = await this.getTeamPlayerUserIds(teamId);
+    await this.sendNotificationToMany(
+      playerUserIds,
+      NotificationType.TEAM_DELETED,
+      `Team ${team.name} has been deleted.`,
+      workspaceId,
+      { teamName: team.name },
+    );
+
     await this.teamRepo.remove(team);
+  }
+
+  async getTeamStats(workspaceId: string, teamId: string, userId: string) {
+    await this.ensureMember(workspaceId, userId);
+    
+    const team = await this.teamRepo.findOne({ where: { id: teamId, workspaceId } });
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+
+    // 1. Find all competitions this team is registered in
+    const compTeams = await this.memberRepo.manager.find(CompetitionTeam, {
+      where: { teamId },
+      relations: {
+        competition: {
+          sport: true
+        }
+      }
+    });
+
+    const competitionIds = compTeams.map(ct => ct.competitionId);
+
+    // 2. Fetch squad/players of this team
+    const squad = await this.playerRepo.find({
+      where: { teamId },
+      relations: { user: true }
+    });
+    const squadPlayerIds = squad.map(p => p.id);
+    const squadUserIds = squad.map(p => p.userId);
+    const squadUsernames = squad.map(p => p.user?.username).filter(Boolean) as string[];
+
+    // 3. Fetch completed matches involving this team
+    const matches = await this.matchRepo.find({
+      where: [
+        { homeTeamId: teamId, status: 'completed' },
+        { awayTeamId: teamId, status: 'completed' }
+      ],
+      relations: {
+        stage: {
+          competition: {
+            sport: true
+          }
+        },
+        homeTeam: true,
+        awayTeam: true
+      }
+    });
+
+    const matchIds = matches.map(m => m.id);
+
+    // 4. Fetch all rated match players from our team in these matches
+    let squadMatchPlayers: MatchPlayer[] = [];
+    if (matchIds.length > 0 && squadPlayerIds.length > 0) {
+      squadMatchPlayers = await this.matchPlayerRepo.find({
+        where: { matchId: In(matchIds), playerId: In(squadPlayerIds), isPlaying: true },
+        relations: { player: { user: true } }
+      });
+    }
+
+    // Calculate maximum rating for each match in the completed matches to find MVPs
+    const maxRatings = new Map<string, number>();
+    if (matchIds.length > 0) {
+      const allMatchPlayersInMatches = await this.matchPlayerRepo.find({
+        where: { matchId: In(matchIds), isPlaying: true }
+      });
+      for (const amp of allMatchPlayersInMatches) {
+        if (amp.rating !== null) {
+          const rVal = Number(amp.rating);
+          const currentMax = maxRatings.get(amp.matchId) ?? -1;
+          if (rVal > currentMax) {
+            maxRatings.set(amp.matchId, rVal);
+          }
+        }
+      }
+    }
+
+    // Career totals
+    let allTimeGoals = 0;
+    let allTimeAssists = 0;
+    let allTimeRuns = 0;
+    let allTimeWickets = 0;
+    let allTimeRalliesWon = 0;
+    let allTimeRalliesLost = 0;
+    let allTimeMvps = 0;
+
+    // Process goals & other stats from matches
+    for (const m of matches) {
+      const sport = m.stage?.competition?.sport?.code ?? 'football';
+      const liveData = m.liveData || {};
+
+      if (sport === 'football') {
+        const isHome = m.homeTeamId === teamId;
+        allTimeGoals += isHome ? m.homeScore : m.awayScore;
+
+        const events = liveData.events || [];
+        for (const ev of events) {
+          const isSelfAssist = (ev.assistPlayerUserId && squadUserIds.includes(ev.assistPlayerUserId)) ||
+                              (ev.assistPlayerId && squadPlayerIds.includes(ev.assistPlayerId));
+          if (ev.type === 'goal' && ev.goalType !== 'own_goal' && isSelfAssist) {
+            allTimeAssists++;
+          } else if (ev.type === 'assist' && isSelfAssist) {
+            allTimeAssists++;
+          }
+        }
+      } else if (sport === 'cricket') {
+        const inningsList = liveData.inningsData || [];
+        for (const inn of inningsList) {
+          const batStats = inn.batsmanStats || {};
+          for (const username of Object.keys(batStats)) {
+            if (squadUsernames.includes(username)) {
+              allTimeRuns += batStats[username]?.runs ?? 0;
+            }
+          }
+          const bowlStats = inn.bowlerStats || {};
+          for (const username of Object.keys(bowlStats)) {
+            if (squadUsernames.includes(username)) {
+              allTimeWickets += bowlStats[username]?.wickets ?? 0;
+            }
+          }
+        }
+      } else if (sport === 'badminton') {
+        const rallies = liveData.rallies || [];
+        const isHome = m.homeTeamId === teamId;
+        for (const r of rallies) {
+          if (r.winnerSide === 'none') continue;
+          if (isHome) {
+            if (r.winnerSide === 'home') allTimeRalliesWon++;
+            else allTimeRalliesLost++;
+          } else {
+            if (r.winnerSide === 'away') allTimeRalliesWon++;
+            else allTimeRalliesLost++;
+          }
+        }
+      }
+    }
+
+    // Tally squad MVPs count
+    for (const smp of squadMatchPlayers) {
+      if (smp.rating !== null) {
+        const rVal = Number(smp.rating);
+        const maxR = maxRatings.get(smp.matchId);
+        if (maxR !== undefined && rVal === maxR) {
+          allTimeMvps++;
+        }
+      }
+    }
+
+    // Best player of this club in each sport
+    // Group squadMatchPlayers by sport
+    const sportRatings = new Map<string, Map<string, { ratings: number[]; player: Player }>>();
+    for (const smp of squadMatchPlayers) {
+      const matchObj = matches.find(m => m.id === smp.matchId);
+      const sport = matchObj?.stage?.competition?.sport?.code ?? 'football';
+      if (smp.rating === null) continue;
+
+      if (!sportRatings.has(sport)) {
+        sportRatings.set(sport, new Map());
+      }
+      const playersInSport = sportRatings.get(sport)!;
+      if (!playersInSport.has(smp.playerId)) {
+        playersInSport.set(smp.playerId, { ratings: [], player: smp.player! });
+      }
+      playersInSport.get(smp.playerId)!.ratings.push(Number(smp.rating));
+    }
+
+    const bestPlayers: Record<string, { playerId: string; playerName: string; avatarUrl?: string | null; avgRating: number; appearances: number } | null> = {
+      football: null,
+      cricket: null,
+      badminton: null
+    };
+
+    for (const [sport, playersMap] of sportRatings.entries()) {
+      let topAvgRating = -1;
+      let topPlayerInfo: any = null;
+
+      for (const [playerId, data] of playersMap.entries()) {
+        const avg = data.ratings.reduce((a, b) => a + b, 0) / data.ratings.length;
+        if (avg > topAvgRating) {
+          topAvgRating = avg;
+          topPlayerInfo = {
+            playerId,
+            playerName: data.player.user?.username ?? data.player.jerseyNumber?.toString() ?? 'Player',
+            avatarUrl: data.player.user?.avatarUrl,
+            avgRating: Math.round(avg * 100) / 100,
+            appearances: data.ratings.length
+          };
+        }
+      }
+      bestPlayers[sport] = topPlayerInfo;
+    }
+
+    // Statistics by Competition
+    const competitionsStatsList: any[] = [];
+    for (const ct of compTeams) {
+      const comp = ct.competition;
+      const compMatches = matches.filter(m => m.stage?.competitionId === comp.id);
+      
+      let compGoals = 0;
+      let compAssists = 0;
+      let compRuns = 0;
+      let compWickets = 0;
+      let compRalliesWon = 0;
+      let compRalliesLost = 0;
+      let compMvps = 0;
+
+      for (const m of compMatches) {
+        const liveData = m.liveData || {};
+        if (comp.sport?.code === 'football') {
+          const isHome = m.homeTeamId === teamId;
+          compGoals += isHome ? m.homeScore : m.awayScore;
+
+          const events = liveData.events || [];
+          for (const ev of events) {
+            const isSelfAssist = (ev.assistPlayerUserId && squadUserIds.includes(ev.assistPlayerUserId)) ||
+                                (ev.assistPlayerId && squadPlayerIds.includes(ev.assistPlayerId));
+            if (ev.type === 'goal' && ev.goalType !== 'own_goal' && isSelfAssist) {
+              compAssists++;
+            } else if (ev.type === 'assist' && isSelfAssist) {
+              compAssists++;
+            }
+          }
+        } else if (comp.sport?.code === 'cricket') {
+          const inningsList = liveData.inningsData || [];
+          for (const inn of inningsList) {
+            const batStats = inn.batsmanStats || {};
+            for (const username of Object.keys(batStats)) {
+              if (squadUsernames.includes(username)) {
+                compRuns += batStats[username]?.runs ?? 0;
+              }
+            }
+            const bowlStats = inn.bowlerStats || {};
+            for (const username of Object.keys(bowlStats)) {
+              if (squadUsernames.includes(username)) {
+                compWickets += bowlStats[username]?.wickets ?? 0;
+              }
+            }
+          }
+        } else if (comp.sport?.code === 'badminton') {
+          const rallies = liveData.rallies || [];
+          const isHome = m.homeTeamId === teamId;
+          for (const r of rallies) {
+            if (r.winnerSide === 'none') continue;
+            if (isHome) {
+              if (r.winnerSide === 'home') compRalliesWon++;
+              else compRalliesLost++;
+            } else {
+              if (r.winnerSide === 'away') compRalliesWon++;
+              else compRalliesLost++;
+            }
+          }
+        }
+      }
+
+      // Tally MVPs for this competition
+      const compMatchIds = compMatches.map(m => m.id);
+      const compSquadMatchPlayers = squadMatchPlayers.filter(smp => compMatchIds.includes(smp.matchId));
+      for (const smp of compSquadMatchPlayers) {
+        if (smp.rating !== null) {
+          const rVal = Number(smp.rating);
+          const maxR = maxRatings.get(smp.matchId);
+          if (maxR !== undefined && rVal === maxR) {
+            compMvps++;
+          }
+        }
+      }
+
+      // Best player for this team in this competition
+      const compPlayerRatings = new Map<string, { ratings: number[]; player: Player }>();
+      for (const smp of compSquadMatchPlayers) {
+        if (smp.rating === null) continue;
+        if (!compPlayerRatings.has(smp.playerId)) {
+          compPlayerRatings.set(smp.playerId, { ratings: [], player: smp.player! });
+        }
+        compPlayerRatings.get(smp.playerId)!.ratings.push(Number(smp.rating));
+      }
+
+      let compBestPlayer: any = null;
+      let compTopAvgRating = -1;
+      for (const [playerId, data] of compPlayerRatings.entries()) {
+        const avg = data.ratings.reduce((a, b) => a + b, 0) / data.ratings.length;
+        if (avg > compTopAvgRating) {
+          compTopAvgRating = avg;
+          compBestPlayer = {
+            playerId,
+            playerName: data.player.user?.username ?? data.player.jerseyNumber?.toString() ?? 'Player',
+            avatarUrl: data.player.user?.avatarUrl,
+            avgRating: Math.round(avg * 100) / 100,
+            appearances: data.ratings.length
+          };
+        }
+      }
+
+      competitionsStatsList.push({
+        competitionId: comp.id,
+        competitionName: comp.name,
+        sportCode: comp.sport?.code ?? 'football',
+        gamesPlayed: compMatches.length,
+        goals: compGoals,
+        assists: compAssists,
+        runs: compRuns,
+        wickets: compWickets,
+        ralliesWon: compRalliesWon,
+        ralliesLost: compRalliesLost,
+        mvps: compMvps,
+        bestPlayer: compBestPlayer
+      });
+    }
+
+    return {
+      team: {
+        id: team.id,
+        name: team.name,
+        code: team.code,
+        logoUrl: team.logoUrl,
+        primaryColor: team.primaryColor,
+        secondaryColor: team.secondaryColor,
+        createdAt: team.createdAt
+      },
+      allTime: {
+        participations: competitionIds.length,
+        totalGames: matches.length,
+        goals: allTimeGoals,
+        assists: allTimeAssists,
+        runs: allTimeRuns,
+        wickets: allTimeWickets,
+        ralliesWon: allTimeRalliesWon,
+        ralliesLost: allTimeRalliesLost,
+        mvps: allTimeMvps
+      },
+      bestPlayers,
+      competitions: competitionsStatsList,
+      squad: squad.map(p => ({
+        id: p.id,
+        jerseyNumber: p.jerseyNumber,
+        user: {
+          id: p.user?.id,
+          username: p.user?.username,
+          avatarUrl: p.user?.avatarUrl
+        }
+      }))
+    };
+  }
+
+  async getPlayerStats(workspaceId: string, playerId: string, userId: string) {
+    await this.ensureMember(workspaceId, userId);
+
+    const player = await this.playerRepo.findOne({
+      where: { id: playerId, workspaceId },
+      relations: { user: true, team: true }
+    });
+    if (!player) {
+      throw new NotFoundException('Player not found');
+    }
+
+    // 1. Find all competitions this team is registered in
+    const compTeams = await this.memberRepo.manager.find(CompetitionTeam, {
+      where: { teamId: player.teamId },
+      relations: {
+        competition: {
+          sport: true
+        }
+      }
+    });
+
+    const competitionIds = compTeams.map(ct => ct.competitionId);
+
+    // 2. Fetch all completed match-player entries for this player
+    const completedMatchPlayers = await this.matchPlayerRepo.find({
+      where: { playerId, isPlaying: true, match: { status: 'completed' } },
+      relations: {
+        match: {
+          stage: {
+            competition: {
+              sport: true
+            }
+          },
+          homeTeam: true,
+          awayTeam: true
+        }
+      }
+    });
+
+    const matchIds = completedMatchPlayers.map(mp => mp.matchId);
+
+    // 3. Fetch all ratings in these matches to calculate MVPs
+    const maxRatings = new Map<string, number>();
+    if (matchIds.length > 0) {
+      const allMatchPlayersInMatches = await this.matchPlayerRepo.find({
+        where: { matchId: In(matchIds), isPlaying: true }
+      });
+      for (const amp of allMatchPlayersInMatches) {
+        if (amp.rating !== null) {
+          const rVal = Number(amp.rating);
+          const currentMax = maxRatings.get(amp.matchId) ?? -1;
+          if (rVal > currentMax) {
+            maxRatings.set(amp.matchId, rVal);
+          }
+        }
+      }
+    }
+
+    // Career totals
+    let allTimeGames = completedMatchPlayers.length;
+    let allTimeGoals = 0;
+    let allTimeAssists = 0;
+    let allTimeYellowCards = 0;
+    let allTimeRedCards = 0;
+    let allTimeRuns = 0;
+    let allTimeWickets = 0;
+    let allTimeRalliesWon = 0;
+    let allTimeRalliesLost = 0;
+    let allTimeMvps = 0;
+    
+    // Ratings variables
+    let totalRatingPoints = 0;
+    let ratedMatchesCount = 0;
+
+    // Process all-time stats
+    for (const cmp of completedMatchPlayers) {
+      const m = cmp.match;
+      if (!m) continue;
+      const sport = m.stage?.competition?.sport?.code ?? 'football';
+      const liveData = m.liveData || {};
+
+      // MVP calculation
+      if (cmp.rating !== null) {
+        const rVal = Number(cmp.rating);
+        totalRatingPoints += rVal;
+        ratedMatchesCount++;
+        
+        const maxR = maxRatings.get(cmp.matchId);
+        if (maxR !== undefined && rVal === maxR) {
+          allTimeMvps++;
+        }
+      }
+
+      if (sport === 'football') {
+        const events = liveData.events || [];
+        for (const ev of events) {
+          const isSelfScorer = (ev.playerUserId === player.userId) || (ev.playerId === player.id);
+          const isSelfAssist = (ev.assistPlayerUserId === player.userId) || (ev.assistPlayerId === player.id);
+          
+          if (ev.type === 'goal' && ev.goalType !== 'own_goal' && isSelfScorer) {
+            allTimeGoals++;
+          }
+          if ((ev.type === 'goal' && ev.goalType !== 'own_goal' && isSelfAssist) || (ev.type === 'assist' && isSelfAssist)) {
+            allTimeAssists++;
+          }
+          if (ev.type === 'card' && isSelfScorer) {
+            if (ev.cardType === 'yellow') {
+              allTimeYellowCards++;
+            } else if (ev.cardType === 'red' || ev.cardType === 'second_yellow') {
+              allTimeRedCards++;
+            }
+          }
+        }
+      } else if (sport === 'cricket') {
+        const inningsList = liveData.inningsData || [];
+        for (const inn of inningsList) {
+          const batStats = inn.batsmanStats || {};
+          if (player.user?.username && batStats[player.user.username]) {
+            allTimeRuns += batStats[player.user.username]?.runs ?? 0;
+          }
+          const bowlStats = inn.bowlerStats || {};
+          if (player.user?.username && bowlStats[player.user.username]) {
+            allTimeWickets += bowlStats[player.user.username]?.wickets ?? 0;
+          }
+        }
+      } else if (sport === 'badminton') {
+        const rallies = liveData.rallies || [];
+        const isHome = m.homeTeamId === player.teamId;
+        for (const r of rallies) {
+          if (r.winnerSide === 'none') continue;
+          if (isHome) {
+            if (r.winnerSide === 'home') allTimeRalliesWon++;
+            else allTimeRalliesLost++;
+          } else {
+            if (r.winnerSide === 'away') allTimeRalliesWon++;
+            else allTimeRalliesLost++;
+          }
+        }
+      }
+    }
+
+    const allTimeAvgRating = ratedMatchesCount > 0 ? Math.round((totalRatingPoints / ratedMatchesCount) * 100) / 100 : null;
+
+    // Statistics by Competition
+    const competitionsStatsList: any[] = [];
+    for (const ct of compTeams) {
+      const comp = ct.competition;
+      const compMatchPlayers = completedMatchPlayers.filter(cmp => cmp.match?.stage?.competitionId === comp.id);
+      
+      let compGoals = 0;
+      let compAssists = 0;
+      let compYellowCards = 0;
+      let compRedCards = 0;
+      let compRuns = 0;
+      let compWickets = 0;
+      let compRalliesWon = 0;
+      let compRalliesLost = 0;
+      let compMvps = 0;
+      let compTotalRatingPoints = 0;
+      let compRatedMatchesCount = 0;
+
+      for (const cmp of compMatchPlayers) {
+        const m = cmp.match;
+        if (!m) continue;
+        const liveData = m.liveData || {};
+
+        if (cmp.rating !== null) {
+          const rVal = Number(cmp.rating);
+          compTotalRatingPoints += rVal;
+          compRatedMatchesCount++;
+
+          const maxR = maxRatings.get(cmp.matchId);
+          if (maxR !== undefined && rVal === maxR) {
+            compMvps++;
+          }
+        }
+
+        if (comp.sport?.code === 'football') {
+          const events = liveData.events || [];
+          for (const ev of events) {
+            const isSelfScorer = (ev.playerUserId === player.userId) || (ev.playerId === player.id);
+            const isSelfAssist = (ev.assistPlayerUserId === player.userId) || (ev.assistPlayerId === player.id);
+            
+            if (ev.type === 'goal' && ev.goalType !== 'own_goal' && isSelfScorer) {
+              compGoals++;
+            }
+            if ((ev.type === 'goal' && ev.goalType !== 'own_goal' && isSelfAssist) || (ev.type === 'assist' && isSelfAssist)) {
+              compAssists++;
+            }
+            if (ev.type === 'card' && isSelfScorer) {
+              if (ev.cardType === 'yellow') {
+                compYellowCards++;
+              } else if (ev.cardType === 'red' || ev.cardType === 'second_yellow') {
+                compRedCards++;
+              }
+            }
+          }
+        } else if (comp.sport?.code === 'cricket') {
+          const inningsList = liveData.inningsData || [];
+          for (const inn of inningsList) {
+            const batStats = inn.batsmanStats || {};
+            if (player.user?.username && batStats[player.user.username]) {
+              compRuns += batStats[player.user.username]?.runs ?? 0;
+            }
+            const bowlStats = inn.bowlerStats || {};
+            if (player.user?.username && bowlStats[player.user.username]) {
+              compWickets += bowlStats[player.user.username]?.wickets ?? 0;
+            }
+          }
+        } else if (comp.sport?.code === 'badminton') {
+          const rallies = liveData.rallies || [];
+          const isHome = m.homeTeamId === player.teamId;
+          for (const r of rallies) {
+            if (r.winnerSide === 'none') continue;
+            if (isHome) {
+              if (r.winnerSide === 'home') compRalliesWon++;
+              else compRalliesLost++;
+            } else {
+              if (r.winnerSide === 'away') compRalliesWon++;
+              else compRalliesLost++;
+            }
+          }
+        }
+      }
+
+      const compAvgRating = compRatedMatchesCount > 0 ? Math.round((compTotalRatingPoints / compRatedMatchesCount) * 100) / 100 : null;
+
+      competitionsStatsList.push({
+        competitionId: comp.id,
+        competitionName: comp.name,
+        sportCode: comp.sport?.code ?? 'football',
+        gamesPlayed: compMatchPlayers.length,
+        goals: compGoals,
+        assists: compAssists,
+        yellowCards: compYellowCards,
+        redCards: compRedCards,
+        runs: compRuns,
+        wickets: compWickets,
+        ralliesWon: compRalliesWon,
+        ralliesLost: compRalliesLost,
+        mvps: compMvps,
+        avgRating: compAvgRating
+      });
+    }
+
+    return {
+      player: {
+        id: player.id,
+        jerseyNumber: player.jerseyNumber,
+        createdAt: player.createdAt,
+        user: {
+          id: player.user?.id,
+          username: player.user?.username,
+          avatarUrl: player.user?.avatarUrl
+        },
+        team: {
+          id: player.team?.id,
+          name: player.team?.name,
+          code: player.team?.code,
+          logoUrl: player.team?.logoUrl,
+          primaryColor: player.team?.primaryColor,
+          secondaryColor: player.team?.secondaryColor
+        }
+      },
+      allTime: {
+        participations: competitionIds.length,
+        totalGames: allTimeGames,
+        goals: allTimeGoals,
+        assists: allTimeAssists,
+        yellowCards: allTimeYellowCards,
+        redCards: allTimeRedCards,
+        runs: allTimeRuns,
+        wickets: allTimeWickets,
+        ralliesWon: allTimeRalliesWon,
+        ralliesLost: allTimeRalliesLost,
+        mvps: allTimeMvps,
+        avgRating: allTimeAvgRating
+      },
+      competitions: competitionsStatsList
+    };
   }
 
   async getPlayers(workspaceId: string, userId: string): Promise<Player[]> {
@@ -856,6 +1748,17 @@ export class WorkspacesService implements OnModuleInit {
     const saved = await this.playerRepo.save(player);
     saved.team = team;
     saved.user = user;
+
+    // 3.1 — Notify the player
+    const jerseyText = dto.jerseyNumber ? ` with jersey #${dto.jerseyNumber}` : '';
+    await this.sendNotification(
+      dto.userId,
+      NotificationType.PLAYER_ADDED_TO_TEAM,
+      `You've been added to team ${team.name}${jerseyText}.`,
+      workspaceId,
+      { teamName: team.name, teamId: team.id, jerseyNumber: dto.jerseyNumber },
+    );
+
     return saved;
   }
 
@@ -870,6 +1773,10 @@ export class WorkspacesService implements OnModuleInit {
     if (!player) {
       throw new NotFoundException('Player not found in this workspace');
     }
+
+    // 3.3 — If team changed, notify player of transfer
+    const oldTeamName = player.team?.name;
+    const isTransfer = dto.teamId !== undefined && dto.teamId !== player.teamId;
 
     if (dto.teamId !== undefined) {
       const team = await this.teamRepo.findOne({ where: { id: dto.teamId, workspaceId } });
@@ -890,7 +1797,19 @@ export class WorkspacesService implements OnModuleInit {
       ...(dto.jerseyNumber !== undefined && { jerseyNumber: dto.jerseyNumber }),
     });
 
-    return this.playerRepo.save(player);
+    const saved = await this.playerRepo.save(player);
+
+    if (isTransfer) {
+      await this.sendNotification(
+        player.userId,
+        NotificationType.PLAYER_TRANSFERRED,
+        `You've been transferred from ${oldTeamName} to ${player.team.name}.`,
+        workspaceId,
+        { oldTeam: oldTeamName, newTeam: player.team.name },
+      );
+    }
+
+    return saved;
   }
 
   async removePlayer(workspaceId: string, playerId: string, userId: string): Promise<void> {
@@ -899,6 +1818,17 @@ export class WorkspacesService implements OnModuleInit {
     if (!player) {
       throw new NotFoundException('Player not found in this workspace');
     }
+
+    // 3.2 — Notify the player
+    const team = await this.teamRepo.findOne({ where: { id: player.teamId } });
+    await this.sendNotification(
+      player.userId,
+      NotificationType.PLAYER_REMOVED_FROM_TEAM,
+      `You've been removed from team ${team?.name ?? 'Unknown'}.`,
+      workspaceId,
+      { teamName: team?.name },
+    );
+
     await this.playerRepo.remove(player);
   }
 
@@ -917,7 +1847,10 @@ export class WorkspacesService implements OnModuleInit {
     await this.ensurePermission(workspaceId, userId, 'event.manage');
     let teams: Team[] = [];
     if (dto.teamIds && dto.teamIds.length > 0) {
-      teams = await this.teamRepo.findBy({ id: In(dto.teamIds) });
+      teams = await this.teamRepo.findBy({ id: In(dto.teamIds), workspaceId });
+      if (teams.length !== dto.teamIds.length) {
+        throw new BadRequestException('Some teams were not found or do not belong to this workspace');
+      }
     }
     const event = this.eventRepo.create({
       name: dto.name,
@@ -929,7 +1862,19 @@ export class WorkspacesService implements OnModuleInit {
       workspaceId,
       teams,
     });
-    return this.eventRepo.save(event);
+    const saved = await this.eventRepo.save(event);
+
+    // 4.1 — Notify workspace members of new event
+    const memberIds = await this.getWorkspaceMemberUserIds(workspaceId, userId);
+    await this.sendNotificationToMany(
+      memberIds,
+      NotificationType.EVENT_CREATED,
+      `New event "${saved.name}" has been created.`,
+      workspaceId,
+      { eventId: saved.id, eventName: saved.name },
+    );
+
+    return saved;
   }
 
   async updateEvent(
@@ -947,9 +1892,14 @@ export class WorkspacesService implements OnModuleInit {
       throw new NotFoundException('Event not found in this workspace');
     }
 
+    const oldStatus = event.status;
+
     if (dto.teamIds !== undefined) {
       if (dto.teamIds.length > 0) {
-        event.teams = await this.teamRepo.findBy({ id: In(dto.teamIds) });
+        event.teams = await this.teamRepo.findBy({ id: In(dto.teamIds), workspaceId });
+        if (event.teams.length !== dto.teamIds.length) {
+          throw new BadRequestException('Some teams were not found or do not belong to this workspace');
+        }
       } else {
         event.teams = [];
       }
@@ -964,7 +1914,66 @@ export class WorkspacesService implements OnModuleInit {
       ...(dto.logoUrl !== undefined && { logoUrl: dto.logoUrl }),
     });
 
-    return this.eventRepo.save(event);
+    const saved = await this.eventRepo.save(event);
+
+    // 4.2 / 4.3 / 4.4 / 4.5 / 4.6 — Notify about status changes
+    if (dto.status !== undefined && dto.status !== oldStatus) {
+      const memberIds = await this.getWorkspaceMemberUserIds(workspaceId, userId);
+      if (dto.status === 'ongoing') {
+        await this.sendNotificationToMany(
+          memberIds,
+          NotificationType.EVENT_STARTED,
+          `Event "${saved.name}" has started!`,
+          workspaceId,
+          { eventId: saved.id, eventName: saved.name },
+        );
+      } else if (dto.status === 'cancelled') {
+        await this.sendNotificationToMany(
+          memberIds,
+          NotificationType.EVENT_CANCELLED,
+          `Event "${saved.name}" has been cancelled.`,
+          workspaceId,
+          { eventId: saved.id, eventName: saved.name },
+        );
+      } else if (dto.status === 'completed') {
+        await this.sendNotificationToMany(
+          memberIds,
+          NotificationType.EVENT_COMPLETED,
+          `Event "${saved.name}" has been completed!`,
+          workspaceId,
+          { eventId: saved.id, eventName: saved.name },
+        );
+
+        // 4.5 & 4.6 — Determine Event Champions
+        try {
+          const standings = await this.getEventStandings(workspaceId, eventId, userId);
+          if (standings && standings.length > 0) {
+            const champion = standings[0];
+            // Announcement to all
+            await this.sendNotificationToMany(
+              memberIds,
+              NotificationType.EVENT_CHAMPION_ANNOUNCEMENT,
+              `🏆 ${champion.teamName} has won the ${saved.name} event with ${champion.points} points!`,
+              workspaceId,
+              { eventId: saved.id, eventName: saved.name, championTeamId: champion.teamId, championTeamName: champion.teamName, points: champion.points },
+            );
+            // Notify winning team players
+            const winningPlayers = await this.getTeamPlayerUserIds(champion.teamId);
+            await this.sendNotificationToMany(
+              winningPlayers,
+              NotificationType.EVENT_CHAMPION,
+              `🏆 Congratulations! Your team ${champion.teamName} is the overall champion of ${saved.name}!`,
+              workspaceId,
+              { eventId: saved.id, eventName: saved.name, points: champion.points },
+            );
+          }
+        } catch (e) {
+          // Ignore error silently to prevent blocking the event completion save
+        }
+      }
+    }
+
+    return saved;
   }
 
   async removeEvent(workspaceId: string, eventId: string, userId: string): Promise<void> {
@@ -1288,6 +2297,24 @@ export class WorkspacesService implements OnModuleInit {
           rankings.set(s.teamId, startPos + idx);
         });
       }
+
+      // Rank remaining teams who only played in previous stage (Stage 1)
+      if (lastStage.type === 'knockout') {
+        const prevStage = sortedStages[sortedStages.indexOf(lastStage) - 1];
+        if (prevStage && (prevStage.type === 'group' || prevStage.type === 'league')) {
+          const prevRankings = await this.getStageRankings(prevStage);
+          const groupOnlyTeams = prevRankings.filter(id => !allTeamIds.has(id));
+
+          let nextRank = 5;
+          for (const r of rankings.values()) {
+            if (r >= nextRank) nextRank = r + 1;
+          }
+
+          groupOnlyTeams.forEach(id => {
+            rankings.set(id, nextRank++);
+          });
+        }
+      }
     }
 
     return rankings;
@@ -1296,7 +2323,7 @@ export class WorkspacesService implements OnModuleInit {
   private async checkAndAutoCompleteCompetition(competitionId: string): Promise<void> {
     const comp = await this.competitionRepo.findOne({
       where: { id: competitionId },
-      relations: { stages: true }
+      relations: { stages: true, event: true }
     });
     if (!comp || comp.stages.length === 0) return;
 
@@ -1306,9 +2333,109 @@ export class WorkspacesService implements OnModuleInit {
     const matches = await this.matchRepo.find({ where: { stageId: lastStage.id } });
     if (matches && matches.length > 0) {
       const allCompleted = matches.every((m: any) => m.status === 'completed');
-      if (allCompleted) {
+      if (allCompleted && comp.status !== 'completed') {
         comp.status = 'completed';
-        await this.competitionRepo.save(comp);
+        const savedComp = await this.competitionRepo.save(comp);
+        const workspaceId = comp.event.workspaceId;
+
+        // 5.6 — Notify competing players of completion
+        const compTeams = await this.competitionTeamRepo.find({ where: { competitionId } });
+        const teamIds = compTeams.map(ct => ct.teamId);
+        const allCompetingPlayers = await this.getTeamsPlayerUserIds(teamIds);
+        await this.sendNotificationToMany(
+          allCompetingPlayers,
+          NotificationType.COMPETITION_COMPLETED,
+          `Competition "${savedComp.name}" has been completed!`,
+          workspaceId,
+          { competitionId, competitionName: savedComp.name }
+        );
+
+        // 5.7 / 5.8 / 5.9 — Champions & Runner-Up
+        try {
+          const rankings = await this.getCompetitionRankings(competitionId);
+          let championTeamId: string | null = null;
+          let runnerUpTeamId: string | null = null;
+          for (const [tId, pos] of rankings.entries()) {
+            if (pos === 1) championTeamId = tId;
+            if (pos === 2) runnerUpTeamId = tId;
+          }
+
+          if (championTeamId) {
+            const championTeam = await this.teamRepo.findOne({ where: { id: championTeamId } });
+            if (championTeam) {
+              // 5.8 - Announcement to all workspace members
+              const memberIds = await this.getWorkspaceMemberUserIds(workspaceId);
+              await this.sendNotificationToMany(
+                memberIds,
+                NotificationType.COMPETITION_CHAMPION_ANNOUNCEMENT,
+                `🥇 ${championTeam.name} has won the ${savedComp.name} competition!`,
+                workspaceId,
+                { competitionId, competitionName: savedComp.name, championTeamId, championTeamName: championTeam.name }
+              );
+
+              // 5.7 - Notify players of winning team
+              const winningPlayers = await this.getTeamPlayerUserIds(championTeamId);
+              await this.sendNotificationToMany(
+                winningPlayers,
+                NotificationType.COMPETITION_CHAMPION,
+                `🥇 Congratulations! Your team ${championTeam.name} won ${savedComp.name}!`,
+                workspaceId,
+                { competitionId, competitionName: savedComp.name }
+              );
+            }
+          }
+
+          if (runnerUpTeamId) {
+            const runnerUpTeam = await this.teamRepo.findOne({ where: { id: runnerUpTeamId } });
+            if (runnerUpTeam) {
+              // 5.9 - Notify players of 2nd place team
+              const runnerUpPlayers = await this.getTeamPlayerUserIds(runnerUpTeamId);
+              await this.sendNotificationToMany(
+                runnerUpPlayers,
+                NotificationType.COMPETITION_RUNNER_UP,
+                `🥈 Great performance! Your team ${runnerUpTeam.name} finished as runner-up in ${savedComp.name}.`,
+                workspaceId,
+                { competitionId, competitionName: savedComp.name }
+              );
+            }
+          }
+        } catch (e) {
+          // ignore rankings error
+        }
+
+        // 5.10 / 5.11 — Best Player of Tournament
+        try {
+          const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+          const ownerId = workspace?.ownerId ?? '';
+          const bestPlayerData = await this.getCompetitionBestPlayer(workspaceId, comp.eventId, competitionId, ownerId);
+          if (bestPlayerData && bestPlayerData.bestPlayer) {
+            const bestPlayer = bestPlayerData.bestPlayer;
+            const playerName = bestPlayer.player?.user?.username ?? 'a player';
+            const teamName = bestPlayer.team?.name ?? 'their team';
+            const rating = bestPlayer.rating;
+
+            // 5.10 - Notify the best player
+            await this.sendNotification(
+              bestPlayer.player.userId,
+              NotificationType.BEST_PLAYER_OF_TOURNAMENT,
+              `⭐ You've been named the Best Player of ${savedComp.name} with a rating of ${rating}!`,
+              workspaceId,
+              { competitionId, competitionName: savedComp.name, rating }
+            );
+
+            // 5.11 - Announcement to all
+            const memberIds = await this.getWorkspaceMemberUserIds(workspaceId);
+            await this.sendNotificationToMany(
+              memberIds,
+              NotificationType.BEST_PLAYER_ANNOUNCEMENT,
+              `⭐ ${playerName} (${teamName}) is the Best Player of ${savedComp.name}!`,
+              workspaceId,
+              { competitionId, competitionName: savedComp.name, playerId: bestPlayer.playerId, playerName, teamName, rating }
+            );
+          }
+        } catch (e) {
+          // ignore best player error
+        }
       }
     }
   }
@@ -1384,6 +2511,17 @@ export class WorkspacesService implements OnModuleInit {
     if (!found) {
       throw new NotFoundException(`Competition "${saved.id}" not found`);
     }
+
+    // 5.1 — Notify workspace members of new competition
+    const memberIds = await this.getWorkspaceMemberUserIds(workspaceId, userId);
+    await this.sendNotificationToMany(
+      memberIds,
+      NotificationType.COMPETITION_CREATED,
+      `New competition "${found.name}" added to ${event.name}.`,
+      workspaceId,
+      { eventId, competitionId: found.id, competitionName: found.name, eventName: event.name },
+    );
+
     return found;
   }
 
@@ -1572,6 +2710,18 @@ export class WorkspacesService implements OnModuleInit {
     if (stages.length > 0) {
       await this.stageRepo.remove(stages);
     }
+
+    // 5.5 — Notify competing team players that fixtures for this competition have been reset
+    const compTeams = await this.competitionTeamRepo.find({ where: { competitionId } });
+    const teamIds = compTeams.map((ct) => ct.teamId);
+    const players = await this.getTeamsPlayerUserIds(teamIds);
+    await this.sendNotificationToMany(
+      players,
+      NotificationType.FIXTURES_RESET,
+      `Fixtures for competition "${competition.name}" have been reset.`,
+      workspaceId,
+      { competitionId, competitionName: competition.name },
+    );
   }
 
   // ─── Matches ──────────────────────────────────────────────────────────────
@@ -1584,15 +2734,88 @@ export class WorkspacesService implements OnModuleInit {
     userId: string,
   ): Promise<Match[]> {
     await this.ensureMember(workspaceId, userId);
-    const stage = await this.stageRepo.findOne({ where: { id: stageId, competitionId } });
-    if (!stage) {
-      throw new NotFoundException(`Stage "${stageId}" not found in competition`);
+    const stage = await this.validateStageContext(workspaceId, eventId, competitionId, stageId);
+
+    // Self-healing progression checks
+    try {
+      if (stage.type === 'knockout') {
+        const stages = await this.stageRepo.find({
+          where: { competitionId },
+          order: { sequence: 'ASC', createdAt: 'ASC' }
+        });
+        const idx = stages.findIndex(s => s.id === stageId);
+        if (idx > 0) {
+          const prevStage = stages[idx - 1];
+          await this.advanceTeamsBetweenStages(prevStage);
+        }
+      } else if (stage.type === 'group_knockout') {
+        await this.advanceGroupStageWinners(stage);
+      }
+    } catch (err) {
+      console.error('Self-healing stage advancement failed:', err);
     }
 
-    return this.matchRepo.find({
+    const matches = await this.matchRepo.find({
       where: { stageId },
       relations: { homeTeam: true, awayTeam: true, venue: true },
       order: { createdAt: 'ASC' },
+    });
+
+    const completedMatches = matches.filter(m => m.status === 'completed');
+    if (completedMatches.length > 0) {
+      const matchIds = completedMatches.map(m => m.id);
+      const matchPlayers = await this.matchPlayerRepo.find({
+        where: { matchId: In(matchIds), isPlaying: true },
+        relations: { player: { user: true }, team: true },
+      });
+
+      const playersByMatch = new Map<string, MatchPlayer[]>();
+      for (const mp of matchPlayers) {
+        if (!playersByMatch.has(mp.matchId)) {
+          playersByMatch.set(mp.matchId, []);
+        }
+        playersByMatch.get(mp.matchId)!.push(mp);
+      }
+
+      for (const m of matches) {
+        if (m.status !== 'completed') continue;
+        const players = playersByMatch.get(m.id) ?? [];
+        let maxRating = -1;
+        let mvpMp: MatchPlayer | null = null;
+        for (const mp of players) {
+          if (mp.rating !== null) {
+            const r = Number(mp.rating);
+            if (r > maxRating) {
+              maxRating = r;
+              mvpMp = mp;
+            }
+          }
+        }
+        if (mvpMp && maxRating >= 5.0) {
+          const playerName = mvpMp.player?.user?.username ?? mvpMp.player?.jerseyNumber?.toString() ?? 'Player';
+          (m as any).mvp = {
+            playerId: mvpMp.playerId,
+            playerName,
+            teamName: mvpMp.team?.name ?? 'Unknown',
+            rating: maxRating,
+          };
+        }
+      }
+    }
+
+    const statusWeight = {
+      'live': 1,
+      'scheduled': 2,
+      'completed': 3,
+    };
+
+    return matches.sort((a, b) => {
+      const wA = statusWeight[a.status] || 99;
+      const wB = statusWeight[b.status] || 99;
+      if (wA !== wB) return wA - wB;
+      const timeA = a.createdAt?.getTime() || 0;
+      const timeB = b.createdAt?.getTime() || 0;
+      return timeA - timeB;
     });
   }
 
@@ -1605,10 +2828,7 @@ export class WorkspacesService implements OnModuleInit {
     userId: string,
   ): Promise<Match> {
     await this.ensurePermission(workspaceId, userId, 'competition.manage');
-    const stage = await this.stageRepo.findOne({ where: { id: stageId, competitionId } });
-    if (!stage) {
-      throw new NotFoundException(`Stage "${stageId}" not found in competition`);
-    }
+    const stage = await this.validateStageContext(workspaceId, eventId, competitionId, stageId);
 
     const comp = await this.competitionRepo.findOne({
       where: { id: competitionId },
@@ -1678,10 +2898,26 @@ export class WorkspacesService implements OnModuleInit {
     });
 
     const saved = await this.matchRepo.save(match);
-    return (await this.matchRepo.findOne({
+    const populated = (await this.matchRepo.findOne({
       where: { id: saved.id },
       relations: { homeTeam: true, awayTeam: true, venue: true },
     }))!;
+
+    // 6.1 — Notify players of both teams that a match has been scheduled
+    if (populated.homeTeamId && populated.awayTeamId) {
+      const homePlayers = await this.getTeamPlayerUserIds(populated.homeTeamId);
+      const awayPlayers = await this.getTeamPlayerUserIds(populated.awayTeamId);
+      const allPlayers = [...homePlayers, ...awayPlayers];
+      await this.sendNotificationToMany(
+        allPlayers,
+        NotificationType.MATCH_SCHEDULED,
+        `New match scheduled: ${populated.homeTeam?.name ?? 'Home'} vs ${populated.awayTeam?.name ?? 'Away'} in ${comp.name}.`,
+        workspaceId,
+        { matchId: populated.id, competitionId, competitionName: comp.name, homeTeamName: populated.homeTeam?.name, awayTeamName: populated.awayTeam?.name },
+      );
+    }
+
+    return populated;
   }
 
   async updateMatch(
@@ -1694,6 +2930,7 @@ export class WorkspacesService implements OnModuleInit {
     userId: string,
   ): Promise<Match> {
     await this.ensurePermission(workspaceId, userId, 'match.score');
+    await this.validateStageContext(workspaceId, eventId, competitionId, stageId);
     const match = await this.matchRepo.findOne({ where: { id: matchId, stageId } });
     if (!match) {
       throw new NotFoundException(`Match "${matchId}" not found in stage`);
@@ -1704,7 +2941,26 @@ export class WorkspacesService implements OnModuleInit {
     if (dto.venueId !== undefined) match.venueId = dto.venueId ?? null;
     if (dto.homeScore !== undefined) match.homeScore = dto.homeScore;
     if (dto.awayScore !== undefined) match.awayScore = dto.awayScore;
-    if (dto.status !== undefined) match.status = dto.status;
+    if (dto.status !== undefined) {
+      if (dto.status === 'live' && match.status !== 'live') {
+        const players = await this.matchPlayerRepo.find({
+          where: { matchId: match.id, isPlaying: true },
+        });
+
+        const homeTeamPlayers = players.filter((p) => p.teamId === match.homeTeamId);
+        const awayTeamPlayers = players.filter((p) => p.teamId === match.awayTeamId);
+
+        if (match.homeTeamId && homeTeamPlayers.length === 0) {
+          throw new BadRequestException('Cannot start the match: home team lineup has not been set.');
+        }
+        if (match.awayTeamId && awayTeamPlayers.length === 0) {
+          throw new BadRequestException('Cannot start the match: away team lineup has not been set.');
+        }
+      }
+      match.status = dto.status;
+    }
+    const oldStatus = match.status;
+
     if (dto.config !== undefined) {
       match.config = { ...match.config, ...dto.config };
     }
@@ -1713,6 +2969,10 @@ export class WorkspacesService implements OnModuleInit {
     }
 
     const saved = await this.matchRepo.save(match);
+    const populated = (await this.matchRepo.findOne({
+      where: { id: saved.id },
+      relations: { homeTeam: true, awayTeam: true, venue: true },
+    }))!;
 
     // If match was completed, run knockout advancement and auto-rate players
     if (saved.status === 'completed') {
@@ -1724,16 +2984,89 @@ export class WorkspacesService implements OnModuleInit {
         if (stage.type === 'group_knockout') {
           await this.advanceGroupStageWinners(stage);
         }
+        await this.advanceTeamsBetweenStages(stage);
         await this.checkAndAutoCompleteCompetition(stage.competitionId);
       }
       // Auto-calculate player ratings based on match events
       await this.autoRateMatchPlayers(saved);
     }
 
-    return (await this.matchRepo.findOne({
-      where: { id: saved.id },
-      relations: { homeTeam: true, awayTeam: true, venue: true },
-    }))!;
+    // 6.3 / 6.4 / 6.5 / 6.6 / 6.7 — Notify status changes
+    if (dto.status !== undefined && dto.status !== oldStatus) {
+      if (populated.homeTeamId && populated.awayTeamId) {
+        const homePlayers = await this.getTeamPlayerUserIds(populated.homeTeamId);
+        const awayPlayers = await this.getTeamPlayerUserIds(populated.awayTeamId);
+        const allPlayers = [...homePlayers, ...awayPlayers];
+
+        if (dto.status === 'live') {
+          await this.sendNotificationToMany(
+            allPlayers,
+            NotificationType.MATCH_STARTED,
+            `🔴 LIVE: ${populated.homeTeam?.name} vs ${populated.awayTeam?.name} has started!`,
+            workspaceId,
+            { matchId: populated.id, homeTeamName: populated.homeTeam?.name, awayTeamName: populated.awayTeam?.name },
+          );
+        } else if (dto.status === 'completed') {
+          const live = populated.liveData || {};
+          const isWalkover = live.matchStatus === 'Walkover' || live.matchStatus === 'Retired' || String(live.result || '').toLowerCase().includes('walkover');
+          const isAbandoned = live.matchStatus === 'Abandoned';
+
+          if (isWalkover || isAbandoned) {
+            const displayStatus = isWalkover ? 'Walkover' : 'Abandoned';
+            await this.sendNotificationToMany(
+              allPlayers,
+              NotificationType.MATCH_WALKOVER,
+              `Match ${populated.homeTeam?.name} vs ${populated.awayTeam?.name} has been marked as ${displayStatus}.`,
+              workspaceId,
+              { matchId: populated.id, status: displayStatus },
+            );
+          } else {
+            await this.sendNotificationToMany(
+              allPlayers,
+              NotificationType.MATCH_COMPLETED,
+              `Match completed: ${populated.homeTeam?.name} ${populated.homeScore} - ${populated.awayScore} ${populated.awayTeam?.name}.`,
+              workspaceId,
+              { matchId: populated.id, homeScore: populated.homeScore, awayScore: populated.awayScore },
+            );
+
+            const scoreText = `${populated.homeScore} - ${populated.awayScore}`;
+            if (populated.homeScore > populated.awayScore) {
+              await this.sendNotificationToMany(
+                homePlayers,
+                NotificationType.MATCH_WON,
+                `🎉 Victory! ${populated.homeTeam?.name} won against ${populated.awayTeam?.name} (${scoreText}).`,
+                workspaceId,
+                { matchId: populated.id, opponent: populated.awayTeam?.name, score: scoreText },
+              );
+              await this.sendNotificationToMany(
+                awayPlayers,
+                NotificationType.MATCH_LOST,
+                `Match lost: ${populated.awayTeam?.name} lost to ${populated.homeTeam?.name} (${scoreText}).`,
+                workspaceId,
+                { matchId: populated.id, opponent: populated.homeTeam?.name, score: scoreText },
+              );
+            } else if (populated.awayScore > populated.homeScore) {
+              await this.sendNotificationToMany(
+                awayPlayers,
+                NotificationType.MATCH_WON,
+                `🎉 Victory! ${populated.awayTeam?.name} won against ${populated.homeTeam?.name} (${scoreText}).`,
+                workspaceId,
+                { matchId: populated.id, opponent: populated.homeTeam?.name, score: scoreText },
+              );
+              await this.sendNotificationToMany(
+                homePlayers,
+                NotificationType.MATCH_LOST,
+                `Match lost: ${populated.homeTeam?.name} lost to ${populated.awayTeam?.name} (${scoreText}).`,
+                workspaceId,
+                { matchId: populated.id, opponent: populated.awayTeam?.name, score: scoreText },
+              );
+            }
+          }
+        }
+      }
+    }
+
+    return populated;
   }
 
   private async advanceKnockoutWinner(completedMatch: Match, stage: CompetitionStage): Promise<void> {
@@ -1931,6 +3264,41 @@ export class WorkspacesService implements OnModuleInit {
           }
         }
       }
+    }
+
+    // 9.1 & 9.2 — Team advanced & eliminated notifications
+    try {
+      const comp = await this.competitionRepo.findOne({
+        where: { id: stage.competitionId },
+        relations: { event: true }
+      });
+      if (comp) {
+        const workspaceId = comp.event?.workspaceId || null;
+        if (winnerId) {
+          const winnerTeam = await this.teamRepo.findOne({ where: { id: winnerId } });
+          const winningPlayers = await this.getTeamPlayerUserIds(winnerId);
+          await this.sendNotificationToMany(
+            winningPlayers,
+            NotificationType.TEAM_ADVANCED,
+            `🎯 ${winnerTeam?.name ?? 'Your team'} has advanced to the ${nextRoundName} in ${comp.name}!`,
+            workspaceId,
+            { competitionId: comp.id, competitionName: comp.name, nextRound: nextRoundName },
+          );
+        }
+        if (loserId) {
+          const loserTeam = await this.teamRepo.findOne({ where: { id: loserId } });
+          const losingPlayers = await this.getTeamPlayerUserIds(loserId);
+          await this.sendNotificationToMany(
+            losingPlayers,
+            NotificationType.TEAM_ELIMINATED,
+            `💔 ${loserTeam?.name ?? 'Your team'} has been eliminated from ${comp.name}.`,
+            workspaceId,
+            { competitionId: comp.id, competitionName: comp.name },
+          );
+        }
+      }
+    } catch (e) {
+      // ignore silently to prevent blocking knockout advancement
     }
   }
 
@@ -2182,6 +3550,343 @@ export class WorkspacesService implements OnModuleInit {
         }
       }
     }
+
+    // 9.2 & 9.3 — Team qualified / eliminated notifications
+    try {
+      const comp = await this.competitionRepo.findOne({
+        where: { id: stage.competitionId },
+        relations: { event: true }
+      });
+      if (comp) {
+        const workspaceId = comp.event?.workspaceId || null;
+        const qualifiedTeamIds = [...new Set(promotedTeams.flatMap((p) => [p.home, p.away]))];
+        
+        for (const tId of qualifiedTeamIds) {
+          const team = await this.teamRepo.findOne({ where: { id: tId } });
+          if (team) {
+            const players = await this.getTeamPlayerUserIds(tId);
+            await this.sendNotificationToMany(
+              players,
+              NotificationType.TEAM_QUALIFIED_FROM_GROUP,
+              `🎯 ${team.name} has qualified from the group stage in ${comp.name}!`,
+              workspaceId,
+              { competitionId: comp.id, competitionName: comp.name },
+            );
+          }
+        }
+
+        const allCompTeams = await this.competitionTeamRepo.find({ where: { competitionId: stage.competitionId } });
+        const enrolledTeamIds = allCompTeams.map((ct) => ct.teamId);
+        const eliminatedTeamIds = enrolledTeamIds.filter((id) => !qualifiedTeamIds.includes(id));
+
+        for (const tId of eliminatedTeamIds) {
+          const team = await this.teamRepo.findOne({ where: { id: tId } });
+          if (team) {
+            const players = await this.getTeamPlayerUserIds(tId);
+            await this.sendNotificationToMany(
+              players,
+              NotificationType.TEAM_ELIMINATED,
+              `💔 ${team.name} has been eliminated from ${comp.name}.`,
+              workspaceId,
+              { competitionId: comp.id, competitionName: comp.name },
+            );
+          }
+        }
+      }
+    } catch (e) {
+      // ignore silently to prevent blocking group stage advancement
+    }
+  }
+
+  private async getStageRankings(stage: CompetitionStage): Promise<string[]> {
+    const matches = await this.matchRepo.find({
+      where: { stageId: stage.id },
+    });
+
+    const winPoint = stage.config?.winPoint ?? 3;
+    const drawPoint = stage.config?.drawPoint ?? 1;
+
+    // Gather all unique team IDs that participated in this stage
+    const teamIds = new Set<string>();
+    for (const m of matches) {
+      if (m.homeTeamId) teamIds.add(m.homeTeamId);
+      if (m.awayTeamId) teamIds.add(m.awayTeamId);
+    }
+
+    const standings = new Map<string, { teamId: string; pts: number; gd: number; gf: number }>();
+    for (const teamId of teamIds) {
+      standings.set(teamId, { teamId, pts: 0, gd: 0, gf: 0 });
+    }
+
+    for (const m of matches) {
+      if (m.status !== 'completed' || !m.homeTeamId || !m.awayTeamId) continue;
+
+      const homeStats = standings.get(m.homeTeamId);
+      const awayStats = standings.get(m.awayTeamId);
+      if (!homeStats || !awayStats) continue;
+
+      const hScore = m.homeScore ?? 0;
+      const aScore = m.awayScore ?? 0;
+
+      homeStats.gf += hScore;
+      awayStats.gf += aScore;
+      homeStats.gd += (hScore - aScore);
+      awayStats.gd += (aScore - hScore);
+
+      if (hScore > aScore) {
+        homeStats.pts += winPoint;
+      } else if (aScore > hScore) {
+        awayStats.pts += winPoint;
+      } else {
+        homeStats.pts += drawPoint;
+        awayStats.pts += drawPoint;
+      }
+    }
+
+    return Array.from(teamIds).sort((a, b) => {
+      const statsA = standings.get(a)!;
+      const statsB = standings.get(b)!;
+      if (statsB.pts !== statsA.pts) return statsB.pts - statsA.pts;
+      if (statsB.gd !== statsA.gd) return statsB.gd - statsA.gd;
+      return statsB.gf - statsA.gf;
+    });
+  }
+
+  private async generateKnockoutStageMatches(stage: CompetitionStage, teamIds: string[]): Promise<void> {
+    const twoLegged = stage.config?.twoLegged || stage.config?.legs === 2;
+    // Determine number of teams to advance
+    const prevStages = await this.stageRepo.find({
+      where: { competitionId: stage.competitionId },
+      order: { sequence: 'ASC', createdAt: 'ASC' },
+    });
+    const prevStage = prevStages[prevStages.indexOf(stage) - 1];
+    
+    let koTeamsCount = teamIds.length;
+    if (prevStage) {
+      if (prevStage.type === 'group' || prevStage.type === 'league') {
+        koTeamsCount = prevStage.config?.advancingCount ?? (prevStage.config?.groupsCount ? prevStage.config.groupsCount * 2 : 4);
+      }
+    }
+
+    const bracketSize = Math.pow(2, Math.ceil(Math.log2(Math.max(koTeamsCount, 2))));
+    const advancingTeams = teamIds.slice(0, bracketSize);
+
+    const padded: (string | null)[] = [...advancingTeams, ...Array(bracketSize - advancingTeams.length).fill(null)];
+
+    const fixtures: Array<{ homeTeamId: string | null; awayTeamId: string | null; config: any }> = [];
+
+    const roundLabel = bracketSize === 2 ? 'Final' : bracketSize === 4 ? 'Semi-Final' : bracketSize === 8 ? 'Quarter-Final' : `Round of ${bracketSize}`;
+    
+    const firstRoundPairs: [string | null, string | null][] = [];
+    const half = bracketSize / 2;
+    for (let i = 0; i < half; i++) {
+      firstRoundPairs.push([padded[i], padded[bracketSize - 1 - i]]);
+    }
+
+    for (const pair of firstRoundPairs) {
+      const home = pair[0];
+      const away = pair[1];
+      if (home === null && away === null) continue;
+      fixtures.push({
+        homeTeamId: home,
+        awayTeamId: away,
+        config: twoLegged ? { round: roundLabel, leg: 1 } : { round: roundLabel },
+      });
+      if (twoLegged && home !== null && away !== null) {
+        fixtures.push({
+          homeTeamId: away,
+          awayTeamId: home,
+          config: { round: roundLabel, leg: 2 },
+        });
+      }
+    }
+
+    // Generate subsequent rounds as TBD skeletons
+    let remainingTeams = bracketSize / 2;
+    while (remainingTeams >= 2) {
+      const subRoundLabel = remainingTeams === 2 ? 'Final' : remainingTeams === 4 ? 'Semi-Final' : remainingTeams === 8 ? 'Quarter-Final' : `Round of ${remainingTeams * 2}`;
+      const matchesInRound = remainingTeams / 2;
+      for (let m = 0; m < matchesInRound; m++) {
+        fixtures.push({
+          homeTeamId: null,
+          awayTeamId: null,
+          config: twoLegged ? { round: subRoundLabel, leg: 1 } : { round: subRoundLabel },
+        });
+        if (twoLegged) {
+          fixtures.push({
+            homeTeamId: null,
+            awayTeamId: null,
+            config: { round: subRoundLabel, leg: 2 },
+          });
+        }
+      }
+      if (remainingTeams === 2) {
+        // Generate Third Place Match (losers final)
+        const home3rd = bracketSize === 2 && advancingTeams.length >= 4 ? advancingTeams[2] : null;
+        const away3rd = bracketSize === 2 && advancingTeams.length >= 4 ? advancingTeams[3] : null;
+        fixtures.push({
+          homeTeamId: home3rd,
+          awayTeamId: away3rd,
+          config: twoLegged ? { round: 'Third Place Match', leg: 1 } : { round: 'Third Place Match' },
+        });
+        if (twoLegged) {
+          fixtures.push({
+            homeTeamId: away3rd,
+            awayTeamId: home3rd,
+            config: { round: 'Third Place Match', leg: 2 },
+          });
+        }
+      }
+      remainingTeams = remainingTeams / 2;
+    }
+
+    // Save matches
+    for (const f of fixtures) {
+      const m = this.matchRepo.create({
+        stageId: stage.id,
+        homeTeamId: f.homeTeamId,
+        awayTeamId: f.awayTeamId,
+        status: 'scheduled',
+        config: f.config,
+        liveData: {},
+      });
+      await this.matchRepo.save(m);
+    }
+  }
+
+  private async advanceTeamsBetweenStages(currentStage: CompetitionStage): Promise<void> {
+    // 1. Fetch all stages in the competition
+    const stages = await this.stageRepo.find({
+      where: { competitionId: currentStage.competitionId },
+      order: { sequence: 'ASC', createdAt: 'ASC' },
+    });
+
+    const currIdx = stages.findIndex((s) => s.id === currentStage.id);
+    if (currIdx === -1 || currIdx === stages.length - 1) return;
+
+    const nextStage = stages[currIdx + 1];
+    if (nextStage.type !== 'knockout') return; // only support progression to knockout stage
+
+    // 2. Check if all matches in current stage are completed
+    const currentMatches = await this.matchRepo.find({
+      where: { stageId: currentStage.id },
+    });
+    if (currentMatches.length === 0) return;
+
+    const allCompleted = currentMatches.every((m) => m.status === 'completed');
+    if (!allCompleted) return;
+
+    // 3. Get rankings/standings from the current stage
+    const sortedTeams = await this.getStageRankings(currentStage);
+    if (sortedTeams.length === 0) return;
+
+    // 4. Fetch all matches of the next stage
+    let nextMatches = await this.matchRepo.find({
+      where: { stageId: nextStage.id },
+      order: { id: 'ASC', createdAt: 'ASC' },
+    });
+
+    if (nextMatches.length === 0) {
+      await this.generateKnockoutStageMatches(nextStage, sortedTeams);
+      nextMatches = await this.matchRepo.find({
+        where: { stageId: nextStage.id },
+        order: { id: 'ASC', createdAt: 'ASC' },
+      });
+    }
+
+    if (nextMatches.length === 0) return;
+
+    // 5. Find the first round matches of the next stage (round with the highest matches count)
+    const roundCounts: { [round: string]: number } = {};
+    for (const m of nextMatches) {
+      const rName = (m.config as any)?.round;
+      if (!rName) continue;
+      if (rName.toLowerCase().includes('third') || rName.toLowerCase().includes('3rd')) continue;
+      const isLeg1OrNone = (m.config as any)?.leg === undefined || (m.config as any)?.leg === 1;
+      if (isLeg1OrNone) {
+        roundCounts[rName] = (roundCounts[rName] || 0) + 1;
+      }
+    }
+
+    const sortedRounds = Object.keys(roundCounts).sort((a, b) => roundCounts[b] - roundCounts[a]);
+    if (sortedRounds.length === 0) return;
+
+    const firstKoRoundName = sortedRounds[0];
+    const firstKoRoundMatches = nextMatches.filter(m => 
+      (m.config as any)?.round === firstKoRoundName && 
+      ((m.config as any)?.leg === undefined || (m.config as any)?.leg === 1)
+    );
+
+    const matchesCount = firstKoRoundMatches.length;
+    const teamsCountNeeded = matchesCount * 2;
+
+    // Get the top teams needed
+    const advancingTeams = sortedTeams.slice(0, teamsCountNeeded);
+
+    const twoLegged = (nextStage.config as any)?.twoLegged || (nextStage.config as any)?.legs === 2;
+
+    // Map: High seed vs Low seed (standard bracket seeding)
+    for (let i = 0; i < matchesCount; i++) {
+      const targetMatch = firstKoRoundMatches[i];
+      if (!targetMatch) continue;
+
+      const homeTeam = advancingTeams[i] || null;
+      const awayTeam = advancingTeams[teamsCountNeeded - 1 - i] || null;
+
+      targetMatch.homeTeamId = homeTeam;
+      targetMatch.awayTeamId = awayTeam;
+      await this.matchRepo.save(targetMatch);
+
+      if (twoLegged) {
+        const nextRoundLeg2Matches = nextMatches.filter(m => 
+          (m.config as any)?.round === firstKoRoundName && 
+          (m.config as any)?.leg === 2
+        );
+        const targetLeg2Match = nextRoundLeg2Matches[i];
+        if (targetLeg2Match) {
+          targetLeg2Match.homeTeamId = awayTeam;
+          targetLeg2Match.awayTeamId = homeTeam;
+          await this.matchRepo.save(targetLeg2Match);
+        }
+      }
+    }
+
+    // Populate Third Place Match / Losers Final with 3rd and 4th place teams if first KO round is the Final (matchesCount === 1)
+    if (matchesCount === 1 && sortedTeams.length >= 4) {
+      const thirdPlaceMatches = nextMatches.filter(m => {
+        const r = (m.config as any)?.round || '';
+        const rLower = r.toLowerCase();
+        return rLower.includes('third') || rLower.includes('3rd') || rLower.includes('loser');
+      });
+
+      const thirdPlaceLeg1Matches = thirdPlaceMatches.filter(m => 
+        (m.config as any)?.leg === undefined || (m.config as any)?.leg === 1
+      );
+
+      for (let i = 0; i < thirdPlaceLeg1Matches.length; i++) {
+        const targetMatch = thirdPlaceLeg1Matches[i];
+        if (!targetMatch) continue;
+
+        const homeTeam = sortedTeams[2] || null;
+        const awayTeam = sortedTeams[3] || null;
+
+        targetMatch.homeTeamId = homeTeam;
+        targetMatch.awayTeamId = awayTeam;
+        await this.matchRepo.save(targetMatch);
+
+        if (twoLegged) {
+          const nextRoundLeg2Matches = thirdPlaceMatches.filter(m => 
+            (m.config as any)?.leg === 2
+          );
+          const targetLeg2Match = nextRoundLeg2Matches[i];
+          if (targetLeg2Match) {
+            targetLeg2Match.homeTeamId = awayTeam;
+            targetLeg2Match.awayTeamId = homeTeam;
+            await this.matchRepo.save(targetLeg2Match);
+          }
+        }
+      }
+    }
   }
 
   async removeMatch(
@@ -2193,6 +3898,7 @@ export class WorkspacesService implements OnModuleInit {
     userId: string,
   ): Promise<void> {
     await this.ensurePermission(workspaceId, userId, 'competition.manage');
+    await this.validateStageContext(workspaceId, eventId, competitionId, stageId);
     const match = await this.matchRepo.findOne({ where: { id: matchId, stageId } });
     if (!match) {
       throw new NotFoundException(`Match "${matchId}" not found in stage`);
@@ -2236,15 +3942,28 @@ export class WorkspacesService implements OnModuleInit {
     userId: string,
   ): Promise<CompetitionTeam> {
     await this.ensurePermission(workspaceId, userId, 'competition.manage');
-    const competition = await this.competitionRepo.findOne({ where: { id: competitionId, eventId } });
-    if (!competition) throw new NotFoundException(`Competition "${competitionId}" not found`);
+    await this.validateCompetitionContext(workspaceId, eventId, competitionId);
     const team = await this.teamRepo.findOne({ where: { id: teamId, workspaceId } });
     if (!team) throw new NotFoundException(`Team "${teamId}" not found in workspace`);
     const existing = await this.competitionTeamRepo.findOne({ where: { competitionId, teamId } });
     if (existing) throw new ConflictException(`Team is already enrolled in this competition`);
     const entry = this.competitionTeamRepo.create({ competitionId, teamId });
     const saved = await this.competitionTeamRepo.save(entry);
-    return this.competitionTeamRepo.findOne({ where: { id: saved.id }, relations: { team: true } }) as Promise<CompetitionTeam>;
+    const foundEntry = await this.competitionTeamRepo.findOne({ where: { id: saved.id }, relations: { team: true } });
+
+    if (foundEntry) {
+      const comp = await this.competitionRepo.findOne({ where: { id: competitionId } });
+      const players = await this.getTeamPlayerUserIds(teamId);
+      await this.sendNotificationToMany(
+        players,
+        NotificationType.TEAM_ADDED_TO_COMPETITION,
+        `Your team ${foundEntry.team.name} has been registered for ${comp?.name ?? 'a competition'}.`,
+        workspaceId,
+        { teamId, teamName: foundEntry.team.name, competitionId, competitionName: comp?.name },
+      );
+    }
+
+    return foundEntry as any;
   }
 
   async removeTeamFromCompetition(
@@ -2255,9 +3974,23 @@ export class WorkspacesService implements OnModuleInit {
     userId: string,
   ): Promise<void> {
     await this.ensurePermission(workspaceId, userId, 'competition.manage');
+    await this.validateCompetitionContext(workspaceId, eventId, competitionId);
     const entry = await this.competitionTeamRepo.findOne({ where: { competitionId, teamId } });
     if (!entry) throw new NotFoundException(`Team is not enrolled in this competition`);
+    
+    const team = await this.teamRepo.findOne({ where: { id: teamId } });
+    const comp = await this.competitionRepo.findOne({ where: { id: competitionId } });
+
     await this.competitionTeamRepo.remove(entry);
+
+    const players = await this.getTeamPlayerUserIds(teamId);
+    await this.sendNotificationToMany(
+      players,
+      NotificationType.TEAM_REMOVED_FROM_COMPETITION,
+      `Your team ${team?.name ?? 'Unknown'} has been withdrawn from ${comp?.name ?? 'the competition'}.`,
+      workspaceId,
+      { teamId, teamName: team?.name, competitionId, competitionName: comp?.name },
+    );
   }
 
   // ─── Fixture Generator ─────────────────────────────────────────────────────
@@ -2324,66 +4057,73 @@ export class WorkspacesService implements OnModuleInit {
       // ── Pure Knockout first round and subsequent skeleton rounds ───────────
       else if (stage.type === 'knockout') {
         const twoLegged = stage.config?.twoLegged || stage.config?.legs === 2;
-        const n = teamIds.length;
-        const bracketSize = Math.pow(2, Math.ceil(Math.log2(Math.max(n, 2))));
-        const padded: (string | null)[] = [...teamIds, ...Array(bracketSize - n).fill(null)];
+        const isFirstStage = stage.id === stages[0].id;
 
-        // Generate First Round (could contain actual teams and byes)
-        const roundLabel = bracketSize === 2 ? 'Final' : bracketSize === 4 ? 'Semi-Final' : bracketSize === 8 ? 'Quarter-Final' : `Round of ${bracketSize}`;
-        for (let i = 0; i < padded.length; i += 2) {
-          const home = padded[i];
-          const away = padded[i + 1];
-          // Skip double-bye slots
-          if (home === null && away === null) continue;
-          fixtures.push({
-            homeTeamId: home,
-            awayTeamId: away,
-            config: twoLegged ? { round: roundLabel, leg: 1 } : { round: roundLabel },
-          });
-          if (twoLegged && home !== null && away !== null) {
-            fixtures.push({
-              homeTeamId: away,
-              awayTeamId: home,
-              config: { round: roundLabel, leg: 2 },
-            });
-          }
-        }
+        if (isFirstStage) {
+          const n = teamIds.length;
+          const bracketSize = Math.pow(2, Math.ceil(Math.log2(Math.max(n, 2))));
+          const padded: (string | null)[] = [...teamIds, ...Array(bracketSize - n).fill(null)];
 
-        // Generate subsequent rounds as TBD skeletons
-        let remainingTeams = bracketSize / 2;
-        while (remainingTeams >= 2) {
-          const subRoundLabel = remainingTeams === 2 ? 'Final' : remainingTeams === 4 ? 'Semi-Final' : remainingTeams === 8 ? 'Quarter-Final' : `Round of ${remainingTeams * 2}`;
-          const matchesInRound = remainingTeams / 2;
-          for (let m = 0; m < matchesInRound; m++) {
+          // Generate First Round (could contain actual teams and byes)
+          const roundLabel = bracketSize === 2 ? 'Final' : bracketSize === 4 ? 'Semi-Final' : bracketSize === 8 ? 'Quarter-Final' : `Round of ${bracketSize}`;
+          for (let i = 0; i < padded.length; i += 2) {
+            const home = padded[i];
+            const away = padded[i + 1];
+            // Skip double-bye slots
+            if (home === null && away === null) continue;
             fixtures.push({
-              homeTeamId: null,
-              awayTeamId: null,
-              config: twoLegged ? { round: subRoundLabel, leg: 1 } : { round: subRoundLabel },
+              homeTeamId: home,
+              awayTeamId: away,
+              config: twoLegged ? { round: roundLabel, leg: 1 } : { round: roundLabel },
             });
-            if (twoLegged) {
+            if (twoLegged && home !== null && away !== null) {
               fixtures.push({
-                homeTeamId: null,
-                awayTeamId: null,
-                config: { round: subRoundLabel, leg: 2 },
+                homeTeamId: away,
+                awayTeamId: home,
+                config: { round: roundLabel, leg: 2 },
               });
             }
           }
-          if (remainingTeams === 2) {
-            // Also generate Third Place Match
-            fixtures.push({
-              homeTeamId: null,
-              awayTeamId: null,
-              config: twoLegged ? { round: 'Third Place Match', leg: 1 } : { round: 'Third Place Match' },
-            });
-            if (twoLegged) {
+
+          // Generate subsequent rounds as TBD skeletons
+          let remainingTeams = bracketSize / 2;
+          while (remainingTeams >= 2) {
+            const subRoundLabel = remainingTeams === 2 ? 'Final' : remainingTeams === 4 ? 'Semi-Final' : remainingTeams === 8 ? 'Quarter-Final' : `Round of ${remainingTeams * 2}`;
+            const matchesInRound = remainingTeams / 2;
+            for (let m = 0; m < matchesInRound; m++) {
               fixtures.push({
                 homeTeamId: null,
                 awayTeamId: null,
-                config: { round: 'Third Place Match', leg: 2 },
+                config: twoLegged ? { round: subRoundLabel, leg: 1 } : { round: subRoundLabel },
               });
+              if (twoLegged) {
+                fixtures.push({
+                  homeTeamId: null,
+                  awayTeamId: null,
+                  config: { round: subRoundLabel, leg: 2 },
+                });
+              }
             }
+            if (remainingTeams === 2) {
+              // Also generate Third Place Match
+              fixtures.push({
+                homeTeamId: null,
+                awayTeamId: null,
+                config: twoLegged ? { round: 'Third Place Match', leg: 1 } : { round: 'Third Place Match' },
+              });
+              if (twoLegged) {
+                fixtures.push({
+                  homeTeamId: null,
+                  awayTeamId: null,
+                  config: { round: 'Third Place Match', leg: 2 },
+                });
+              }
+            }
+            remainingTeams = remainingTeams / 2;
           }
-          remainingTeams = remainingTeams / 2;
+        } else {
+          // Do not generate dummy skeleton fixtures for subsequent knockout stages.
+          // They will be dynamically generated once the previous stage is fully completed.
         }
       }
 
@@ -2492,6 +4232,20 @@ export class WorkspacesService implements OnModuleInit {
 
       await this.matchRepo.save(matchEntities);
       totalMatches += matchEntities.length;
+    }
+
+    // 5.4 — Notify players in competing teams that fixtures have been generated
+    if (totalMatches > 0) {
+      const compTeams = await this.competitionTeamRepo.find({ where: { competitionId } });
+      const teamIds = compTeams.map((ct) => ct.teamId);
+      const players = await this.getTeamsPlayerUserIds(teamIds);
+      await this.sendNotificationToMany(
+        players,
+        NotificationType.FIXTURES_GENERATED,
+        `Fixtures have been generated for "${competition.name}". Check your schedule!`,
+        workspaceId,
+        { competitionId, competitionName: competition.name },
+      );
     }
 
     return { stagesGenerated: stages.length, matchesCreated: totalMatches };
@@ -2612,6 +4366,288 @@ export class WorkspacesService implements OnModuleInit {
       relations: { team: true, workspace: true },
     });
 
+    let statistics = {
+      allTime: {
+        appearances: 0,
+        mvps: 0,
+        avgRating: null as number | null,
+        football: { goals: 0, assists: 0, yellowCards: 0, redCards: 0, ownGoals: 0 },
+        cricket: { runs: 0, wickets: 0, oversBowled: 0, ballsBowled: 0, runsConceded: 0, maidens: 0, bowledOut: 0, fours: 0, sixes: 0 },
+        badminton: { ralliesWon: 0, ralliesLost: 0 },
+      },
+      competitions: [] as any[]
+    };
+
+    const playerIds = players.map(p => p.id);
+    if (playerIds.length > 0) {
+      const playerEntries = await this.matchPlayerRepo.find({
+        where: { playerId: In(playerIds) },
+        relations: {
+          match: {
+            stage: {
+              competition: {
+                sport: true,
+              },
+            },
+          },
+          player: {
+            user: true,
+          },
+          team: true,
+        },
+      });
+
+      const completedEntries = playerEntries.filter(pe => pe.match && pe.match.status === 'completed');
+      if (completedEntries.length > 0) {
+        const matchIds = completedEntries.map(pe => pe.matchId);
+        const maxRatings = new Map<string, number>();
+
+        const allMatchPlayersInUserMatches = await this.matchPlayerRepo.find({
+          where: { matchId: In(matchIds), isPlaying: true },
+        });
+        for (const amp of allMatchPlayersInUserMatches) {
+          if (amp.rating !== null) {
+            const rVal = Number(amp.rating);
+            const currentMax = maxRatings.get(amp.matchId) ?? -1;
+            if (rVal > currentMax) {
+              maxRatings.set(amp.matchId, rVal);
+            }
+          }
+        }
+
+        const competitionGroups = new Map<string, { competitionId: string; competitionName: string; sportCode: string; entries: MatchPlayer[] }>();
+        for (const pe of completedEntries) {
+          const stage = pe.match?.stage;
+          const competition = stage?.competition;
+          if (!competition) continue;
+
+          let group = competitionGroups.get(competition.id);
+          if (!group) {
+            group = {
+              competitionId: competition.id,
+              competitionName: competition.name,
+              sportCode: competition.sport?.code ?? 'football',
+              entries: [],
+            };
+            competitionGroups.set(competition.id, group);
+          }
+          group.entries.push(pe);
+        }
+
+        const statsByCompetition: any[] = [];
+        const allTimeStats = {
+          appearances: 0,
+          mvps: 0,
+          ratings: [] as number[],
+          football: { goals: 0, assists: 0, yellowCards: 0, redCards: 0, ownGoals: 0 },
+          cricket: { runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, runsConceded: 0, oversBowled: 0, ballsBowled: 0, bowledOut: 0 },
+          badminton: { ralliesWon: 0, ralliesLost: 0 }
+        };
+
+        for (const group of competitionGroups.values()) {
+          const compStats: any = {
+            competitionId: group.competitionId,
+            competitionName: group.competitionName,
+            sportCode: group.sportCode,
+            appearances: group.entries.length,
+            mvps: 0,
+            avgRating: null as number | null,
+            ratings: [] as number[],
+          };
+
+          if (group.sportCode === 'football') {
+            compStats.football = { goals: 0, assists: 0, yellowCards: 0, redCards: 0, ownGoals: 0 };
+          } else if (group.sportCode === 'cricket') {
+            compStats.cricket = { runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, runsConceded: 0, oversBowled: 0, ballsBowled: 0, bowledOut: 0 };
+          } else if (group.sportCode === 'badminton') {
+            compStats.badminton = { ralliesWon: 0, ralliesLost: 0 };
+          }
+
+          for (const pe of group.entries) {
+            if (pe.rating !== null) {
+              const ratingVal = Number(pe.rating);
+              compStats.ratings.push(ratingVal);
+              allTimeStats.ratings.push(ratingVal);
+
+              const maxR = maxRatings.get(pe.matchId);
+              if (maxR !== undefined && ratingVal === maxR) {
+                compStats.mvps++;
+                allTimeStats.mvps++;
+              }
+            }
+
+            allTimeStats.appearances++;
+
+            const liveData = pe.match?.liveData;
+            if (!liveData) continue;
+
+            if (group.sportCode === 'football') {
+              const events = liveData.events || [];
+              for (const ev of events) {
+                const isSelf = (ev.playerUserId === userId) || (ev.playerId === pe.playerId);
+                const isSelfAssist = (ev.assistPlayerUserId === userId) || (ev.assistPlayerId === pe.playerId);
+
+                if (ev.type === 'goal') {
+                  if (ev.goalType === 'own_goal') {
+                    if (isSelf) {
+                      compStats.football.ownGoals++;
+                      allTimeStats.football.ownGoals++;
+                    }
+                  } else {
+                    if (isSelf) {
+                      compStats.football.goals++;
+                      allTimeStats.football.goals++;
+                    }
+                    if (isSelfAssist) {
+                      compStats.football.assists++;
+                      allTimeStats.football.assists++;
+                    }
+                  }
+                } else if (ev.type === 'own_goal') {
+                  if (isSelf) {
+                    compStats.football.ownGoals++;
+                    allTimeStats.football.ownGoals++;
+                  }
+                } else if (ev.type === 'assist') {
+                  if (isSelf) {
+                    compStats.football.assists++;
+                    allTimeStats.football.assists++;
+                  }
+                } else if (ev.type === 'card') {
+                  if (isSelf) {
+                    if (ev.cardType === 'yellow') {
+                      compStats.football.yellowCards++;
+                      allTimeStats.football.yellowCards++;
+                    } else if (ev.cardType === 'red' || ev.cardType === 'second_yellow') {
+                      compStats.football.redCards++;
+                      allTimeStats.football.redCards++;
+                    }
+                  }
+                } else if (ev.type === 'yellow_card') {
+                  if (isSelf) {
+                    compStats.football.yellowCards++;
+                    allTimeStats.football.yellowCards++;
+                  }
+                } else if (ev.type === 'red_card') {
+                  if (isSelf) {
+                    compStats.football.redCards++;
+                    allTimeStats.football.redCards++;
+                  }
+                }
+              }
+            } else if (group.sportCode === 'cricket') {
+              const inningsList = liveData.inningsData || [];
+              const username = pe.player?.user?.username;
+              if (username) {
+                for (const inn of inningsList) {
+                  const bStats = inn.batsmanStats?.[username];
+                  if (bStats) {
+                    const r = bStats.runs ?? 0;
+                    const b = bStats.balls ?? 0;
+                    const f = bStats.fours ?? 0;
+                    const s = bStats.sixes ?? 0;
+                    compStats.cricket.runs += r;
+                    compStats.cricket.ballsFaced += b;
+                    compStats.cricket.fours += f;
+                    compStats.cricket.sixes += s;
+
+                    allTimeStats.cricket.runs += r;
+                    allTimeStats.cricket.ballsFaced += b;
+                    allTimeStats.cricket.fours += f;
+                    allTimeStats.cricket.sixes += s;
+                  }
+                  const bwStats = inn.bowlerStats?.[username];
+                  if (bwStats) {
+                    const o = bwStats.overs ?? 0;
+                    const b = bwStats.balls ?? 0;
+                    const rc = bwStats.runsConceded ?? 0;
+                    const w = bwStats.wickets ?? 0;
+                    const m = bwStats.maidens ?? 0;
+
+                    compStats.cricket.oversBowled += o;
+                    compStats.cricket.ballsBowled += b;
+                    compStats.cricket.runsConceded += rc;
+                    compStats.cricket.wickets += w;
+                    compStats.cricket.maidens += m;
+
+                    allTimeStats.cricket.oversBowled += o;
+                    allTimeStats.cricket.ballsBowled += b;
+                    allTimeStats.cricket.runsConceded += rc;
+                    allTimeStats.cricket.wickets += w;
+                    allTimeStats.cricket.maidens += m;
+                  }
+                  if (inn.ballsHistory) {
+                    for (const ball of inn.ballsHistory) {
+                      if (ball.wicket && ball.striker === username && ball.wicketType !== 'Retired Hurt') {
+                        compStats.cricket.bowledOut++;
+                        allTimeStats.cricket.bowledOut++;
+                      }
+                    }
+                  }
+                }
+              }
+            } else if (group.sportCode === 'badminton') {
+              const rallies = liveData.rallies || [];
+              const isHomeTeam = pe.teamId === pe.match.homeTeamId;
+              for (const r of rallies) {
+                if (r.winnerSide === 'none') continue;
+                if (isHomeTeam) {
+                  if (r.winnerSide === 'home') {
+                    compStats.badminton.ralliesWon++;
+                    allTimeStats.badminton.ralliesWon++;
+                  } else {
+                    compStats.badminton.ralliesLost++;
+                    allTimeStats.badminton.ralliesLost++;
+                  }
+                } else {
+                  if (r.winnerSide === 'away') {
+                    compStats.badminton.ralliesWon++;
+                    allTimeStats.badminton.ralliesWon++;
+                  } else {
+                    compStats.badminton.ralliesLost++;
+                    allTimeStats.badminton.ralliesLost++;
+                  }
+                }
+              }
+            }
+          }
+
+          compStats.avgRating = compStats.ratings.length > 0
+            ? Math.round((compStats.ratings.reduce((a: any, b: any) => a + b, 0) / compStats.ratings.length) * 100) / 100
+            : null;
+          delete compStats.ratings;
+
+          statsByCompetition.push(compStats);
+        }
+
+        const allTimeAvgRating = allTimeStats.ratings.length > 0
+          ? Math.round((allTimeStats.ratings.reduce((a: any, b: any) => a + b, 0) / allTimeStats.ratings.length) * 100) / 100
+          : null;
+
+        statistics = {
+          allTime: {
+            appearances: allTimeStats.appearances,
+            mvps: allTimeStats.mvps,
+            avgRating: allTimeAvgRating,
+            football: allTimeStats.football,
+            cricket: {
+              runs: allTimeStats.cricket.runs,
+              wickets: allTimeStats.cricket.wickets,
+              oversBowled: allTimeStats.cricket.oversBowled,
+              ballsBowled: allTimeStats.cricket.ballsBowled,
+              runsConceded: allTimeStats.cricket.runsConceded,
+              maidens: allTimeStats.cricket.maidens,
+              bowledOut: allTimeStats.cricket.bowledOut,
+              fours: allTimeStats.cricket.fours,
+              sixes: allTimeStats.cricket.sixes,
+            },
+            badminton: allTimeStats.badminton,
+          },
+          competitions: statsByCompetition
+        };
+      }
+    }
+
     return {
       user: {
         id: user.id,
@@ -2638,7 +4674,8 @@ export class WorkspacesService implements OnModuleInit {
           id: p.workspace.id,
           name: p.workspace.name,
         }
-      }))
+      })),
+      statistics
     };
   }
 
@@ -2653,6 +4690,7 @@ export class WorkspacesService implements OnModuleInit {
     userId: string,
   ): Promise<MatchPlayer[]> {
     await this.ensureMember(workspaceId, userId);
+    await this.validateStageContext(workspaceId, eventId, competitionId, stageId);
 
     const match = await this.matchRepo.findOne({
       where: { id: matchId, stageId },
@@ -2682,6 +4720,7 @@ export class WorkspacesService implements OnModuleInit {
     userId: string,
   ): Promise<MatchPlayer[]> {
     await this.ensurePermission(workspaceId, userId, 'match.score');
+    await this.validateStageContext(workspaceId, eventId, competitionId, stageId);
 
     const match = await this.matchRepo.findOne({
       where: { id: matchId, stageId },
@@ -2737,7 +4776,7 @@ export class WorkspacesService implements OnModuleInit {
     }
 
     // Return the updated list with relations
-    return this.matchPlayerRepo.find({
+    const result = await this.matchPlayerRepo.find({
       where: { matchId },
       relations: {
         player: {
@@ -2746,6 +4785,26 @@ export class WorkspacesService implements OnModuleInit {
         team: true,
       },
     });
+
+    // 6.2 — Notify selected players
+    const matchDetails = await this.matchRepo.findOne({
+      where: { id: matchId },
+      relations: { homeTeam: true, awayTeam: true }
+    });
+    const selectedPlayers = result.filter(mp => mp.isPlaying);
+    for (const sp of selectedPlayers) {
+      if (sp.player?.userId) {
+        await this.sendNotification(
+          sp.player.userId,
+          NotificationType.MATCH_LINEUP_SET,
+          `You've been selected in the lineup for ${matchDetails?.homeTeam?.name ?? 'Home'} vs ${matchDetails?.awayTeam?.name ?? 'Away'}.`,
+          workspaceId,
+          { matchId, homeTeamName: matchDetails?.homeTeam?.name, awayTeamName: matchDetails?.awayTeam?.name }
+        );
+      }
+    }
+
+    return result;
   }
 
   // ─── Player Ratings ────────────────────────────────────────────────────────
@@ -2762,6 +4821,7 @@ export class WorkspacesService implements OnModuleInit {
     userId: string,
   ): Promise<MatchPlayer[]> {
     await this.ensureMember(workspaceId, userId);
+    await this.validateStageContext(workspaceId, eventId, competitionId, stageId);
 
     const match = await this.matchRepo.findOne({ where: { id: matchId, stageId } });
     if (!match) throw new NotFoundException('Match not found');
@@ -2788,6 +4848,7 @@ export class WorkspacesService implements OnModuleInit {
     userId: string,
   ): Promise<MatchPlayer[]> {
     await this.ensurePermission(workspaceId, userId, 'match.score');
+    await this.validateStageContext(workspaceId, eventId, competitionId, stageId);
 
     const match = await this.matchRepo.findOne({ where: { id: matchId, stageId } });
     if (!match) throw new NotFoundException('Match not found');
@@ -2803,7 +4864,28 @@ export class WorkspacesService implements OnModuleInit {
       toSave.push(entry);
     }
 
-    await this.matchPlayerRepo.save(toSave);
+    const savedRatings = await this.matchPlayerRepo.save(toSave);
+    const populatedSaved = await this.matchPlayerRepo.find({
+      where: { id: In(savedRatings.map((s) => s.id)) },
+      relations: { player: { user: true }, team: true },
+    });
+
+    const matchDetails = await this.matchRepo.findOne({
+      where: { id: matchId },
+      relations: { homeTeam: true, awayTeam: true },
+    });
+
+    for (const entry of populatedSaved) {
+      if (entry.player?.userId && entry.rating !== null) {
+        await this.sendNotification(
+          entry.player.userId,
+          NotificationType.PLAYER_RATING_UPDATED,
+          `Your match rating has been updated to ${entry.rating}/10 for ${matchDetails?.homeTeam?.name} vs ${matchDetails?.awayTeam?.name}.`,
+          workspaceId,
+          { matchId, rating: entry.rating },
+        );
+      }
+    }
 
     return this.matchPlayerRepo.find({
       where: { matchId, isPlaying: true },
@@ -2837,11 +4919,7 @@ export class WorkspacesService implements OnModuleInit {
     minAppearancesRequired: number;
   }> {
     await this.ensureMember(workspaceId, userId);
-
-    const competition = await this.competitionRepo.findOne({
-      where: { id: competitionId, eventId },
-    });
-    if (!competition) throw new NotFoundException('Competition not found');
+    const competition = await this.validateCompetitionContext(workspaceId, eventId, competitionId);
 
     // Gather all stage IDs for this competition
     const stages = await this.stageRepo.find({ where: { competitionId } });
@@ -2933,6 +5011,272 @@ export class WorkspacesService implements OnModuleInit {
   }
 
   /**
+   * Aggregates and returns stats leaderboards for a competition.
+   */
+  async getCompetitionStats(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    userId: string,
+  ): Promise<any> {
+    await this.ensureMember(workspaceId, userId);
+    const competition = await this.validateCompetitionContext(workspaceId, eventId, competitionId);
+
+    const sportCode = competition.sport?.code ?? 'football';
+
+    // Gather all stage IDs for this competition
+    const stages = await this.stageRepo.find({ where: { competitionId } });
+    const stageIds = stages.map((s) => s.id);
+    if (stageIds.length === 0) {
+      return { sportCode, topRated: [] };
+    }
+
+    // Find all completed matches in the competition
+    const completedMatches = await this.matchRepo.find({
+      where: { stageId: In(stageIds), status: 'completed' },
+    });
+    if (completedMatches.length === 0) {
+      return { sportCode, topRated: [] };
+    }
+
+    const matchIds = completedMatches.map((m) => m.id);
+
+    // Fetch all match-player entries for these matches (starters & subs)
+    const allMatchPlayers = await this.matchPlayerRepo.find({
+      where: { matchId: In(matchIds), isPlaying: true },
+      relations: { player: { user: true }, team: true },
+    });
+
+    // Lookup structures
+    // Key: userId -> { playerId, playerName, teamName }
+    const userUserIdMap = new Map<string, { playerId: string; playerName: string; teamName: string }>();
+    // Key: username -> { playerId, playerName, teamName }
+    const userUsernameMap = new Map<string, { playerId: string; playerName: string; teamName: string }>();
+    // Key: playerId -> { playerId, playerName, teamName, ratings[] }
+    const ratingsMap = new Map<string, { playerId: string; playerName: string; teamName: string; ratings: number[] }>();
+
+    for (const mp of allMatchPlayers) {
+      const playerName = mp.player?.user?.username ?? mp.player?.jerseyNumber?.toString() ?? mp.playerId;
+      const teamName = mp.team?.name ?? 'Unknown';
+      const pInfo = { playerId: mp.playerId, playerName, teamName };
+
+      if (mp.player?.userId) {
+        userUserIdMap.set(mp.player.userId, pInfo);
+      }
+      if (mp.player?.user?.username) {
+        userUsernameMap.set(mp.player.user.username, pInfo);
+      }
+
+      if (mp.rating !== null) {
+        let existing = ratingsMap.get(mp.playerId);
+        if (!existing) {
+          existing = { ...pInfo, ratings: [] };
+          ratingsMap.set(mp.playerId, existing);
+        }
+        existing.ratings.push(Number(mp.rating));
+      }
+    }
+
+    // Top rated calculations
+    const topRated = Array.from(ratingsMap.values()).map(r => {
+      const avgRating = Math.round((r.ratings.reduce((a, b) => a + b, 0) / r.ratings.length) * 100) / 100;
+      return {
+        playerId: r.playerId,
+        playerName: r.playerName,
+        teamName: r.teamName,
+        avgRating,
+        appearances: r.ratings.length,
+      };
+    }).sort((a, b) => b.avgRating - a.avgRating).slice(0, 10);
+
+    // Calculate most MVPs
+    const mvpCounts = new Map<string, { playerId: string; playerName: string; teamName: string; mvps: number }>();
+    const matchPlayersMap = new Map<string, MatchPlayer[]>();
+    for (const mp of allMatchPlayers) {
+      if (!matchPlayersMap.has(mp.matchId)) {
+        matchPlayersMap.set(mp.matchId, []);
+      }
+      matchPlayersMap.get(mp.matchId)!.push(mp);
+    }
+    for (const [matchId, playersInMatch] of matchPlayersMap.entries()) {
+      let maxRating = -1;
+      let mvpCandidates: MatchPlayer[] = [];
+      for (const mp of playersInMatch) {
+        if (mp.rating !== null) {
+          const r = Number(mp.rating);
+          if (r > maxRating) {
+            maxRating = r;
+            mvpCandidates = [mp];
+          } else if (r === maxRating) {
+            mvpCandidates.push(mp);
+          }
+        }
+      }
+      if (maxRating >= 5.0) {
+        for (const mvpMp of mvpCandidates) {
+          let entry = mvpCounts.get(mvpMp.playerId);
+          if (!entry) {
+            const playerName = mvpMp.player?.user?.username ?? mvpMp.player?.jerseyNumber?.toString() ?? mvpMp.playerId;
+            const teamName = mvpMp.team?.name ?? 'Unknown';
+            entry = { playerId: mvpMp.playerId, playerName, teamName, mvps: 0 };
+            mvpCounts.set(mvpMp.playerId, entry);
+          }
+          entry.mvps++;
+        }
+      }
+    }
+    const mostMvps = Array.from(mvpCounts.values()).sort((a, b) => b.mvps - a.mvps).slice(0, 10);
+
+    if (sportCode === 'football') {
+      const scorers = new Map<string, { playerId: string; playerName: string; teamName: string; goals: number }>();
+      const assists = new Map<string, { playerId: string; playerName: string; teamName: string; assists: number }>();
+      const yellowCards = new Map<string, { playerId: string; playerName: string; teamName: string; cards: number }>();
+      const redCards = new Map<string, { playerId: string; playerName: string; teamName: string; cards: number }>();
+
+      const getOrCreateTally = (
+        map: Map<string, any>,
+        pUserId: string,
+        initialValueKey: string,
+      ) => {
+        let entry = map.get(pUserId);
+        if (!entry) {
+          const info = userUserIdMap.get(pUserId) ?? { playerId: pUserId, playerName: 'Unknown', teamName: 'Unknown' };
+          entry = { ...info, [initialValueKey]: 0 };
+          map.set(pUserId, entry);
+        }
+        return entry;
+      };
+
+      for (const m of completedMatches) {
+        const events = (m.liveData as any)?.events;
+        if (!Array.isArray(events)) continue;
+
+        for (const ev of events) {
+          const pUserId = ev.playerUserId;
+          if (!pUserId) continue;
+
+          if (ev.type === 'goal') {
+            if (ev.goalType !== 'own_goal') {
+              const scorer = getOrCreateTally(scorers, pUserId, 'goals');
+              scorer.goals++;
+
+              const assistUserId = ev.assistPlayerUserId;
+              if (assistUserId) {
+                const assister = getOrCreateTally(assists, assistUserId, 'assists');
+                assister.assists++;
+              }
+            }
+          } else if (ev.type === 'card') {
+            if (ev.cardType === 'yellow') {
+              const yc = getOrCreateTally(yellowCards, pUserId, 'cards');
+              yc.cards++;
+            } else if (ev.cardType === 'red' || ev.cardType === 'second_yellow') {
+              const rc = getOrCreateTally(redCards, pUserId, 'cards');
+              rc.cards++;
+            }
+          }
+        }
+      }
+
+      return {
+        sportCode,
+        topRated,
+        mostMvps,
+        topScorers: Array.from(scorers.values()).sort((a, b) => b.goals - a.goals).slice(0, 10),
+        topAssists: Array.from(assists.values()).sort((a, b) => b.assists - a.assists).slice(0, 10),
+        mostYellowCards: Array.from(yellowCards.values()).sort((a, b) => b.cards - a.cards).slice(0, 10),
+        mostRedCards: Array.from(redCards.values()).sort((a, b) => b.cards - a.cards).slice(0, 10),
+      };
+    }
+
+    if (sportCode === 'cricket') {
+      const runs = new Map<string, { playerId: string; playerName: string; teamName: string; runs: number; innings: number }>();
+      const wickets = new Map<string, { playerId: string; playerName: string; teamName: string; wickets: number; innings: number }>();
+
+      for (const m of completedMatches) {
+        const innings = (m.liveData as any)?.inningsData;
+        if (!Array.isArray(innings)) continue;
+
+        for (const inn of innings) {
+          const batStats = inn.batsmanStats || {};
+          for (const username of Object.keys(batStats)) {
+            const playerRuns = batStats[username]?.runs ?? 0;
+            if (playerRuns > 0) {
+              let entry = runs.get(username);
+              if (!entry) {
+                const info = userUsernameMap.get(username) ?? { playerId: username, playerName: username, teamName: 'Unknown' };
+                entry = { ...info, runs: 0, innings: 0 };
+                runs.set(username, entry);
+              }
+              entry.runs += playerRuns;
+              entry.innings++;
+            }
+          }
+
+          const bowlStats = inn.bowlerStats || {};
+          for (const username of Object.keys(bowlStats)) {
+            const playerWickets = bowlStats[username]?.wickets ?? 0;
+            if (playerWickets > 0) {
+              let entry = wickets.get(username);
+              if (!entry) {
+                const info = userUsernameMap.get(username) ?? { playerId: username, playerName: username, teamName: 'Unknown' };
+                entry = { ...info, wickets: 0, innings: 0 };
+                wickets.set(username, entry);
+              }
+              entry.wickets += playerWickets;
+              entry.innings++;
+            }
+          }
+        }
+      }
+
+      return {
+        sportCode,
+        topRated,
+        mostMvps,
+        topRuns: Array.from(runs.values()).sort((a, b) => b.runs - a.runs).slice(0, 10),
+        topWickets: Array.from(wickets.values()).sort((a, b) => b.wickets - a.wickets).slice(0, 10),
+      };
+    }
+
+    if (sportCode === 'badminton') {
+      const ralliesWon = new Map<string, { playerId: string; playerName: string; teamName: string; ralliesWon: number }>();
+
+      for (const m of completedMatches) {
+        const rallies = (m.liveData as any)?.rallies || [];
+        const matchPlayersInMatch = allMatchPlayers.filter(mp => mp.matchId === m.id);
+
+        for (const r of rallies) {
+          if (r.winnerSide === 'none') continue;
+          
+          const targetTeamId = r.winnerSide === 'home' ? m.homeTeamId : m.awayTeamId;
+          const winners = matchPlayersInMatch.filter(mp => mp.teamId === targetTeamId);
+
+          for (const w of winners) {
+            let entry = ralliesWon.get(w.playerId);
+            if (!entry) {
+              const playerName = w.player?.user?.username ?? w.player?.jerseyNumber?.toString() ?? w.playerId;
+              const teamName = w.team?.name ?? 'Unknown';
+              entry = { playerId: w.playerId, playerName, teamName, ralliesWon: 0 };
+              ralliesWon.set(w.playerId, entry);
+            }
+            entry.ralliesWon++;
+          }
+        }
+      }
+
+      return {
+        sportCode,
+        topRated,
+        mostMvps,
+        topRalliesWon: Array.from(ralliesWon.values()).sort((a, b) => b.ralliesWon - a.ralliesWon).slice(0, 10),
+      };
+    }
+
+    return { sportCode, topRated, mostMvps };
+  }
+
+  /**
    * Auto-calculates and saves per-player ratings for a completed football match.
    * Reads liveData.events[] to tally goals, assists, own goals, and cards.
    * Only players with isPlaying=true are rated.
@@ -2992,14 +5336,68 @@ export class WorkspacesService implements OnModuleInit {
       }
 
       for (const event of liveData.events as any[]) {
-        const t = tallies.get(event.playerId);
-        if (!t) continue;
-        switch (event.type) {
-          case 'goal':        t.goals++;        break;
-          case 'own_goal':    t.ownGoals++;     break;
-          case 'assist':      t.assists++;      break;
-          case 'yellow_card': t.yellowCards++;  break;
-          case 'red_card':    t.redCards++;     break;
+        let scorerPlayerId: string | undefined = undefined;
+        let assistPlayerId: string | undefined = undefined;
+
+        if (event.playerId) {
+          scorerPlayerId = event.playerId;
+        } else if (event.playerUserId) {
+          scorerPlayerId = matchPlayers.find(mp => mp.player?.userId === event.playerUserId)?.playerId;
+        }
+
+        if (event.assistPlayerUserId) {
+          assistPlayerId = matchPlayers.find(mp => mp.player?.userId === event.assistPlayerUserId)?.playerId;
+        } else if (event.assistPlayerId) {
+          assistPlayerId = event.assistPlayerId;
+        }
+
+        if (event.type === 'goal') {
+          if (event.goalType === 'own_goal') {
+            if (scorerPlayerId) {
+              const t = tallies.get(scorerPlayerId);
+              if (t) t.ownGoals++;
+            }
+          } else {
+            if (scorerPlayerId) {
+              const t = tallies.get(scorerPlayerId);
+              if (t) t.goals++;
+            }
+            if (assistPlayerId) {
+              const t = tallies.get(assistPlayerId);
+              if (t) t.assists++;
+            }
+          }
+        } else if (event.type === 'own_goal') {
+          if (scorerPlayerId) {
+            const t = tallies.get(scorerPlayerId);
+            if (t) t.ownGoals++;
+          }
+        } else if (event.type === 'assist') {
+          if (scorerPlayerId) {
+            const t = tallies.get(scorerPlayerId);
+            if (t) t.assists++;
+          }
+        } else if (event.type === 'card') {
+          if (scorerPlayerId) {
+            const t = tallies.get(scorerPlayerId);
+            if (t) {
+              if (event.cardType === 'yellow') {
+                t.yellowCards++;
+              } else if (event.cardType === 'red' || event.cardType === 'second_yellow') {
+                t.redCards++;
+              }
+            }
+          }
+        } else if (event.type === 'yellow_card') {
+          if (scorerPlayerId) {
+            const t = tallies.get(scorerPlayerId);
+            if (t) t.yellowCards++;
+          }
+        } else if (event.type === 'red_card') {
+          if (scorerPlayerId) {
+            const t = tallies.get(scorerPlayerId);
+            if (t) t.redCards++;
+          }
         }
       }
 
@@ -3160,6 +5558,65 @@ export class WorkspacesService implements OnModuleInit {
 
     if (toSave.length > 0) {
       await this.matchPlayerRepo.save(toSave);
+
+      // 7.1 — Notify each auto-rated player
+      const populatedSaved = await this.matchPlayerRepo.find({
+        where: { id: In(toSave.map((s) => s.id)) },
+        relations: { player: { user: true }, team: true },
+      });
+
+      const workspaceId = stage?.competition?.event?.workspaceId || null;
+
+      for (const entry of populatedSaved) {
+        if (entry.player?.userId && entry.rating !== null) {
+          await this.sendNotification(
+            entry.player.userId,
+            NotificationType.PLAYER_RATED,
+            `Your performance rating for ${match.homeTeam?.name ?? 'Home'} vs ${match.awayTeam?.name ?? 'Away'}: ${entry.rating}/10.`,
+            workspaceId,
+            { matchId: match.id, rating: entry.rating },
+          );
+        }
+      }
+
+      // 7.3 & 7.4 — Identify Match MVP
+      let maxRating = -1;
+      let mvpMp: MatchPlayer | null = null;
+      for (const entry of populatedSaved) {
+        if (entry.rating !== null) {
+          const r = Number(entry.rating);
+          if (r > maxRating) {
+            maxRating = r;
+            mvpMp = entry;
+          }
+        }
+      }
+
+      if (mvpMp && maxRating >= 5.0 && mvpMp.player?.userId) {
+        const playerName = mvpMp.player.user?.username ?? 'Player';
+        const teamName = mvpMp.team?.name ?? 'Unknown';
+
+        // 7.3 - Notify the MVP player
+        await this.sendNotification(
+          mvpMp.player.userId,
+          NotificationType.MATCH_MVP,
+          `🌟 MVP! You were the highest-rated player (${maxRating}) in ${match.homeTeam?.name ?? 'Home'} vs ${match.awayTeam?.name ?? 'Away'}!`,
+          workspaceId,
+          { matchId: match.id, rating: maxRating },
+        );
+
+        // 7.4 - Announcement to all workspace members
+        if (workspaceId) {
+          const memberIds = await this.getWorkspaceMemberUserIds(workspaceId);
+          await this.sendNotificationToMany(
+            memberIds,
+            NotificationType.MATCH_MVP_ANNOUNCEMENT,
+            `🌟 ${playerName} (${teamName}) is the Man of the Match in ${match.homeTeam?.name ?? 'Home'} vs ${match.awayTeam?.name ?? 'Away'} (rating: ${maxRating})!`,
+            workspaceId,
+            { matchId: match.id, playerId: mvpMp.playerId, playerName, teamName, rating: maxRating },
+          );
+        }
+      }
     }
   }
 }

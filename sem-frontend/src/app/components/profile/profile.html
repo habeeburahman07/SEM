@@ -392,17 +392,267 @@
 
         <!-- SUB-TAB: STATISTICS -->
         @if (activeSubTab() === 'stats') {
-        <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-xl flex flex-col gap-6 items-center justify-center p-12 text-center animate-fadeIn">
-          <div class="w-16 h-16 rounded-full bg-violet-600/10 border border-violet-500/20 flex items-center justify-center text-violet-400 mb-2">
-            <i class="fi fi-rr-stats text-2xl"></i>
+        <div class="flex flex-col gap-8 animate-fadeIn text-left">
+          
+          <!-- Section 1: All-Time Stats Header -->
+          <div class="flex flex-col gap-4">
+            <h3 class="text-lg font-black text-white uppercase tracking-wide flex items-center gap-2">
+              <i class="fi fi-rr-stats text-violet-400"></i> All-Time Career Record
+            </h3>
+            
+            <!-- Core Career Metric Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <!-- Appearances Card -->
+              <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-2xl p-5 shadow-xl flex items-center gap-4 relative overflow-hidden">
+                <div class="absolute -right-4 -bottom-4 text-white/5 text-6xl font-black">GP</div>
+                <div class="w-12 h-12 rounded-xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+                  <i class="fi fi-rr-running text-xl"></i>
+                </div>
+                <div class="text-left">
+                  <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Matches Played</div>
+                  <div class="text-2xl font-black text-white mt-0.5">{{ profileDetails()?.statistics?.allTime?.appearances ?? 0 }}</div>
+                </div>
+              </div>
+
+              <!-- Avg Rating Card -->
+              <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-2xl p-5 shadow-xl flex items-center gap-4 relative overflow-hidden">
+                <div class="absolute -right-4 -bottom-4 text-white/5 text-6xl font-black">RT</div>
+                <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                  <i class="fi fi-rr-star text-xl"></i>
+                </div>
+                <div class="text-left">
+                  <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Avg Rating</div>
+                  <div class="text-2xl font-black text-white mt-0.5">
+                    {{ profileDetails()?.statistics?.allTime?.avgRating ? profileDetails()?.statistics?.allTime?.avgRating.toFixed(2) : 'N/A' }}
+                  </div>
+                </div>
+              </div>
+
+              <!-- MVPs Card -->
+              <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-2xl p-5 shadow-xl flex items-center gap-4 relative overflow-hidden">
+                <div class="absolute -right-4 -bottom-4 text-white/5 text-6xl font-black">VP</div>
+                <div class="w-12 h-12 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-400">
+                  <i class="fi fi-rr-trophy text-xl"></i>
+                </div>
+                <div class="text-left">
+                  <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">MVP Awards</div>
+                  <div class="text-2xl font-black text-yellow-400 mt-0.5">{{ profileDetails()?.statistics?.allTime?.mvps ?? 0 }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sport-specific Career Breakdown -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-2">
+              
+              <!-- Football Stats Card -->
+              <div class="bg-slate-900/60 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                <h4 class="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider border-b border-white/5 pb-2">
+                  <i class="fi fi-rr-football text-violet-400"></i> Football Stats
+                </h4>
+                <div class="grid grid-cols-2 gap-3 text-left">
+                  <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                    <p class="text-[9px] text-slate-400 uppercase font-semibold">Goals</p>
+                    <p class="text-lg font-black text-emerald-400">{{ profileDetails()?.statistics?.allTime?.football?.goals ?? 0 }}</p>
+                  </div>
+                  <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                    <p class="text-[9px] text-slate-400 uppercase font-semibold">Assists</p>
+                    <p class="text-lg font-black text-blue-400">{{ profileDetails()?.statistics?.allTime?.football?.assists ?? 0 }}</p>
+                  </div>
+                  <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                    <p class="text-[9px] text-slate-400 uppercase font-semibold">Yellow Cards</p>
+                    <p class="text-lg font-black text-yellow-500">{{ profileDetails()?.statistics?.allTime?.football?.yellowCards ?? 0 }}</p>
+                  </div>
+                  <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                    <p class="text-[9px] text-slate-400 uppercase font-semibold">Red Cards</p>
+                    <p class="text-lg font-black text-rose-500">{{ profileDetails()?.statistics?.allTime?.football?.redCards ?? 0 }}</p>
+                  </div>
+                </div>
+                @if ((profileDetails()?.statistics?.allTime?.football?.ownGoals ?? 0) > 0) {
+                <div class="text-[10px] text-slate-500 text-left pl-1">
+                  Own goals conceded: <span class="text-slate-400 font-bold">{{ profileDetails()?.statistics?.allTime?.football?.ownGoals }}</span>
+                </div>
+                }
+              </div>
+
+              <!-- Cricket Stats Card -->
+              <div class="bg-slate-900/60 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                <h4 class="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider border-b border-white/5 pb-2">
+                  <i class="fi fi-rr-cricket text-violet-400"></i> Cricket Stats
+                </h4>
+                <div class="grid grid-cols-2 gap-3 text-left">
+                  <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                    <p class="text-[9px] text-slate-400 uppercase font-semibold">Runs</p>
+                    <p class="text-lg font-black text-emerald-400">{{ profileDetails()?.statistics?.allTime?.cricket?.runs ?? 0 }}</p>
+                  </div>
+                  <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                    <p class="text-[9px] text-slate-400 uppercase font-semibold">Wickets</p>
+                    <p class="text-lg font-black text-blue-400">{{ profileDetails()?.statistics?.allTime?.cricket?.wickets ?? 0 }}</p>
+                  </div>
+                  <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                    <p class="text-[9px] text-slate-400 uppercase font-semibold">Overs Bowled</p>
+                    <p class="text-lg font-black text-slate-200">
+                      {{ formatOvers(profileDetails()?.statistics?.allTime?.cricket?.oversBowled ?? 0, profileDetails()?.statistics?.allTime?.cricket?.ballsBowled ?? 0) }}
+                    </p>
+                  </div>
+                  <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                    <p class="text-[9px] text-slate-400 uppercase font-semibold">Outs</p>
+                    <p class="text-lg font-black text-rose-400">{{ profileDetails()?.statistics?.allTime?.cricket?.bowledOut ?? 0 }}</p>
+                  </div>
+                </div>
+                <div class="text-[10px] text-slate-400 text-left pl-1 grid grid-cols-2 gap-2">
+                  <span>Fours: <strong class="text-white">{{ profileDetails()?.statistics?.allTime?.cricket?.fours ?? 0 }}</strong></span>
+                  <span>Sixes: <strong class="text-white">{{ profileDetails()?.statistics?.allTime?.cricket?.sixes ?? 0 }}</strong></span>
+                  <span>Maidens: <strong class="text-white">{{ profileDetails()?.statistics?.allTime?.cricket?.maidens ?? 0 }}</strong></span>
+                  <span>Runs Conc: <strong class="text-rose-400">{{ profileDetails()?.statistics?.allTime?.cricket?.runsConceded ?? 0 }}</strong></span>
+                </div>
+              </div>
+
+              <!-- Badminton Stats Card -->
+              <div class="bg-slate-900/60 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                <h4 class="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider border-b border-white/5 pb-2">
+                  <i class="fi fi-rr-play text-violet-400"></i> Badminton Stats
+                </h4>
+                <div class="grid grid-cols-2 gap-3 text-left">
+                  <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                    <p class="text-[9px] text-slate-400 uppercase font-semibold">Rallies Won</p>
+                    <p class="text-lg font-black text-emerald-400">{{ profileDetails()?.statistics?.allTime?.badminton?.ralliesWon ?? 0 }}</p>
+                  </div>
+                  <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                    <p class="text-[9px] text-slate-400 uppercase font-semibold">Rallies Lost</p>
+                    <p class="text-lg font-black text-rose-400">{{ profileDetails()?.statistics?.allTime?.badminton?.ralliesLost ?? 0 }}</p>
+                  </div>
+                </div>
+                @let totalRallies = (profileDetails()?.statistics?.allTime?.badminton?.ralliesWon ?? 0) + (profileDetails()?.statistics?.allTime?.badminton?.ralliesLost ?? 0);
+                @if (totalRallies > 0) {
+                <div class="text-[10px] text-slate-400 text-left pl-1">
+                  Win Rate: <strong class="text-white">{{ ((profileDetails()?.statistics?.allTime?.badminton?.ralliesWon / totalRallies) * 100).toFixed(1) }}%</strong>
+                </div>
+                }
+              </div>
+
+            </div>
           </div>
-          <h4 class="text-sm font-bold text-white">Performance Statistics</h4>
-          <p class="text-xs text-slate-400 max-w-xs leading-relaxed">
-            Detailed matches scored, point charts, performance index, and achievement badges are coming soon! Stay tuned.
-          </p>
-          <span class="px-2.5 py-0.5 bg-slate-950 text-violet-400 border border-violet-500/20 text-[9px] font-bold rounded-full mt-2 uppercase tracking-wide">
-            Coming Soon
-          </span>
+
+          <!-- Section 2: Competition Breakdown -->
+          <div class="flex flex-col gap-4 mt-4">
+            <h3 class="text-lg font-black text-white uppercase tracking-wide flex items-center gap-2">
+              <i class="fi fi-rr-layers text-violet-400"></i> Stats by Competition
+            </h3>
+            
+            <div class="flex flex-col gap-4">
+              @for (comp of profileDetails()?.statistics?.competitions; track comp.competitionId) {
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 flex flex-col gap-4 text-left">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/5 pb-3 gap-2">
+                  <div>
+                    <h4 class="text-sm font-bold text-white">{{ comp.competitionName }}</h4>
+                    <p class="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wide font-semibold flex items-center gap-1">
+                      @if (comp.sportCode === 'football') {
+                        <i class="fi fi-rr-football text-violet-400"></i> Football
+                      } @else if (comp.sportCode === 'cricket') {
+                        <i class="fi fi-rr-cricket text-violet-400"></i> Cricket
+                      } @else {
+                        <i class="fi fi-rr-play text-violet-400"></i> Badminton
+                      }
+                    </p>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-300">
+                    <div>Appearances: <span class="text-white font-bold">{{ comp.appearances }}</span></div>
+                    @if (comp.avgRating) {
+                      <div>Rating: <span class="text-violet-400 font-black">{{ comp.avgRating.toFixed(2) }}</span></div>
+                    }
+                    @if (comp.mvps > 0) {
+                      <div class="flex items-center gap-1 text-yellow-400"><i class="fi fi-rr-trophy"></i> MVPs: <span class="font-bold">{{ comp.mvps }}</span></div>
+                    }
+                  </div>
+                </div>
+
+                <!-- Display sport specific stats for this competition -->
+                @if (comp.sportCode === 'football' && comp.football) {
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <div class="bg-slate-950/30 p-2.5 rounded-lg border border-white/5">
+                    <span class="text-[9px] text-slate-500 uppercase font-bold block">Goals</span>
+                    <span class="text-sm font-extrabold text-emerald-400">{{ comp.football.goals }}</span>
+                  </div>
+                  <div class="bg-slate-950/30 p-2.5 rounded-lg border border-white/5">
+                    <span class="text-[9px] text-slate-500 uppercase font-bold block">Assists</span>
+                    <span class="text-sm font-extrabold text-blue-400">{{ comp.football.assists }}</span>
+                  </div>
+                  <div class="bg-slate-950/30 p-2.5 rounded-lg border border-white/5">
+                    <span class="text-[9px] text-slate-500 uppercase font-bold block">Yellow Cards</span>
+                    <span class="text-sm font-extrabold text-yellow-500">{{ comp.football.yellowCards }}</span>
+                  </div>
+                  <div class="bg-slate-950/30 p-2.5 rounded-lg border border-white/5">
+                    <span class="text-[9px] text-slate-500 uppercase font-bold block">Red Cards</span>
+                    <span class="text-sm font-extrabold text-rose-500">{{ comp.football.redCards }}</span>
+                  </div>
+                  <div class="bg-slate-950/30 p-2.5 rounded-lg border border-white/5">
+                    <span class="text-[9px] text-slate-500 uppercase font-bold block">Own Goals</span>
+                    <span class="text-sm font-extrabold text-slate-400">{{ comp.football.ownGoals }}</span>
+                  </div>
+                </div>
+                }
+
+                @if (comp.sportCode === 'cricket' && comp.cricket) {
+                <div class="flex flex-col gap-3">
+                  <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    <div class="bg-slate-950/30 p-2.5 rounded-lg border border-white/5">
+                      <span class="text-[9px] text-slate-500 uppercase font-bold block">Runs</span>
+                      <span class="text-sm font-extrabold text-emerald-400">{{ comp.cricket.runs }}</span>
+                    </div>
+                    <div class="bg-slate-950/30 p-2.5 rounded-lg border border-white/5">
+                      <span class="text-[9px] text-slate-500 uppercase font-bold block">Wickets</span>
+                      <span class="text-sm font-extrabold text-blue-400">{{ comp.cricket.wickets }}</span>
+                    </div>
+                    <div class="bg-slate-950/30 p-2.5 rounded-lg border border-white/5">
+                      <span class="text-[9px] text-slate-500 uppercase font-bold block">Overs</span>
+                      <span class="text-sm font-extrabold text-slate-200">{{ formatOvers(comp.cricket.oversBowled, comp.cricket.ballsBowled) }}</span>
+                    </div>
+                    <div class="bg-slate-950/30 p-2.5 rounded-lg border border-white/5">
+                      <span class="text-[9px] text-slate-500 uppercase font-bold block">Outs</span>
+                      <span class="text-sm font-extrabold text-rose-400">{{ comp.cricket.bowledOut }}</span>
+                    </div>
+                    <div class="bg-slate-950/30 p-2.5 rounded-lg border border-white/5">
+                      <span class="text-[9px] text-slate-500 uppercase font-bold block">Balls Faced</span>
+                      <span class="text-sm font-extrabold text-slate-300">{{ comp.cricket.ballsFaced }}</span>
+                    </div>
+                  </div>
+                  <div class="text-[10px] text-slate-400 grid grid-cols-2 sm:grid-cols-4 gap-2 pl-1 bg-slate-950/10 p-2 rounded-xl">
+                    <span>Fours: <strong class="text-white">{{ comp.cricket.fours }}</strong></span>
+                    <span>Sixes: <strong class="text-white">{{ comp.cricket.sixes }}</strong></span>
+                    <span>Maidens: <strong class="text-white">{{ comp.cricket.maidens }}</strong></span>
+                    <span>Runs Conceded: <strong class="text-rose-400">{{ comp.cricket.runsConceded }}</strong></span>
+                  </div>
+                </div>
+                }
+
+                @if (comp.sportCode === 'badminton' && comp.badminton) {
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div class="bg-slate-950/30 p-2.5 rounded-lg border border-white/5">
+                    <span class="text-[9px] text-slate-500 uppercase font-bold block">Rallies Won</span>
+                    <span class="text-sm font-extrabold text-emerald-400">{{ comp.badminton.ralliesWon }}</span>
+                  </div>
+                  <div class="bg-slate-950/30 p-2.5 rounded-lg border border-white/5">
+                    <span class="text-[9px] text-slate-500 uppercase font-bold block">Rallies Lost</span>
+                    <span class="text-sm font-extrabold text-rose-400">{{ comp.badminton.ralliesLost }}</span>
+                  </div>
+                  @let compTotalRallies = comp.badminton.ralliesWon + comp.badminton.ralliesLost;
+                  <div class="bg-slate-950/30 p-2.5 rounded-lg border border-white/5">
+                    <span class="text-[9px] text-slate-500 uppercase font-bold block">Win Rate</span>
+                    <span class="text-sm font-extrabold text-white">
+                      {{ compTotalRallies > 0 ? ((comp.badminton.ralliesWon / compTotalRallies) * 100).toFixed(1) + '%' : 'N/A' }}
+                    </span>
+                  </div>
+                </div>
+                }
+              </div>
+              } @empty {
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-8 text-center text-slate-500 text-xs">
+                No statistics recorded in any competition yet.
+              </div>
+              }
+            </div>
+          </div>
+
         </div>
         }
 

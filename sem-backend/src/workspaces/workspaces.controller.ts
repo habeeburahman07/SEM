@@ -256,6 +256,15 @@ export class WorkspacesController {
     return this.workspacesService.removeTeam(id, teamId, req.user.id);
   }
 
+  @Get(':id/teams/:teamId/stats')
+  getTeamStats(
+    @Param('id') id: string,
+    @Param('teamId') teamId: string,
+    @Request() req: any,
+  ) {
+    return this.workspacesService.getTeamStats(id, teamId, req.user.id);
+  }
+
   // ─── Players ──────────────────────────────────────────────────────────────
 
   @Get(':id/players')
@@ -290,6 +299,15 @@ export class WorkspacesController {
     @Request() req: any,
   ) {
     return this.workspacesService.removePlayer(id, playerId, req.user.id);
+  }
+
+  @Get(':id/players/:playerId/stats')
+  getPlayerStats(
+    @Param('id') id: string,
+    @Param('playerId') playerId: string,
+    @Request() req: any,
+  ) {
+    return this.workspacesService.getPlayerStats(id, playerId, req.user.id);
   }
 
   // ─── Events ───────────────────────────────────────────────────────────────
@@ -605,5 +623,15 @@ export class WorkspacesController {
     @Request() req: any,
   ) {
     return this.workspacesService.getCompetitionBestPlayer(id, eventId, competitionId, req.user.id);
+  }
+
+  @Get(':id/events/:eventId/competitions/:competitionId/stats')
+  getCompetitionStats(
+    @Param('id') id: string,
+    @Param('eventId') eventId: string,
+    @Param('competitionId') competitionId: string,
+    @Request() req: any,
+  ) {
+    return this.workspacesService.getCompetitionStats(id, eventId, competitionId, req.user.id);
   }
 }

@@ -18,4 +18,7 @@ export class User extends AuditableEntity {
 
   @Column({ name: 'is_super_admin', type: 'boolean', default: false })
   isSuperAdmin: boolean;
+
+  @Column({ name: 'needs_password_change', type: 'boolean', default: false })
+  needsPasswordChange: boolean;
 }

@@ -192,15 +192,193 @@
       <!-- Top Bar -->
       <header class="flex items-center justify-between border-b border-white/5 pb-5 mb-8">
         <div class="flex items-center gap-3">
-          <!-- Global Search Bar Mockup (Left-aligned) -->
-          <div class="hidden md:flex items-center w-80 relative">
-            <span class="absolute left-4 text-slate-500 text-sm">
+          <!-- Global Search Bar (Left-aligned) -->
+          <div class="hidden md:flex items-center w-80 relative" id="globalSearchContainer">
+            <span class="absolute left-4 text-slate-500 text-sm pointer-events-none">
               <i class="fi fi-rr-search"></i>
             </span>
-            <input type="text" placeholder="Search matches, teams, players..." readonly
-              class="w-full bg-slate-900 border border-white/5 focus:border-violet-500/50 rounded-xl pl-11 pr-10 py-2.5 text-xs text-slate-400 placeholder-slate-500 outline-none transition-all cursor-not-allowed select-none animate-pulse" />
-            <span
-              class="absolute right-4 px-1.5 py-0.5 text-[9px] font-bold bg-slate-800 text-slate-500 rounded border border-white/5 font-mono select-none">⌘K</span>
+            <input type="text" id="globalSearchInput" placeholder="Search teams, players, events, venues..." 
+              [ngModel]="globalSearchQuery()" (ngModelChange)="globalSearchQuery.set($event); showGlobalSearchResults.set(true)"
+              (focus)="showGlobalSearchResults.set(true)"
+              class="w-full bg-slate-900 border border-white/5 focus:border-violet-500/50 rounded-xl pl-11 pr-10 py-2.5 text-xs text-slate-200 placeholder-slate-500 outline-none transition-all" />
+            @if (globalSearchQuery()) {
+              <button (click)="clearGlobalSearch()" class="absolute right-12 text-slate-500 hover:text-slate-300 cursor-pointer bg-transparent border-0 flex items-center">
+                <i class="fi fi-rr-cross text-[10px]"></i>
+              </button>
+            }
+            <span class="absolute right-4 px-1.5 py-0.5 text-[9px] font-bold bg-slate-800 text-slate-500 rounded border border-white/5 font-mono select-none pointer-events-none">⌘K</span>
+
+            <!-- Search Results Dropdown Panel -->
+            @if (globalSearchQuery().trim() && showGlobalSearchResults()) {
+              <!-- Backdrop to close -->
+              <div class="fixed inset-0 z-30 bg-transparent cursor-default" (click)="showGlobalSearchResults.set(false)"></div>
+              
+              <div class="absolute left-0 top-full mt-2 w-[420px] max-h-[480px] overflow-y-auto bg-slate-900 border border-white/10 rounded-2xl shadow-2xl py-3 px-4 z-40 animate-fadeIn shrink-0 flex flex-col gap-3 scrollbar-thin">
+                <div class="border-b border-white/5 pb-2">
+                  <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Search Results</h4>
+                </div>
+
+                @if (globalSearchResults().totalCount === 0) {
+                  <div class="text-center py-6 text-slate-500 text-xs">
+                    No matching results found for "{{ globalSearchQuery() }}"
+                  </div>
+                } @else {
+                  <div class="flex flex-col gap-3">
+                    
+                    <!-- Teams Results -->
+                    @if (globalSearchResults().teams.length > 0) {
+                      <div>
+                        <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                          <i class="fi fi-rr-users text-slate-400"></i>
+                          <span>Teams ({{ globalSearchResults().teams.length }})</span>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                          @for (team of globalSearchResults().teams; track team.id) {
+                            <button (click)="selectGlobalTeam(team)" class="w-full flex items-center gap-2.5 p-2 hover:bg-white/[0.03] rounded-xl text-left transition-colors cursor-pointer border-0 bg-transparent">
+                              @if (team.logoUrl) {
+                                <img [src]="team.logoUrl" class="w-6 h-6 rounded-md object-cover" />
+                              } @else {
+                                <div class="w-6 h-6 rounded-md flex items-center justify-center text-[10px] text-white font-extrabold" [style.background]="avatarColor(team.name)">
+                                  {{ initials(team.name) }}
+                                </div>
+                              }
+                              <div class="min-w-0 flex-1">
+                                <p class="text-xs font-semibold text-white truncate">{{ team.name }}</p>
+                                <p class="text-[9px] text-slate-400 truncate">{{ team.code || 'No code' }} • {{ team.description || 'No description' }}</p>
+                              </div>
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    }
+
+                    <!-- Players Results -->
+                    @if (globalSearchResults().players.length > 0) {
+                      <div>
+                        <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                          <i class="fi fi-rr-running text-slate-400"></i>
+                          <span>Players ({{ globalSearchResults().players.length }})</span>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                          @for (player of globalSearchResults().players; track player.id) {
+                            <button (click)="selectGlobalPlayer(player)" class="w-full flex items-center gap-2.5 p-2 hover:bg-white/[0.03] rounded-xl text-left transition-colors cursor-pointer border-0 bg-transparent">
+                              @if (player.user?.avatarUrl) {
+                                <img [src]="player.user.avatarUrl" class="w-6 h-6 rounded-full object-cover" />
+                              } @else {
+                                <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-extrabold" [style.background]="avatarColor(player.user?.username || 'P')">
+                                  {{ initials(player.user?.username || 'P') }}
+                                </div>
+                              }
+                              <div class="min-w-0 flex-1">
+                                <p class="text-xs font-semibold text-white truncate">{{ player.user?.username }}</p>
+                                <p class="text-[9px] text-slate-400 truncate">Team: {{ player.team?.name }} • Jersey: #{{ player.jerseyNumber || 'N/A' }}</p>
+                              </div>
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    }
+
+                    <!-- Events Results -->
+                    @if (globalSearchResults().events.length > 0) {
+                      <div>
+                        <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                          <i class="fi fi-rr-trophy text-slate-400"></i>
+                          <span>Events ({{ globalSearchResults().events.length }})</span>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                          @for (event of globalSearchResults().events; track event.id) {
+                            <button (click)="selectGlobalEvent(event)" class="w-full flex items-center gap-2.5 p-2 hover:bg-white/[0.03] rounded-xl text-left transition-colors cursor-pointer border-0 bg-transparent">
+                              <div class="w-6 h-6 rounded-md bg-slate-800 border border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0 text-[10px] text-violet-400">
+                                @if (event.logoUrl) {
+                                  <img [src]="event.logoUrl" class="w-full h-full object-cover" />
+                                } @else {
+                                  <i class="fi fi-rr-trophy"></i>
+                                }
+                              </div>
+                              <div class="min-w-0 flex-1">
+                                <p class="text-xs font-semibold text-white truncate">{{ event.name }}</p>
+                                <p class="text-[9px] text-slate-400 truncate">Status: {{ event.status }} • {{ event.description || 'No description' }}</p>
+                              </div>
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    }
+
+                    <!-- Competitions Results -->
+                    @if (globalSearchResults().competitions.length > 0) {
+                      <div>
+                        <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                          <i class="fi fi-rr-layers text-slate-400"></i>
+                          <span>Competitions ({{ globalSearchResults().competitions.length }})</span>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                          @for (comp of globalSearchResults().competitions; track comp.id) {
+                            <button (click)="selectGlobalCompetition(comp)" class="w-full flex items-center gap-2.5 p-2 hover:bg-white/[0.03] rounded-xl text-left transition-colors cursor-pointer border-0 bg-transparent">
+                              <div class="w-6 h-6 rounded-md bg-slate-800 border border-white/10 flex items-center justify-center text-[10px] text-indigo-400">
+                                <i class="fi fi-rr-bolt"></i>
+                              </div>
+                              <div class="min-w-0 flex-1">
+                                <p class="text-xs font-semibold text-white truncate">{{ comp.name }}</p>
+                                <p class="text-[9px] text-slate-400 truncate">Sport: {{ comp.sport?.name || 'N/A' }} • Status: {{ comp.status }}</p>
+                              </div>
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    }
+
+                    <!-- Venues Results -->
+                    @if (globalSearchResults().venues.length > 0) {
+                      <div>
+                        <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                          <i class="fi fi-rr-marker text-slate-400"></i>
+                          <span>Venues ({{ globalSearchResults().venues.length }})</span>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                          @for (venue of globalSearchResults().venues; track venue.id) {
+                            <button (click)="selectGlobalVenue(venue)" class="w-full flex items-center gap-2.5 p-2 hover:bg-white/[0.03] rounded-xl text-left transition-colors cursor-pointer border-0 bg-transparent">
+                              <div class="w-6 h-6 rounded-md bg-slate-800 border border-white/10 flex items-center justify-center text-[10px] text-emerald-400">
+                                <i class="fi fi-rr-marker"></i>
+                              </div>
+                              <div class="min-w-0 flex-1">
+                                <p class="text-xs font-semibold text-white truncate">{{ venue.name }}</p>
+                                <p class="text-[9px] text-slate-400 truncate">Location: {{ venue.location || 'No location' }}</p>
+                              </div>
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    }
+
+                    <!-- Members Results -->
+                    @if (globalSearchResults().members.length > 0) {
+                      <div>
+                        <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                          <i class="fi fi-rr-users-alt text-slate-400"></i>
+                          <span>Members ({{ globalSearchResults().members.length }})</span>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                          @for (member of globalSearchResults().members; track member.id) {
+                            <button (click)="selectGlobalMember(member)" class="w-full flex items-center gap-2.5 p-2 hover:bg-white/[0.03] rounded-xl text-left transition-colors cursor-pointer border-0 bg-transparent">
+                              <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-extrabold" [style.background]="avatarColor(member.user.username)">
+                                {{ initials(member.user.username) }}
+                              </div>
+                              <div class="min-w-0 flex-1">
+                                <p class="text-xs font-semibold text-white truncate">{{ member.user.username }}</p>
+                                <p class="text-[9px] text-slate-400 truncate">Role: {{ member.role.name }}</p>
+                              </div>
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    }
+
+                  </div>
+                }
+              </div>
+            }
           </div>
         </div>
 
@@ -285,10 +463,15 @@
                   } @else {
                   @for (notification of notifications(); track notification.id) {
                   <div [class.bg-indigo-950/20]="!notification.isRead"
-                    class="bg-slate-950/40 border border-white/5 hover:border-white/10 rounded-xl p-2.5 flex flex-col gap-1 transition-all">
-                    <p class="text-[10px] text-white leading-relaxed">{{ notification.message }}</p>
-                    <span class="text-[8px] text-slate-500 text-right">{{ notification.createdAt | date: 'shortTime'
-                      }}</span>
+                    class="bg-slate-950/40 border border-white/5 hover:border-white/10 rounded-xl p-2.5 flex items-start gap-2.5 transition-all">
+                    @if (notification.icon) {
+                      <span class="text-xs mt-0.5 shrink-0 select-none">{{ notification.icon }}</span>
+                    }
+                    <div class="flex-1 min-w-0 flex flex-col gap-1">
+                      <p class="text-[10px] text-white leading-relaxed">{{ notification.message }}</p>
+                      <span class="text-[8px] text-slate-500 text-right">{{ notification.createdAt | date: 'shortTime'
+                        }}</span>
+                    </div>
                   </div>
                   }
                   }
@@ -628,13 +811,40 @@
 
         <!-- Members Table -->
         <div class="bg-slate-900 border border-white/10 rounded-2xl overflow-hidden">
-          <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
-            <h2 class="text-sm font-bold text-white">All Members</h2>
-            <span class="text-xs text-slate-500">{{ members().length }} member{{ members().length !== 1 ? 's' : ''
-              }}</span>
+          <div class="px-6 py-4 border-b border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-sm font-bold text-white">All Members</h2>
+              <span class="text-xs text-slate-500">
+                @if (memberSearchQuery()) {
+                  {{ filteredMembers().length }} found (out of {{ members().length }})
+                } @else {
+                  {{ members().length }} member{{ members().length !== 1 ? 's' : '' }}
+                }
+              </span>
+            </div>
+            <!-- Search bar -->
+            <div class="relative w-full md:w-72">
+              <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                <i class="fi fi-rr-search text-xs"></i>
+              </span>
+              <input type="text" [ngModel]="memberSearchQuery()" (ngModelChange)="memberSearchQuery.set($event)"
+                placeholder="Search members..."
+                class="w-full bg-slate-950 border border-white/10 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-slate-500 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 outline-none transition-all" />
+              @if (memberSearchQuery()) {
+              <button (click)="memberSearchQuery.set('')"
+                class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 cursor-pointer bg-transparent border-0">
+                <i class="fi fi-rr-cross text-[10px]"></i>
+              </button>
+              }
+            </div>
           </div>
           <div class="divide-y divide-white/5">
-            @for (member of members(); track member.id) {
+            @if (filteredMembers().length === 0) {
+            <div class="px-6 py-12 text-center text-slate-500 text-xs">
+              No members found matching "{{ memberSearchQuery() }}"
+            </div>
+            }
+            @for (member of filteredMembers(); track member.id) {
             <div
               class="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:bg-white/[0.02] transition-colors">
               <!-- Avatar + Info -->
@@ -857,7 +1067,397 @@
       <!-- ═══════════════ TEAMS TAB ═══════════════ -->
       @if (activeTab() === 'teams') {
       <div class="flex flex-col gap-6 w-full animate-fadeIn">
-        <!-- Teams Header -->
+        @if (selectedTeamForDetails(); as teamDetails) {
+          <!-- ─── Team View Page (Detailed Stats) ─── -->
+          <div class="flex flex-col gap-6 text-left animate-fadeIn">
+            <!-- Header section with back button & basic team info -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-5">
+              <div class="flex items-center gap-4">
+                <button (click)="onBackToTeams()"
+                  class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-white/10 hover:border-white/20 rounded-xl transition-all cursor-pointer">
+                  <i class="fi fi-rr-arrow-small-left text-xl"></i>
+                </button>
+                @if (teamDetails.team.logoUrl) {
+                <img [src]="teamDetails.team.logoUrl" alt="Logo" class="w-16 h-16 rounded-2xl object-cover border border-white/10" />
+                } @else {
+                <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-base font-extrabold shadow-inner"
+                  [style.background]="avatarColor(teamDetails.team.name)">
+                  {{ initials(teamDetails.team.name) }}
+                </div>
+                }
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h2 class="text-xl font-bold text-white">{{ teamDetails.team.name }}</h2>
+                    @if (teamDetails.team.code) {
+                    <span class="text-xs font-bold px-2 py-0.5 bg-slate-800 text-violet-400 border border-white/5 rounded">
+                      {{ teamDetails.team.code }}
+                    </span>
+                    }
+                  </div>
+                  <p class="text-xs text-slate-400 mt-1">Registered {{ teamDetails.team.createdAt | date: 'MMM d, y' }}</p>
+                </div>
+              </div>
+
+              <!-- Color theme and actions -->
+              <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1.5 bg-slate-900 border border-white/10 px-3 py-1.5 rounded-xl">
+                  <span class="text-[10px] text-slate-500 font-mono">Theme:</span>
+                  <div class="w-3.5 h-3.5 rounded-full border border-white/20" [style.backgroundColor]="teamDetails.team.primaryColor || '#7c3aed'"></div>
+                  <div class="w-3.5 h-3.5 rounded-full border border-white/20" [style.backgroundColor]="teamDetails.team.secondaryColor || '#4f46e5'"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab selection within Team Details -->
+            <div class="flex border-b border-white/5">
+              <button (click)="activeTeamDetailTab.set('overview')"
+                [class.text-violet-400]="activeTeamDetailTab() === 'overview'"
+                [class.border-violet-500]="activeTeamDetailTab() === 'overview'"
+                [class.border-transparent]="activeTeamDetailTab() !== 'overview'"
+                [class.text-slate-400]="activeTeamDetailTab() !== 'overview'"
+                class="px-4 py-2.5 text-xs font-bold border-b-2 hover:text-white transition-all cursor-pointer">
+                All-Time Stats
+              </button>
+              <button (click)="activeTeamDetailTab.set('competitions')"
+                [class.text-violet-400]="activeTeamDetailTab() === 'competitions'"
+                [class.border-violet-500]="activeTeamDetailTab() === 'competitions'"
+                [class.border-transparent]="activeTeamDetailTab() !== 'competitions'"
+                [class.text-slate-400]="activeTeamDetailTab() !== 'competitions'"
+                class="px-4 py-2.5 text-xs font-bold border-b-2 hover:text-white transition-all cursor-pointer">
+                Competition History
+              </button>
+              <button (click)="activeTeamDetailTab.set('squad')"
+                [class.text-violet-400]="activeTeamDetailTab() === 'squad'"
+                [class.border-violet-500]="activeTeamDetailTab() === 'squad'"
+                [class.border-transparent]="activeTeamDetailTab() !== 'squad'"
+                [class.text-slate-400]="activeTeamDetailTab() !== 'squad'"
+                class="px-4 py-2.5 text-xs font-bold border-b-2 hover:text-white transition-all cursor-pointer">
+                Squad ({{ teamDetails.squad.length }})
+              </button>
+            </div>
+
+            <!-- TAB CONTENT: OVERVIEW (ALL-TIME STATS) -->
+            @if (activeTeamDetailTab() === 'overview') {
+            <div class="flex flex-col gap-6 animate-fadeIn">
+              
+              <!-- Key Stats Row -->
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-2xl p-5 shadow-xl flex items-center gap-4 relative overflow-hidden">
+                  <div class="absolute -right-4 -bottom-4 text-white/5 text-6xl font-black">CT</div>
+                  <div class="w-12 h-12 rounded-xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+                    <i class="fi fi-rr-layers text-xl"></i>
+                  </div>
+                  <div>
+                    <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Competitions</p>
+                    <p class="text-2xl font-black text-white mt-0.5">{{ teamDetails.allTime.participations }}</p>
+                  </div>
+                </div>
+
+                <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-2xl p-5 shadow-xl flex items-center gap-4 relative overflow-hidden">
+                  <div class="absolute -right-4 -bottom-4 text-white/5 text-6xl font-black">GP</div>
+                  <div class="w-12 h-12 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                    <i class="fi fi-rr-running text-xl"></i>
+                  </div>
+                  <div>
+                    <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Games Played</p>
+                    <p class="text-2xl font-black text-white mt-0.5">{{ teamDetails.allTime.totalGames }}</p>
+                  </div>
+                </div>
+
+                <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-2xl p-5 shadow-xl flex items-center gap-4 relative overflow-hidden">
+                  <div class="absolute -right-4 -bottom-4 text-white/5 text-6xl font-black">VP</div>
+                  <div class="w-12 h-12 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-400">
+                    <i class="fi fi-rr-trophy text-xl"></i>
+                  </div>
+                  <div>
+                    <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Squad MVPs</p>
+                    <p class="text-2xl font-black text-yellow-400 mt-0.5">{{ teamDetails.allTime.mvps }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sport Specific Aggregates Grid -->
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Football Stats -->
+                <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                  <h3 class="text-xs font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2 uppercase tracking-wide">
+                    <i class="fi fi-rr-football text-violet-400"></i> Football Metrics
+                  </h3>
+                  <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                      <p class="text-[9px] text-slate-400 uppercase font-semibold">Total Goals</p>
+                      <p class="text-lg font-black text-emerald-400">{{ teamDetails.allTime.goals }}</p>
+                    </div>
+                    <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                      <p class="text-[9px] text-slate-400 uppercase font-semibold">Total Assists</p>
+                      <p class="text-lg font-black text-blue-400">{{ teamDetails.allTime.assists }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Cricket Stats -->
+                <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                  <h3 class="text-xs font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2 uppercase tracking-wide">
+                    <i class="fi fi-rr-cricket text-violet-400"></i> Cricket Metrics
+                  </h3>
+                  <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                      <p class="text-[9px] text-slate-400 uppercase font-semibold">Total Runs</p>
+                      <p class="text-lg font-black text-emerald-400">{{ teamDetails.allTime.runs }}</p>
+                    </div>
+                    <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                      <p class="text-[9px] text-slate-400 uppercase font-semibold">Total Wickets</p>
+                      <p class="text-lg font-black text-blue-400">{{ teamDetails.allTime.wickets }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Badminton Stats -->
+                <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                  <h3 class="text-xs font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2 uppercase tracking-wide">
+                    <i class="fi fi-rr-play text-violet-400"></i> Badminton Metrics
+                  </h3>
+                  <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                      <p class="text-[9px] text-slate-400 uppercase font-semibold">Rallies Won</p>
+                      <p class="text-lg font-black text-emerald-400">{{ teamDetails.allTime.ralliesWon }}</p>
+                    </div>
+                    <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                      <p class="text-[9px] text-slate-400 uppercase font-semibold">Rallies Lost</p>
+                      <p class="text-lg font-black text-rose-400">{{ teamDetails.allTime.ralliesLost }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Best Players Grid -->
+              <div class="flex flex-col gap-4 mt-2">
+                <h3 class="text-xs font-black text-white uppercase tracking-wide flex items-center gap-2">
+                  <i class="fi fi-rr-trophy text-violet-400"></i> Club MVP Standout Players
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <!-- Football Best Player -->
+                  <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-3">
+                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <i class="fi fi-rr-football text-violet-400"></i> Football Best Player
+                    </h4>
+                    @if (teamDetails.bestPlayers.football; as bp) {
+                    <div class="flex items-center gap-3 bg-slate-950/20 p-3 rounded-xl border border-white/5 mt-1">
+                      @if (bp.avatarUrl) {
+                      <img [src]="bp.avatarUrl" alt="Avatar" class="w-10 h-10 rounded-full border border-white/10" />
+                      } @else {
+                      <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" [style.background]="avatarColor(bp.playerName)">
+                        {{ initials(bp.playerName) }}
+                      </div>
+                      }
+                      <div class="min-w-0 flex-1">
+                        <p class="text-xs font-bold text-white truncate">{{ bp.playerName }}</p>
+                        <p class="text-[9px] text-slate-500 truncate">{{ bp.appearances }} apps</p>
+                      </div>
+                      <div class="text-right">
+                        <p class="text-[9px] text-slate-400 font-bold uppercase">Rating</p>
+                        <p class="text-sm font-black text-violet-400">{{ bp.avgRating.toFixed(2) }}</p>
+                      </div>
+                    </div>
+                    } @else {
+                    <p class="text-xs text-slate-500 py-3 text-center">No Football matches played yet</p>
+                    }
+                  </div>
+
+                  <!-- Cricket Best Player -->
+                  <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-3">
+                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <i class="fi fi-rr-cricket text-violet-400"></i> Cricket Best Player
+                    </h4>
+                    @if (teamDetails.bestPlayers.cricket; as bp) {
+                    <div class="flex items-center gap-3 bg-slate-950/20 p-3 rounded-xl border border-white/5 mt-1">
+                      @if (bp.avatarUrl) {
+                      <img [src]="bp.avatarUrl" alt="Avatar" class="w-10 h-10 rounded-full border border-white/10" />
+                      } @else {
+                      <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" [style.background]="avatarColor(bp.playerName)">
+                        {{ initials(bp.playerName) }}
+                      </div>
+                      }
+                      <div class="min-w-0 flex-1">
+                        <p class="text-xs font-bold text-white truncate">{{ bp.playerName }}</p>
+                        <p class="text-[9px] text-slate-500 truncate">{{ bp.appearances }} apps</p>
+                      </div>
+                      <div class="text-right">
+                        <p class="text-[9px] text-slate-400 font-bold uppercase">Rating</p>
+                        <p class="text-sm font-black text-violet-400">{{ bp.avgRating.toFixed(2) }}</p>
+                      </div>
+                    </div>
+                    } @else {
+                    <p class="text-xs text-slate-500 py-3 text-center">No Cricket matches played yet</p>
+                    }
+                  </div>
+
+                  <!-- Badminton Best Player -->
+                  <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-3">
+                    <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <i class="fi fi-rr-play text-violet-400"></i> Badminton Best Player
+                    </h4>
+                    @if (teamDetails.bestPlayers.badminton; as bp) {
+                    <div class="flex items-center gap-3 bg-slate-950/20 p-3 rounded-xl border border-white/5 mt-1">
+                      @if (bp.avatarUrl) {
+                      <img [src]="bp.avatarUrl" alt="Avatar" class="w-10 h-10 rounded-full border border-white/10" />
+                      } @else {
+                      <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" [style.background]="avatarColor(bp.playerName)">
+                        {{ initials(bp.playerName) }}
+                      </div>
+                      }
+                      <div class="min-w-0 flex-1">
+                        <p class="text-xs font-bold text-white truncate">{{ bp.playerName }}</p>
+                        <p class="text-[9px] text-slate-500 truncate">{{ bp.appearances }} apps</p>
+                      </div>
+                      <div class="text-right">
+                        <p class="text-[9px] text-slate-400 font-bold uppercase">Rating</p>
+                        <p class="text-sm font-black text-violet-400">{{ bp.avgRating.toFixed(2) }}</p>
+                      </div>
+                    </div>
+                    } @else {
+                    <p class="text-xs text-slate-500 py-3 text-center">No Badminton matches played yet</p>
+                    }
+                  </div>
+                </div>
+              </div>
+
+            </div>
+            }
+
+            <!-- TAB CONTENT: COMPETITIONS (HISTORY BY COMPETITION) -->
+            @if (activeTeamDetailTab() === 'competitions') {
+            <div class="flex flex-col gap-4 animate-fadeIn">
+              @for (c of teamDetails.competitions; track c.competitionId) {
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 flex flex-col gap-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-white/5 gap-2">
+                  <div>
+                    <h4 class="text-sm font-bold text-white">{{ c.competitionName }}</h4>
+                    <p class="text-[10px] text-slate-500 uppercase font-bold mt-0.5 flex items-center gap-1">
+                      @if (c.sportCode === 'football') {
+                        <i class="fi fi-rr-football text-violet-400"></i> Football
+                      } @else if (c.sportCode === 'cricket') {
+                        <i class="fi fi-rr-cricket text-violet-400"></i> Cricket
+                      } @else {
+                        <i class="fi fi-rr-play text-violet-400"></i> Badminton
+                      }
+                    </p>
+                  </div>
+                  <div class="flex items-center gap-3 text-xs font-semibold text-slate-300">
+                    <div>Games Played: <span class="text-white font-bold">{{ c.gamesPlayed }}</span></div>
+                    @if (c.mvps > 0) {
+                      <div class="flex items-center gap-1 text-yellow-400"><i class="fi fi-rr-trophy"></i> MVPs: <span class="font-bold">{{ c.mvps }}</span></div>
+                    }
+                  </div>
+                </div>
+
+                <!-- Metrics breakdown -->
+                @if (c.sportCode === 'football') {
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+                  <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+                    <span class="text-[9px] text-slate-400 uppercase font-semibold">Goals Scored</span>
+                    <p class="text-base font-black text-emerald-400 mt-0.5">{{ c.goals }}</p>
+                  </div>
+                  <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+                    <span class="text-[9px] text-slate-400 uppercase font-semibold">Assists Made</span>
+                    <p class="text-base font-black text-blue-400 mt-0.5">{{ c.assists }}</p>
+                  </div>
+                </div>
+                }
+
+                @if (c.sportCode === 'cricket') {
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+                  <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+                    <span class="text-[9px] text-slate-400 uppercase font-semibold">Runs Scored</span>
+                    <p class="text-base font-black text-emerald-400 mt-0.5">{{ c.runs }}</p>
+                  </div>
+                  <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+                    <span class="text-[9px] text-slate-400 uppercase font-semibold">Wickets Taken</span>
+                    <p class="text-base font-black text-blue-400 mt-0.5">{{ c.wickets }}</p>
+                  </div>
+                </div>
+                }
+
+                @if (c.sportCode === 'badminton') {
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+                  <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+                    <span class="text-[9px] text-slate-400 uppercase font-semibold">Rallies Won</span>
+                    <p class="text-base font-black text-emerald-400 mt-0.5">{{ c.ralliesWon }}</p>
+                  </div>
+                  <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+                    <span class="text-[9px] text-slate-400 uppercase font-semibold">Rallies Lost</span>
+                    <p class="text-base font-black text-rose-400 mt-0.5">{{ c.ralliesLost }}</p>
+                  </div>
+                </div>
+                }
+
+                <!-- Competition Best Player for Team -->
+                @if (c.bestPlayer; as bp) {
+                <div class="flex items-center gap-3 bg-slate-950/20 p-2.5 border border-white/5 rounded-xl mt-1 max-w-sm">
+                  @if (bp.avatarUrl) {
+                  <img [src]="bp.avatarUrl" alt="Avatar" class="w-8 h-8 rounded-full border border-white/10" />
+                  } @else {
+                  <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold" [style.background]="avatarColor(bp.playerName)">
+                    {{ initials(bp.playerName) }}
+                  </div>
+                  }
+                  <div class="min-w-0 flex-1 text-left">
+                    <p class="text-[11px] font-bold text-white truncate">{{ bp.playerName }}</p>
+                    <p class="text-[9px] text-slate-500 truncate">Competition Best ({{ bp.appearances }} apps)</p>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-[9px] text-slate-400 font-bold uppercase">Rating</p>
+                    <p class="text-xs font-black text-violet-400">{{ bp.avgRating.toFixed(2) }}</p>
+                  </div>
+                </div>
+                }
+              </div>
+              } @empty {
+              <div class="bg-slate-900 border border-white/10 rounded-2xl p-8 text-center text-slate-500 text-xs">
+                This team has not registered in any competition yet.
+              </div>
+              }
+            </div>
+            }
+
+            <!-- TAB CONTENT: SQUAD (PLAYERS LISTING) -->
+            @if (activeTeamDetailTab() === 'squad') {
+            <div class="flex flex-col gap-4 animate-fadeIn">
+              <h3 class="text-xs font-black text-white uppercase tracking-wider pl-1 mb-1">Squad Members</h3>
+              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                @for (player of teamDetails.squad; track player.id) {
+                <div class="bg-slate-900 border border-white/10 rounded-xl p-4 flex items-center justify-between gap-4">
+                  <div class="flex items-center gap-3 min-w-0">
+                    @if (player.user?.avatarUrl) {
+                    <img [src]="player.user.avatarUrl" alt="Avatar" class="w-10 h-10 rounded-full border border-white/10 object-cover" />
+                    } @else {
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" [style.background]="avatarColor(player.user?.username || 'P')">
+                      {{ initials(player.user?.username || 'P') }}
+                    </div>
+                    }
+                    <div class="min-w-0">
+                      <p class="text-xs font-bold text-white truncate">{{ player.user?.username || 'Guest Player' }}</p>
+                      <p class="text-[9px] text-slate-500">Player Profile ID</p>
+                    </div>
+                  </div>
+                  @if (player.jerseyNumber) {
+                  <span class="text-xs font-black px-2 py-1 bg-violet-600/10 text-violet-400 border border-violet-500/20 rounded-lg">
+                    #{{ player.jerseyNumber }}
+                  </span>
+                  }
+                </div>
+                } @empty {
+                <div class="col-span-full bg-slate-900 border border-white/10 rounded-2xl p-8 text-center text-slate-500 text-xs">
+                  No squad members registered in this team.
+                </div>
+                }
+              </div>
+            </div>
+            }
+
+          </div>
+        } @else {
+          <!-- Teams Header -->
         <div class="flex items-center justify-between border-b border-white/5 pb-4">
           <div>
             <h2 class="text-xl font-bold text-white">Registered Teams</h2>
@@ -905,8 +1505,43 @@
           <p class="text-xs text-slate-500 max-w-xs">Register your first team to start organizing events.</p>
         </div>
         } @else {
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          @for (team of teams(); track team.id) {
+          <!-- Search and Filter Bar -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/20 border border-white/5 p-4 rounded-2xl mb-4">
+            <div class="text-xs text-slate-400 font-medium">
+              @if (teamSearchQuery()) {
+                Showing {{ filteredTeams().length }} of {{ teams().length }} teams
+              } @else {
+                {{ teams().length }} team{{ teams().length !== 1 ? 's' : '' }} registered
+              }
+            </div>
+            <div class="relative w-full sm:w-72">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <i class="fi fi-rr-search text-xs"></i>
+              </span>
+              <input type="text" [ngModel]="teamSearchQuery()" (ngModelChange)="teamSearchQuery.set($event)"
+                placeholder="Search teams by name or code..."
+                class="w-full bg-slate-950/40 border border-white/10 focus:border-violet-500/50 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none transition-all" />
+              @if (teamSearchQuery()) {
+              <button (click)="teamSearchQuery.set('')"
+                class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 cursor-pointer bg-transparent border-0">
+                <i class="fi fi-rr-cross text-[10px]"></i>
+              </button>
+              }
+            </div>
+          </div>
+
+          @if (filteredTeams().length === 0) {
+          <div
+            class="flex flex-col items-center justify-center py-20 text-center bg-slate-900/40 border border-white/10 rounded-2xl">
+            <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-white/10 flex items-center justify-center mb-4">
+              <i class="fi fi-rr-search text-slate-600 text-2xl"></i>
+            </div>
+            <h3 class="text-sm font-bold text-white mb-1">No matching teams</h3>
+            <p class="text-xs text-slate-500 max-w-xs">No teams match your search query "{{ teamSearchQuery() }}".</p>
+          </div>
+          } @else {
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            @for (team of filteredTeams(); track team.id) {
           <div
             class="bg-slate-900 border rounded-2xl p-5 flex flex-col gap-4 group transition-all duration-300 relative overflow-hidden"
             [style.borderColor]="team.primaryColor ? team.primaryColor + '20' : 'rgba(255,255,255,0.1)'">
@@ -956,28 +1591,304 @@
             </div>
 
             <!-- Actions -->
-            @if (hasPermission('team.manage')) {
             <div
               class="flex items-center justify-end gap-2 pt-3 border-t border-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button (click)="onViewTeamDetails(team)"
+                class="px-2.5 py-1.5 text-[11px] font-bold text-violet-400 hover:text-white hover:bg-violet-600/20 border border-violet-500/10 hover:border-violet-500/30 rounded-lg transition-all cursor-pointer font-bold">
+                View Stats
+              </button>
+              @if (hasPermission('team.manage')) {
               <button (click)="onEditTeam(team)"
-                class="px-2.5 py-1.5 text-[11px] font-bold text-violet-400 hover:text-white hover:bg-violet-600/20 border border-violet-500/10 hover:border-violet-500/30 rounded-lg transition-all cursor-pointer">
+                class="px-2.5 py-1.5 text-[11px] font-bold text-slate-300 hover:text-white hover:bg-white/5 border border-white/10 rounded-lg transition-all cursor-pointer">
                 Edit
               </button>
               <button (click)="onDeleteTeam(team)"
                 class="px-2.5 py-1.5 text-[11px] font-bold text-rose-400 hover:text-white hover:bg-rose-600/20 border border-rose-500/10 hover:border-rose-500/30 rounded-lg transition-all cursor-pointer">
                 Delete
               </button>
+              }
             </div>
-            }
           </div>
           }
         </div>
+        }
+        }
         }
       </div>
       }
 
       <!-- ═══════════════ PLAYERS TAB ═══════════════ -->
       @if (activeTab() === 'players') {
+      @if (isLoadingPlayerStats()) {
+      <div class="flex flex-col items-center justify-center min-h-[400px] w-full gap-4">
+        <svg class="animate-spin w-8 h-8 text-violet-500" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="text-xs text-slate-400">Loading player statistics...</p>
+      </div>
+      } @else if (selectedPlayerForDetails(); as playerDetails) {
+      <!-- ─── Player View Page (Detailed Stats) ─── -->
+      <div class="flex flex-col gap-6 text-left animate-fadeIn">
+        <!-- Header section with back button & basic player info -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-5">
+          <div class="flex items-center gap-4">
+            <button (click)="onBackToPlayers()"
+              class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-white/10 hover:border-white/20 rounded-xl transition-all cursor-pointer">
+              <i class="fi fi-rr-arrow-small-left text-xl"></i>
+            </button>
+            
+            <div
+              class="w-16 h-16 rounded-2xl flex-shrink-0 flex items-center justify-center text-white text-base font-extrabold shadow-inner overflow-hidden"
+              [style.background]="playerDetails.player.user.avatarUrl ? 'transparent' : avatarColor(playerDetails.player.user.username)">
+              @if (playerDetails.player.user.avatarUrl) {
+              <img [src]="playerDetails.player.user.avatarUrl" alt="Avatar" class="w-full h-full object-cover border border-white/10" />
+              } @else {
+              {{ initials(playerDetails.player.user.username) }}
+              }
+            </div>
+
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-xl font-bold text-white">{{ playerDetails.player.user.username }}</h2>
+                @if (playerDetails.player.jerseyNumber) {
+                <span class="text-xs font-bold px-2 py-0.5 bg-slate-800 text-violet-400 border border-white/5 rounded">
+                  #{{ playerDetails.player.jerseyNumber }}
+                </span>
+                }
+              </div>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-xs px-2 py-0.5 rounded border font-semibold text-slate-200"
+                  [style.backgroundColor]="playerDetails.player.team.primaryColor ? playerDetails.player.team.primaryColor + '15' : 'rgba(124, 58, 237, 0.15)'"
+                  [style.borderColor]="playerDetails.player.team.primaryColor ? playerDetails.player.team.primaryColor + '30' : 'rgba(124, 58, 237, 0.3)'">
+                  {{ playerDetails.player.team.name }}
+                </span>
+                <span class="text-slate-500 text-xs">•</span>
+                <p class="text-xs text-slate-400">Registered {{ playerDetails.player.createdAt | date: 'MMM d, y' }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Color theme and actions -->
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1.5 bg-slate-900 border border-white/10 px-3 py-1.5 rounded-xl">
+              <span class="text-[10px] text-slate-500 font-mono">Team Theme:</span>
+              <div class="w-3.5 h-3.5 rounded-full border border-white/20" [style.backgroundColor]="playerDetails.player.team.primaryColor || '#7c3aed'"></div>
+              <div class="w-3.5 h-3.5 rounded-full border border-white/20" [style.backgroundColor]="playerDetails.player.team.secondaryColor || '#4f46e5'"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab selection within Player Details -->
+        <div class="flex border-b border-white/5">
+          <button (click)="activePlayerDetailTab.set('overview')"
+            [class.text-violet-400]="activePlayerDetailTab() === 'overview'"
+            [class.border-violet-500]="activePlayerDetailTab() === 'overview'"
+            [class.border-transparent]="activePlayerDetailTab() !== 'overview'"
+            [class.text-slate-400]="activePlayerDetailTab() !== 'overview'"
+            class="px-4 py-2.5 text-xs font-bold border-b-2 hover:text-white transition-all cursor-pointer">
+            All-Time Stats
+          </button>
+          <button (click)="activePlayerDetailTab.set('competitions')"
+            [class.text-violet-400]="activePlayerDetailTab() === 'competitions'"
+            [class.border-violet-500]="activePlayerDetailTab() === 'competitions'"
+            [class.border-transparent]="activePlayerDetailTab() !== 'competitions'"
+            [class.text-slate-400]="activePlayerDetailTab() !== 'competitions'"
+            class="px-4 py-2.5 text-xs font-bold border-b-2 hover:text-white transition-all cursor-pointer">
+            Competition History ({{ playerDetails.competitions.length }})
+          </button>
+        </div>
+
+        <!-- TAB CONTENT: OVERVIEW (ALL-TIME STATS) -->
+        @if (activePlayerDetailTab() === 'overview') {
+        <div class="flex flex-col gap-6 animate-fadeIn">
+          
+          <!-- Key Stats Row -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-2xl p-5 shadow-xl flex items-center gap-4 relative overflow-hidden">
+              <div class="absolute -right-4 -bottom-4 text-white/5 text-6xl font-black">GP</div>
+              <div class="w-12 h-12 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                <i class="fi fi-rr-running text-xl"></i>
+              </div>
+              <div>
+                <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Games Played</p>
+                <p class="text-2xl font-black text-white mt-0.5">{{ playerDetails.allTime.totalGames }}</p>
+              </div>
+            </div>
+
+            <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-2xl p-5 shadow-xl flex items-center gap-4 relative overflow-hidden">
+              <div class="absolute -right-4 -bottom-4 text-white/5 text-6xl font-black">MVP</div>
+              <div class="w-12 h-12 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-400">
+                <i class="fi fi-rr-trophy text-xl"></i>
+              </div>
+              <div>
+                <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Match MVPs</p>
+                <p class="text-2xl font-black text-yellow-400 mt-0.5">{{ playerDetails.allTime.mvps }}</p>
+              </div>
+            </div>
+
+            <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-2xl p-5 shadow-xl flex items-center gap-4 relative overflow-hidden">
+              <div class="absolute -right-4 -bottom-4 text-white/5 text-6xl font-black">RT</div>
+              <div class="w-12 h-12 rounded-xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+                <i class="fi fi-rr-star text-xl"></i>
+              </div>
+              <div>
+                <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Avg Rating</p>
+                <p class="text-2xl font-black text-violet-400 mt-0.5">
+                  {{ playerDetails.allTime.avgRating !== null ? playerDetails.allTime.avgRating.toFixed(2) : 'N/A' }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sport Specific Aggregates Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Football Stats -->
+            <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+              <h3 class="text-xs font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2 uppercase tracking-wide">
+                <i class="fi fi-rr-football text-violet-400"></i> Football Metrics
+              </h3>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                  <p class="text-[9px] text-slate-400 uppercase font-semibold">Goals</p>
+                  <p class="text-lg font-black text-emerald-400">{{ playerDetails.allTime.goals }}</p>
+                </div>
+                <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                  <p class="text-[9px] text-slate-400 uppercase font-semibold">Assists</p>
+                  <p class="text-lg font-black text-blue-400">{{ playerDetails.allTime.assists }}</p>
+                </div>
+                <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                  <p class="text-[9px] text-slate-400 uppercase font-semibold">Yellow Cards</p>
+                  <p class="text-lg font-black text-yellow-500">{{ playerDetails.allTime.yellowCards }}</p>
+                </div>
+                <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                  <p class="text-[9px] text-slate-400 uppercase font-semibold">Red Cards</p>
+                  <p class="text-lg font-black text-rose-500">{{ playerDetails.allTime.redCards }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Cricket Stats -->
+            <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+              <h3 class="text-xs font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2 uppercase tracking-wide">
+                <i class="fi fi-rr-cricket text-violet-400"></i> Cricket Metrics
+              </h3>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                  <p class="text-[9px] text-slate-400 uppercase font-semibold">Total Runs</p>
+                  <p class="text-lg font-black text-emerald-400">{{ playerDetails.allTime.runs }}</p>
+                </div>
+                <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                  <p class="text-[9px] text-slate-400 uppercase font-semibold">Total Wickets</p>
+                  <p class="text-lg font-black text-blue-400">{{ playerDetails.allTime.wickets }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Badminton Stats -->
+            <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+              <h3 class="text-xs font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2 uppercase tracking-wide">
+                <i class="fi fi-rr-play text-violet-400"></i> Badminton Metrics
+              </h3>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                  <p class="text-[9px] text-slate-400 uppercase font-semibold">Rallies Won</p>
+                  <p class="text-lg font-black text-emerald-400">{{ playerDetails.allTime.ralliesWon }}</p>
+                </div>
+                <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                  <p class="text-[9px] text-slate-400 uppercase font-semibold">Rallies Lost</p>
+                  <p class="text-lg font-black text-rose-400">{{ playerDetails.allTime.ralliesLost }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        }
+
+        <!-- TAB CONTENT: COMPETITIONS (HISTORY BY COMPETITION) -->
+        @if (activePlayerDetailTab() === 'competitions') {
+        <div class="flex flex-col gap-4 animate-fadeIn">
+          @for (c of playerDetails.competitions; track c.competitionId) {
+          <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 flex flex-col gap-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-white/5 gap-2">
+              <div>
+                <h4 class="text-sm font-bold text-white">{{ c.competitionName }}</h4>
+                <p class="text-[10px] text-slate-500 uppercase font-bold mt-0.5 flex items-center gap-1">
+                  @if (c.sportCode === 'football') {
+                    <i class="fi fi-rr-football text-violet-400"></i> Football
+                  } @else if (c.sportCode === 'cricket') {
+                    <i class="fi fi-rr-cricket text-violet-400"></i> Cricket
+                  } @else {
+                    <i class="fi fi-rr-play text-violet-400"></i> Badminton
+                  }
+                </p>
+              </div>
+              <div class="flex items-center gap-3 text-xs font-semibold text-slate-300">
+                <div>Apps: <span class="text-white font-bold">{{ c.gamesPlayed }}</span></div>
+                <div>Avg Rating: <span class="text-violet-400 font-bold">{{ c.avgRating !== null ? c.avgRating.toFixed(2) : 'N/A' }}</span></div>
+                @if (c.mvps > 0) {
+                  <div class="flex items-center gap-1 text-yellow-400"><i class="fi fi-rr-trophy"></i> MVPs: <span class="font-bold">{{ c.mvps }}</span></div>
+                }
+              </div>
+            </div>
+
+            <!-- Metrics breakdown -->
+            @if (c.sportCode === 'football') {
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+              <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+                <span class="text-[9px] text-slate-400 uppercase font-semibold">Goals</span>
+                <p class="text-base font-black text-emerald-400 mt-0.5">{{ c.goals }}</p>
+              </div>
+              <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+                <span class="text-[9px] text-slate-400 uppercase font-semibold">Assists</span>
+                <p class="text-base font-black text-blue-400 mt-0.5">{{ c.assists }}</p>
+              </div>
+              <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+                <span class="text-[9px] text-slate-400 uppercase font-semibold">Yellow Cards</span>
+                <p class="text-base font-black text-yellow-500 mt-0.5">{{ c.yellowCards }}</p>
+              </div>
+              <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+                <span class="text-[9px] text-slate-400 uppercase font-semibold">Red Cards</span>
+                <p class="text-base font-black text-rose-500 mt-0.5">{{ c.redCards }}</p>
+              </div>
+            </div>
+            }
+
+            @if (c.sportCode === 'cricket') {
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+              <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+                <span class="text-[9px] text-slate-400 uppercase font-semibold">Runs Scored</span>
+                <p class="text-base font-black text-emerald-400 mt-0.5">{{ c.runs }}</p>
+              </div>
+              <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+                <span class="text-[9px] text-slate-400 uppercase font-semibold">Wickets Taken</span>
+                <p class="text-base font-black text-blue-400 mt-0.5">{{ c.wickets }}</p>
+              </div>
+            </div>
+            }
+
+            @if (c.sportCode === 'badminton') {
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+              <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+                <span class="text-[9px] text-slate-400 uppercase font-semibold">Rallies Won</span>
+                <p class="text-base font-black text-emerald-400 mt-0.5">{{ c.ralliesWon }}</p>
+              </div>
+              <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+                <span class="text-[9px] text-slate-400 uppercase font-semibold">Rallies Lost</span>
+                <p class="text-base font-black text-rose-400 mt-0.5">{{ c.ralliesLost }}</p>
+              </div>
+            </div>
+            }
+          </div>
+          } @empty {
+          <div class="bg-slate-900 border border-white/10 rounded-2xl p-8 text-center text-slate-500 text-xs">
+            This player has not played in any completed competition matches yet.
+          </div>
+          }
+        </div>
+        }
+      </div>
+      } @else {
       <div class="flex flex-col gap-6 text-left">
         <div class="flex items-center justify-between border-b border-white/5 pb-4">
           <div>
@@ -1025,8 +1936,43 @@
           <p class="text-xs text-slate-500 max-w-xs">Add your first player or use bulk import to get started.</p>
         </div>
         } @else {
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-          @for (player of players(); track player.id) {
+          <!-- Search and Filter Bar -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/20 border border-white/5 p-4 rounded-2xl mb-4">
+            <div class="text-xs text-slate-400 font-medium">
+              @if (playerSearchQuery()) {
+                Showing {{ filteredPlayers().length }} of {{ players().length }} players
+              } @else {
+                {{ players().length }} player{{ players().length !== 1 ? 's' : '' }} registered
+              }
+            </div>
+            <div class="relative w-full sm:w-72">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <i class="fi fi-rr-search text-xs"></i>
+              </span>
+              <input type="text" [ngModel]="playerSearchQuery()" (ngModelChange)="playerSearchQuery.set($event)"
+                placeholder="Search players by name, team, or jersey..."
+                class="w-full bg-slate-950/40 border border-white/10 focus:border-violet-500/50 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none transition-all" />
+              @if (playerSearchQuery()) {
+              <button (click)="playerSearchQuery.set('')"
+                class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 cursor-pointer bg-transparent border-0">
+                <i class="fi fi-rr-cross text-[10px]"></i>
+              </button>
+              }
+            </div>
+          </div>
+
+          @if (filteredPlayers().length === 0) {
+          <div
+            class="flex flex-col items-center justify-center py-20 text-center bg-slate-900/40 border border-white/10 rounded-2xl">
+            <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-white/10 flex items-center justify-center mb-4">
+              <i class="fi fi-rr-search text-slate-600 text-2xl"></i>
+            </div>
+            <h3 class="text-sm font-bold text-white mb-1">No matching players</h3>
+            <p class="text-xs text-slate-500 max-w-xs">No players match your search query "{{ playerSearchQuery() }}".</p>
+          </div>
+          } @else {
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            @for (player of filteredPlayers(); track player.id) {
           <div
             class="bg-slate-900 border rounded-2xl p-4 flex flex-col justify-between gap-3 group transition-all duration-300 relative overflow-hidden"
             [style.borderColor]="player.team.primaryColor ? player.team.primaryColor + '20' : 'rgba(255,255,255,0.1)'">
@@ -1081,24 +2027,30 @@
             </div>
 
             <!-- Actions -->
-            @if (hasPermission('player.manage')) {
             <div
               class="flex items-center justify-end gap-1.5 pt-2 border-t border-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button (click)="onEditPlayer(player)"
+              <button (click)="onViewPlayerDetails(player)"
                 class="px-2 py-1 text-[10px] font-bold text-violet-400 hover:text-white hover:bg-violet-600/20 border border-violet-500/10 hover:border-violet-500/30 rounded-lg transition-all cursor-pointer">
+                View Stats
+              </button>
+              @if (hasPermission('player.manage')) {
+              <button (click)="onEditPlayer(player)"
+                class="px-2 py-1 text-[10px] font-bold text-slate-300 hover:text-white hover:bg-white/5 border border-white/10 rounded-lg transition-all cursor-pointer">
                 Edit
               </button>
               <button (click)="onDeletePlayer(player)"
                 class="px-2 py-1 text-[10px] font-bold text-rose-400 hover:text-white hover:bg-rose-600/20 border border-rose-500/10 hover:border-rose-500/30 rounded-lg transition-all cursor-pointer">
                 Delete
               </button>
+              }
             </div>
-            }
           </div>
           }
         </div>
         }
+        }
       </div>
+      }
 
       <!-- Player Add/Edit Modal -->
       @if (isPlayerModalOpen()) {
@@ -1485,8 +2437,43 @@
             matches.</p>
         </div>
         } @else {
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          @for (venue of venues(); track venue.id) {
+          <!-- Search and Filter Bar -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/20 border border-white/5 p-4 rounded-2xl mb-4">
+            <div class="text-xs text-slate-400 font-medium">
+              @if (venueSearchQuery()) {
+                Showing {{ filteredVenues().length }} of {{ venues().length }} venues
+              } @else {
+                {{ venues().length }} venue{{ venues().length !== 1 ? 's' : '' }} registered
+              }
+            </div>
+            <div class="relative w-full sm:w-72">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <i class="fi fi-rr-search text-xs"></i>
+              </span>
+              <input type="text" [ngModel]="venueSearchQuery()" (ngModelChange)="venueSearchQuery.set($event)"
+                placeholder="Search venues by name or location..."
+                class="w-full bg-slate-950/40 border border-white/10 focus:border-violet-500/50 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none transition-all" />
+              @if (venueSearchQuery()) {
+              <button (click)="venueSearchQuery.set('')"
+                class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 cursor-pointer bg-transparent border-0">
+                <i class="fi fi-rr-cross text-[10px]"></i>
+              </button>
+              }
+            </div>
+          </div>
+
+          @if (filteredVenues().length === 0) {
+          <div
+            class="flex flex-col items-center justify-center py-20 text-center bg-slate-900/40 border border-white/10 rounded-2xl w-full">
+            <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-white/10 flex items-center justify-center mb-4">
+              <i class="fi fi-rr-search text-slate-600 text-2xl"></i>
+            </div>
+            <h3 class="text-sm font-bold text-white mb-1">No matching venues</h3>
+            <p class="text-xs text-slate-500 max-w-xs">No venues match your search query "{{ venueSearchQuery() }}".</p>
+          </div>
+          } @else {
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            @for (venue of filteredVenues(); track venue.id) {
           <div
             class="bg-slate-900 border border-white/10 hover:border-violet-500/30 rounded-2xl flex flex-col overflow-hidden group transition-all duration-300 shadow-xl hover:shadow-2xl">
             <!-- Cover Image / Banner -->
@@ -1536,6 +2523,7 @@
           </div>
           }
         </div>
+        }
         }
       </div>
       }
@@ -2046,6 +3034,24 @@
             </div>
           </div>
 
+          <!-- Tab Bar (Only when not in live scoring console) -->
+          @if (!selectedMatch() && stages().length > 0) {
+          <div class="flex items-center gap-3 border-b border-white/5 pb-2">
+            <button (click)="setCompetitionTab('matches')"
+              [class]="activeCompetitionTab() === 'matches' 
+                ? 'px-4 py-2 bg-violet-600/10 border border-violet-500/20 text-violet-400 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-md shadow-violet-900/10' 
+                : 'px-4 py-2 text-slate-400 hover:text-white border border-transparent hover:bg-white/5 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5'">
+              <i class="fi fi-rr-calendar-lines text-sm"></i> Matches & Standings
+            </button>
+            <button (click)="setCompetitionTab('stats')"
+              [class]="activeCompetitionTab() === 'stats' 
+                ? 'px-4 py-2 bg-violet-600/10 border border-violet-500/20 text-violet-400 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-md shadow-violet-900/10' 
+                : 'px-4 py-2 text-slate-400 hover:text-white border border-transparent hover:bg-white/5 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5'">
+              <i class="fi fi-rr-chart-histogram text-sm"></i> Leaderboards & Stats
+            </button>
+          </div>
+          }
+
           <!-- ═══════════════ STAGES & FIXTURES INITIAL SETUP ═══════════════ -->
           @if (stages().length === 0) {
           @if (isLoadingStages()) {
@@ -2075,8 +3081,323 @@
           </div>
           }
           } @else if (!selectedMatch()) {
-          <!-- ─── 2. Matches List & Schedule ─── -->
-          <div class="flex flex-col gap-6">
+            @if (activeCompetitionTab() === 'stats') {
+              <!-- Display Competition Statistics Dashboard -->
+              @if (isLoadingStats()) {
+                <div class="py-24 flex flex-col items-center justify-center gap-3">
+                  <svg class="animate-spin w-8 h-8 text-violet-500" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                  <span class="text-xs text-slate-400">Loading leaderboards...</span>
+                </div>
+              } @else if (!competitionStats() || competitionStats()?.topRated?.length === 0) {
+                <div class="rounded-2xl border border-dashed border-white/10 p-12 text-center flex flex-col items-center justify-center gap-3 bg-slate-900/50">
+                  <div class="w-16 h-16 rounded-full bg-violet-600/10 flex items-center justify-center text-violet-400">
+                    <i class="fi fi-rr-chart-user text-3xl"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-white">No stats recorded yet</h3>
+                    <p class="text-xs text-slate-500 mt-1">Complete matches and register stats to see leaderboards here.</p>
+                  </div>
+                </div>
+              } @else {
+                @let stats = competitionStats()!;
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <!-- Common: Top Rated Players (For all sports) -->
+                  <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-3">
+                      <i class="fi fi-rr-star text-amber-400"></i> Top Rated Players (Average Match Rating)
+                    </h3>
+                    <div class="overflow-x-auto">
+                      <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr class="text-slate-400 border-b border-white/5">
+                            <th class="py-2 font-bold uppercase tracking-wider text-[9px] w-12 text-center">Rank</th>
+                            <th class="py-2 font-bold uppercase tracking-wider text-[9px] pl-2">Player</th>
+                            <th class="py-2 font-bold uppercase tracking-wider text-[9px]">Team</th>
+                            <th class="py-2 font-bold uppercase tracking-wider text-[9px] text-center w-16">Matches</th>
+                            <th class="py-2 font-bold uppercase tracking-wider text-[9px] text-right pr-2 w-20">Rating</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (p of stats.topRated; track p.playerId; let idx = $index) {
+                          <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                            <td class="py-2.5 text-center font-bold text-slate-400">
+                              @if (idx === 0) {
+                                <span class="text-yellow-400 text-base">🥇</span>
+                              } @else if (idx === 1) {
+                                <span class="text-slate-300 text-base">🥈</span>
+                              } @else if (idx === 2) {
+                                <span class="text-amber-600 text-base">🥉</span>
+                              } @else {
+                                #{{ idx + 1 }}
+                              }
+                            </td>
+                            <td class="py-2.5 font-bold text-white pl-2">{{ p.playerName }}</td>
+                            <td class="py-2.5 text-slate-300">{{ p.teamName }}</td>
+                            <td class="py-2.5 text-center text-slate-400 font-semibold">{{ p.appearances }}</td>
+                            <td class="py-2.5 text-right pr-2 font-extrabold text-violet-400">{{ p.avgRating.toFixed(2) }}</td>
+                          </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <!-- Common: Most MVPs (For all sports) -->
+                  <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-3">
+                      <i class="fi fi-rr-trophy text-yellow-500"></i> Most MVPs
+                    </h3>
+                    <div class="overflow-x-auto">
+                      <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr class="text-slate-400 border-b border-white/5">
+                            <th class="py-2 font-bold uppercase tracking-wider text-[9px] w-12 text-center">Rank</th>
+                            <th class="py-2 font-bold uppercase tracking-wider text-[9px] pl-2">Player</th>
+                            <th class="py-2 font-bold uppercase tracking-wider text-[9px]">Team</th>
+                            <th class="py-2 font-bold uppercase tracking-wider text-[9px] text-right pr-2 w-20">MVPs</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (p of stats.mostMvps; track p.playerId; let idx = $index) {
+                          <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                            <td class="py-2.5 text-center font-bold text-slate-400">
+                              @if (idx === 0) {
+                                <span class="text-yellow-400 text-base">🥇</span>
+                              } @else if (idx === 1) {
+                                <span class="text-slate-300 text-base">🥈</span>
+                              } @else if (idx === 2) {
+                                <span class="text-amber-600 text-base">🥉</span>
+                              } @else {
+                                #{{ idx + 1 }}
+                              }
+                            </td>
+                            <td class="py-2.5 font-bold text-white pl-2">{{ p.playerName }}</td>
+                            <td class="py-2.5 text-slate-300">{{ p.teamName }}</td>
+                            <td class="py-2.5 text-right pr-2 font-extrabold text-violet-400">{{ p.mvps }}</td>
+                          </tr>
+                          } @empty {
+                            <tr>
+                              <td colspan="4" class="text-center py-4 text-slate-500 text-[11px]">No MVPs awarded yet</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <!-- Football Specific Leaderboards -->
+                  @if (stats.sportCode === 'football') {
+                    <!-- Top Scorers -->
+                    <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                      <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-3">
+                        <i class="fi fi-rr-football text-violet-400"></i> Top Scorers
+                      </h3>
+                      <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr class="text-slate-400 border-b border-white/5">
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] w-12 text-center">Rank</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] pl-2">Player</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px]">Team</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] text-right pr-2 w-20">Goals</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (p of stats.topScorers; track p.playerId; let idx = $index) {
+                            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                              <td class="py-2.5 text-center font-bold text-slate-400">#{{ idx + 1 }}</td>
+                              <td class="py-2.5 font-bold text-white pl-2">{{ p.playerName }}</td>
+                              <td class="py-2.5 text-slate-300">{{ p.teamName }}</td>
+                              <td class="py-2.5 text-right pr-2 font-extrabold text-emerald-400">{{ p.goals }}</td>
+                            </tr>
+                            }
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <!-- Top Assists -->
+                    <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                      <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-3">
+                        <i class="fi fi-rr-running text-violet-400"></i> Top Assists
+                      </h3>
+                      <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr class="text-slate-400 border-b border-white/5">
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] w-12 text-center">Rank</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] pl-2">Player</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px]">Team</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] text-right pr-2 w-20">Assists</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (p of stats.topAssists; track p.playerId; let idx = $index) {
+                            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                              <td class="py-2.5 text-center font-bold text-slate-400">#{{ idx + 1 }}</td>
+                              <td class="py-2.5 font-bold text-white pl-2">{{ p.playerName }}</td>
+                              <td class="py-2.5 text-slate-300">{{ p.teamName }}</td>
+                              <td class="py-2.5 text-right pr-2 font-extrabold text-blue-400">{{ p.assists }}</td>
+                            </tr>
+                            }
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <!-- Discipline (Cards) -->
+                    <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                      <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-3">
+                        <i class="fi fi-rr-shield-exclamation text-amber-500"></i> Discipline & Cards
+                      </h3>
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- Yellow Cards -->
+                        <div class="flex flex-col gap-2">
+                          <h4 class="text-xs font-bold text-yellow-400 flex items-center gap-1.5 mb-1">
+                            <span class="w-2.5 h-3.5 bg-yellow-400 rounded-sm"></span> Most Yellow Cards
+                          </h4>
+                          <div class="flex flex-col gap-1.5 bg-slate-950/40 p-2.5 border border-white/5 rounded-xl">
+                            @for (p of stats.mostYellowCards; track p.playerId) {
+                            <div class="flex items-center justify-between text-xs py-1 border-b border-white/5 last:border-0">
+                              <div class="min-w-0">
+                                <p class="font-bold text-white truncate">{{ p.playerName }}</p>
+                                <p class="text-[9px] text-slate-500 truncate">{{ p.teamName }}</p>
+                              </div>
+                              <span class="font-bold text-yellow-400 pr-1">{{ p.cards }}</span>
+                            </div>
+                            } @empty {
+                            <p class="text-[10px] text-slate-500 text-center py-2">No yellow cards recorded</p>
+                            }
+                          </div>
+                        </div>
+
+                        <!-- Red Cards -->
+                        <div class="flex flex-col gap-2">
+                          <h4 class="text-xs font-bold text-rose-500 flex items-center gap-1.5 mb-1">
+                            <span class="w-2.5 h-3.5 bg-rose-500 rounded-sm"></span> Most Red Cards
+                          </h4>
+                          <div class="flex flex-col gap-1.5 bg-slate-950/40 p-2.5 border border-white/5 rounded-xl">
+                            @for (p of stats.mostRedCards; track p.playerId) {
+                            <div class="flex items-center justify-between text-xs py-1 border-b border-white/5 last:border-0">
+                              <div class="min-w-0">
+                                <p class="font-bold text-white truncate">{{ p.playerName }}</p>
+                                <p class="text-[9px] text-slate-500 truncate">{{ p.teamName }}</p>
+                              </div>
+                              <span class="font-bold text-rose-500 pr-1">{{ p.cards }}</span>
+                            </div>
+                            } @empty {
+                            <p class="text-[10px] text-slate-500 text-center py-2">No red cards recorded</p>
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  }
+
+                  <!-- Cricket Specific Leaderboards -->
+                  @if (stats.sportCode === 'cricket') {
+                    <!-- Top Run Scorers -->
+                    <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                      <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-3">
+                        <i class="fi fi-rr-cricket text-violet-400"></i> Most Runs (Batting Leaderboard)
+                      </h3>
+                      <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr class="text-slate-400 border-b border-white/5">
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] w-12 text-center">Rank</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] pl-2">Player</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px]">Team</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] text-center w-16">Inns</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] text-right pr-2 w-20">Runs</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (p of stats.topRuns; track p.playerId; let idx = $index) {
+                            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                              <td class="py-2.5 text-center font-bold text-slate-400">#{{ idx + 1 }}</td>
+                              <td class="py-2.5 font-bold text-white pl-2">{{ p.playerName }}</td>
+                              <td class="py-2.5 text-slate-300">{{ p.teamName }}</td>
+                              <td class="py-2.5 text-center text-slate-400 font-semibold">{{ p.innings }}</td>
+                              <td class="py-2.5 text-right pr-2 font-extrabold text-emerald-400">{{ p.runs }}</td>
+                            </tr>
+                            }
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <!-- Top Wicket Takers -->
+                    <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                      <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-3">
+                        <i class="fi fi-rr-bowling text-violet-400"></i> Most Wickets (Bowling Leaderboard)
+                      </h3>
+                      <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr class="text-slate-400 border-b border-white/5">
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] w-12 text-center">Rank</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] pl-2">Player</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px]">Team</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] text-center w-16">Inns</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] text-right pr-2 w-20">Wickets</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (p of stats.topWickets; track p.playerId; let idx = $index) {
+                            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                              <td class="py-2.5 text-center font-bold text-slate-400">#{{ idx + 1 }}</td>
+                              <td class="py-2.5 font-bold text-white pl-2">{{ p.playerName }}</td>
+                              <td class="py-2.5 text-slate-300">{{ p.teamName }}</td>
+                              <td class="py-2.5 text-center text-slate-400 font-semibold">{{ p.innings }}</td>
+                              <td class="py-2.5 text-right pr-2 font-extrabold text-emerald-400">{{ p.wickets }}</td>
+                            </tr>
+                            }
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  }
+
+                  <!-- Badminton Specific Leaderboards -->
+                  @if (stats.sportCode === 'badminton') {
+                    <!-- Top Rallies Won -->
+                    <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+                      <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-3">
+                        <i class="fi fi-rr-play text-violet-400"></i> Most Rallies Won
+                      </h3>
+                      <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr class="text-slate-400 border-b border-white/5">
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] w-12 text-center">Rank</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] pl-2">Player</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px]">Team</th>
+                              <th class="py-2 font-bold uppercase tracking-wider text-[9px] text-right pr-2 w-24">Rallies Won</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (p of stats.topRalliesWon; track p.playerId; let idx = $index) {
+                            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                              <td class="py-2.5 text-center font-bold text-slate-400">#{{ idx + 1 }}</td>
+                              <td class="py-2.5 font-bold text-white pl-2">{{ p.playerName }}</td>
+                              <td class="py-2.5 text-slate-300">{{ p.teamName }}</td>
+                              <td class="py-2.5 text-right pr-2 font-extrabold text-emerald-400">{{ p.ralliesWon }}</td>
+                            </tr>
+                            }
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            } @else {
+              <!-- ─── 2. Matches List & Schedule ─── -->
+              <div class="flex flex-col gap-6">
             <!-- Full Width Header -->
             <div class="flex items-center justify-between border-b border-white/5 pb-4">
               <h3 class="text-sm font-bold text-white uppercase tracking-wider">Scheduled Matches</h3>
@@ -2177,6 +3498,12 @@
                         @if (match.venue.location) {
                         <span class="text-slate-500">({{ match.venue.location }})</span>
                         }
+                      </div>
+                      }
+                      @if (match.mvp) {
+                      <div class="text-[10px] text-amber-400 flex items-center gap-1 mt-2">
+                        <i class="fi fi-rr-trophy text-amber-500"></i>
+                        <span>MVP: <strong>{{ match.mvp.playerName }}</strong> ({{ match.mvp.rating.toFixed(2) }})</span>
                       </div>
                       }
                     </div>
@@ -2464,7 +3791,7 @@
               </div>
             </div>
           </div>
-          } @else {
+          } } @else {
           <!-- ─── 3. Live Scoring Console ─── -->
           @let match = selectedMatch()!;
           @let sport = selectedCompetition()?.sport?.code;
@@ -4400,8 +5727,43 @@
           </div>
         </div>
         } @else {
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          @for (event of events(); track event.id) {
+          <!-- Search and Filter Bar -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/20 border border-white/5 p-4 rounded-2xl mb-4">
+            <div class="text-xs text-slate-400 font-medium">
+              @if (eventSearchQuery()) {
+                Showing {{ filteredEvents().length }} of {{ events().length }} events
+              } @else {
+                {{ events().length }} event{{ events().length !== 1 ? 's' : '' }} registered
+              }
+            </div>
+            <div class="relative w-full sm:w-72">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <i class="fi fi-rr-search text-xs"></i>
+              </span>
+              <input type="text" [ngModel]="eventSearchQuery()" (ngModelChange)="eventSearchQuery.set($event)"
+                placeholder="Search events by name, status, or desc..."
+                class="w-full bg-slate-950/40 border border-white/10 focus:border-violet-500/50 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none transition-all" />
+              @if (eventSearchQuery()) {
+              <button (click)="eventSearchQuery.set('')"
+                class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 cursor-pointer bg-transparent border-0">
+                <i class="fi fi-rr-cross text-[10px]"></i>
+              </button>
+              }
+            </div>
+          </div>
+
+          @if (filteredEvents().length === 0) {
+          <div
+            class="rounded-2xl border border-dashed border-white/10 p-12 text-center flex flex-col items-center justify-center gap-3 w-full">
+            <span class="text-3xl text-slate-600"><i class="fi fi-rr-search"></i></span>
+            <div>
+              <h3 class="text-sm font-semibold text-white">No matching events</h3>
+              <p class="text-xs text-slate-500 mt-1">No events match your search query "{{ eventSearchQuery() }}".</p>
+            </div>
+          </div>
+          } @else {
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            @for (event of filteredEvents(); track event.id) {
           <div
             class="bg-slate-900 border border-white/10 hover:border-violet-500/30 rounded-2xl p-5 flex flex-col justify-between gap-4 group transition-all duration-300 text-left">
             <div class="flex flex-col gap-2">
@@ -4493,6 +5855,7 @@
           </div>
           }
         </div>
+        }
         }
       </div>
 
