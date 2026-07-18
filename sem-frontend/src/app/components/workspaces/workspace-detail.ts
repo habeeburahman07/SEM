@@ -3308,6 +3308,7 @@ export class WorkspaceDetailComponent implements OnInit {
     if (!teamId) return [];
     const match = this.selectedMatch();
     const inactiveIds = new Set<string>();
+    const subbedInUserIds = new Set<string>();
     if (match?.liveData?.events) {
       for (const ev of match.liveData.events) {
         if (ev.type === 'card' && (ev.cardType === 'red' || ev.cardType === 'second_yellow')) {
@@ -3318,6 +3319,9 @@ export class WorkspaceDetailComponent implements OnInit {
         if (ev.type === 'substitution') {
           if (ev.playerOutId) {
             inactiveIds.add(ev.playerOutId);
+          }
+          if (ev.playerInId) {
+            subbedInUserIds.add(ev.playerInId);
           }
         }
         if (ev.type === 'injury' && ev.substituted) {
@@ -3333,8 +3337,8 @@ export class WorkspaceDetailComponent implements OnInit {
     const hasMappedLineup = lineup.some(le => le.teamId === teamId && le.isPlaying);
     
     if (hasMappedLineup) {
-      const playingPlayerIds = new Set(lineup.filter(le => le.isPlaying).map(le => le.playerId));
-      return teamPlayers.filter(p => playingPlayerIds.has(p.id));
+      const playingPlayerIds = new Set(lineup.filter(le => le.teamId === teamId && le.isPlaying).map(le => le.playerId));
+      return teamPlayers.filter(p => playingPlayerIds.has(p.id) || subbedInUserIds.has(p.userId));
     }
     
     return teamPlayers;
@@ -3666,7 +3670,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const hasMappedLineup = lineup.some(le => le.teamId === teamId && le.isPlaying);
 
     if (hasMappedLineup) {
-      const benchPlayerIds = new Set(lineup.filter(le => !le.isPlaying).map(le => le.playerId));
+      const benchPlayerIds = new Set(lineup.filter(le => le.teamId === teamId && !le.isPlaying).map(le => le.playerId));
       return teamPlayers.filter(p => benchPlayerIds.has(p.id));
     }
 
@@ -3734,6 +3738,14 @@ export class WorkspaceDetailComponent implements OnInit {
     }
   }
 
+  hasLineupForMatch(match: Match | null): boolean {
+    if (!match) return false;
+    const lineup = this.matchLineup();
+    const homeHas = lineup.some(le => le.teamId === match.homeTeamId && le.isPlaying);
+    const awayHas = lineup.some(le => le.teamId === match.awayTeamId && le.isPlaying);
+    return homeHas && awayHas;
+  }
+
   onToggleFootballTimer() {
     const match = this.selectedMatch();
     const ws = this.workspace();
@@ -3741,6 +3753,11 @@ export class WorkspaceDetailComponent implements OnInit {
     const comp = this.selectedCompetition();
     const stage = this.selectedStage();
     if (!match || !ws || !event || !comp || !stage) return;
+
+    if (match.status !== 'live' && !this.hasLineupForMatch(match)) {
+      this.openLineupModal();
+      return;
+    }
 
     const live = { ...match.liveData };
     live.timerRunning = !live.timerRunning;
@@ -3756,7 +3773,12 @@ export class WorkspaceDetailComponent implements OnInit {
         else this.stopFootballTimer();
       },
       error: (err) => {
-        this.uiService.error(err.error?.message || 'Failed to update match status.');
+        const msg = err.error?.message || '';
+        if (msg.toLowerCase().includes('lineup')) {
+          this.openLineupModal();
+        } else {
+          this.uiService.error(msg || 'Failed to update match status.');
+        }
       }
     });
   }
@@ -3768,6 +3790,11 @@ export class WorkspaceDetailComponent implements OnInit {
     const comp = this.selectedCompetition();
     const stage = this.selectedStage();
     if (!match || !ws || !event || !comp || !stage) return;
+
+    if (!this.hasLineupForMatch(match)) {
+      this.openLineupModal();
+      return;
+    }
 
     const live = {
       started: true,
@@ -3791,7 +3818,12 @@ export class WorkspaceDetailComponent implements OnInit {
         this.startFootballTimer();
       },
       error: (err) => {
-        this.uiService.error(err.error?.message || 'Failed to start football match.');
+        const msg = err.error?.message || '';
+        if (msg.toLowerCase().includes('lineup')) {
+          this.openLineupModal();
+        } else {
+          this.uiService.error(msg || 'Failed to start football match.');
+        }
       }
     });
   }
@@ -4501,6 +4533,11 @@ export class WorkspaceDetailComponent implements OnInit {
     const stage = this.selectedStage();
     if (!match || !ws || !event || !comp || !stage) return;
 
+    if (!this.hasLineupForMatch(match)) {
+      this.openLineupModal();
+      return;
+    }
+
     const live = match.liveData ? { ...match.liveData } : {};
     live.tossWinnerId = tossWinnerId;
     live.tossChoice = tossChoice;
@@ -4541,7 +4578,12 @@ export class WorkspaceDetailComponent implements OnInit {
         this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
       },
       error: (err) => {
-        this.uiService.error(err.error?.message || 'Failed to start cricket match.');
+        const msg = err.error?.message || '';
+        if (msg.toLowerCase().includes('lineup')) {
+          this.openLineupModal();
+        } else {
+          this.uiService.error(msg || 'Failed to start cricket match.');
+        }
       }
     });
   }
@@ -5008,6 +5050,11 @@ export class WorkspaceDetailComponent implements OnInit {
       dbStatus = 'live';
     }
 
+    if (dbStatus === 'live' && !this.hasLineupForMatch(match)) {
+      this.openLineupModal();
+      return;
+    }
+
     this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       status: dbStatus,
       liveData: live
@@ -5019,7 +5066,12 @@ export class WorkspaceDetailComponent implements OnInit {
         this.uiService.success(`Match status updated to ${matchStatus}`);
       },
       error: (err) => {
-        this.uiService.error(err.error?.message || 'Failed to update match status.');
+        const msg = err.error?.message || '';
+        if (msg.toLowerCase().includes('lineup')) {
+          this.openLineupModal();
+        } else {
+          this.uiService.error(msg || 'Failed to update match status.');
+        }
       }
     });
   }

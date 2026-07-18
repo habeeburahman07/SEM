@@ -186,7 +186,7 @@
     @if (authService.currentUser()?.needsPasswordChange) {
       <div class="mb-8 w-full bg-amber-950/20 border border-amber-500/25 rounded-2xl p-4 flex items-center justify-between gap-4 animate-pulse">
         <div class="flex items-center gap-3">
-          <span class="text-xl">⚠️</span>
+          <i class="fi fi-rr-triangle-warning text-amber-400 text-xl flex-shrink-0"></i>
           <div>
             <h4 class="text-sm font-bold text-white">Temporary Password Warning</h4>
             <p class="text-xs text-slate-400 mt-0.5">Your account was created by an administrator. Please change your password immediately for security.</p>
