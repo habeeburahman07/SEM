@@ -56,12 +56,23 @@ export class WorkspaceDetailComponent implements OnInit {
   marker: any = null;
 
   workspace = signal<Workspace | null>(null);
+  allWorkspaces = signal<Workspace[]>([]);
   members = signal<WorkspaceMember[]>([]);
   roles = signal<Role[]>([]);
   isLoading = signal(true);
   error = signal('');
   activeTab = signal<'overview' | 'members' | 'settings' | 'teams' | 'players' | 'events' | 'venues'>('overview');
   isSidebarOpen = signal(true);
+
+  // ── Workspace Dashboard Overview Signals ─────────────────────────────────────
+  overviewLiveMatches = signal<any[]>([]);
+  overviewUpcomingMatches = signal<any[]>([]);
+  overviewRunningCompetitions = signal<any[]>([]);
+  overviewTopScorers = signal<any[]>([]);
+  overviewTopRatedPlayers = signal<any[]>([]);
+  selectedOverviewCompId = signal<string>('');
+  selectedOverviewComp = signal<any | null>(null);
+  isOverviewLoading = signal<boolean>(false);
 
   // ── Global Search State ──────────────────────────────────────────────────────
   globalSearchQuery = signal<string>('');
@@ -741,7 +752,38 @@ export class WorkspaceDetailComponent implements OnInit {
 
   ngOnInit() {
     this.loadInvitationsAndNotifications();
-    const id = this.route.snapshot.paramMap.get('id')!;
+    this.loadAllWorkspaces();
+
+    this.route.paramMap.subscribe((params) => {
+      const id = params.get('id');
+      if (id) {
+        this.loadWorkspaceDetails(id);
+      }
+    });
+
+    this.route.queryParams.subscribe((params) => {
+      if (params['matchId'] || params['eventId']) {
+        this.handleDeepLink(params);
+      }
+    });
+  }
+
+  loadAllWorkspaces() {
+    this.workspaceService.getAll().subscribe({
+      next: (data) => this.allWorkspaces.set(data),
+      error: (err) => console.error('Failed to load all workspaces', err),
+    });
+  }
+
+  onSwitchWorkspace(wsId: string) {
+    if (wsId && wsId !== this.workspace()?.id) {
+      this.router.navigate(['/workspaces', wsId]);
+    }
+  }
+
+  loadWorkspaceDetails(id: string) {
+    this.isLoading.set(true);
+    this.error.set('');
     this.workspaceService.getOne(id).subscribe({
       next: (ws) => {
         this.workspace.set(ws);
@@ -755,12 +797,168 @@ export class WorkspaceDetailComponent implements OnInit {
         this.loadEvents(id);
         this.loadSports();
         this.loadVenues(id);
+        this.loadWorkspaceDashboard(id);
+        this.isLoading.set(false);
       },
       error: (err) => {
         console.error(err);
         this.error.set('Workspace not found or access denied.');
         this.isLoading.set(false);
       },
+    });
+  }
+
+  loadWorkspaceDashboard(workspaceId: string) {
+    this.isOverviewLoading.set(true);
+    this.workspaceService.getDashboardOverview().subscribe({
+      next: (data) => {
+        const live = (data.liveMatches || []).filter((m: any) =>
+          m.workspaceId === workspaceId ||
+          m.stage?.competition?.event?.workspaceId === workspaceId
+        );
+        this.overviewLiveMatches.set(live);
+
+        const upcoming = (data.upcomingMatches || []).filter((m: any) =>
+          m.workspaceId === workspaceId ||
+          m.stage?.competition?.event?.workspaceId === workspaceId
+        );
+        this.overviewUpcomingMatches.set(upcoming);
+
+        const runningComps = (data.runningCompetitions || []).filter((c: any) =>
+          c.event?.workspaceId === workspaceId || c.workspaceId === workspaceId
+        );
+        this.overviewRunningCompetitions.set(runningComps);
+        if (runningComps.length > 0) {
+          this.selectedOverviewCompId.set(runningComps[0].id);
+          this.selectedOverviewComp.set(runningComps[0]);
+        }
+
+        this.overviewTopScorers.set(data.topScorers || []);
+        this.overviewTopRatedPlayers.set(data.topRatedPlayers || []);
+        this.isOverviewLoading.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to load workspace overview', err);
+        this.isOverviewLoading.set(false);
+      }
+    });
+  }
+
+  onSelectOverviewCompetition(comp: any) {
+    this.selectedOverviewCompId.set(comp.id);
+    this.selectedOverviewComp.set(comp);
+  }
+
+  onEnterLiveMatchFromOverview(match: any) {
+    const eventId = match.stage?.competition?.eventId || match.eventId;
+    const competitionId = match.stage?.competitionId || match.competitionId;
+    const stageId = match.stageId;
+    const matchId = match.id;
+
+    if (eventId) {
+      this.handleDeepLink({ eventId, competitionId, stageId, matchId });
+    }
+  }
+
+  getSportBadgeClass(sportCode?: string): string {
+    switch (sportCode?.toLowerCase()) {
+      case 'football': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+      case 'cricket': return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+      case 'badminton': return 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
+      default: return 'bg-violet-500/20 text-violet-400 border-violet-500/30';
+    }
+  }
+
+  getSportIconClass(sportCode?: string): string {
+    switch (sportCode?.toLowerCase()) {
+      case 'football': return 'fi fi-rr-football';
+      case 'cricket': return 'fi fi-rr-bowling';
+      case 'badminton': return 'fi fi-rr-trophy';
+      default: return 'fi fi-rr-trophy';
+    }
+  }
+
+  openEventModal() {
+    this.activeTab.set('events');
+  }
+
+  openTeamModal() {
+    this.activeTab.set('teams');
+  }
+
+  openPlayerModal() {
+    this.activeTab.set('players');
+  }
+
+  openVenueModal() {
+    this.activeTab.set('venues');
+  }
+
+  formatMatchStatusDetail(match: any): string {
+    if (match.status !== 'live') return 'Scheduled';
+    const sport = match.stage?.competition?.sport?.code || 'football';
+    const live = match.liveData || {};
+
+    if (sport === 'football') {
+      const half = live.currentHalf === 1 ? '1st Half' : live.currentHalf === 2 ? '2nd Half' : live.currentHalf === 3 ? 'ET 1' : live.currentHalf === 4 ? 'ET 2' : 'Live';
+      const mins = Math.floor((live.elapsedSeconds || 0) / 60);
+      return `${half} ${mins}'`;
+    }
+    if (sport === 'cricket') {
+      const overs = live.currentOvers || '0.0';
+      const wkt = live.wickets || 0;
+      return `Overs: ${overs} (${wkt} wkts)`;
+    }
+    if (sport === 'badminton') {
+      return live.matchStatus || 'Game in Progress';
+    }
+    return 'LIVE';
+  }
+
+  handleDeepLink(params: any) {
+    const { eventId, competitionId, stageId, matchId } = params;
+    const ws = this.workspace();
+    if (!ws || !eventId) return;
+
+    this.activeTab.set('events');
+    this.workspaceService.getEvents(ws.id).subscribe({
+      next: (events) => {
+        this.events.set(events);
+        const ev = events.find((e) => e.id === eventId);
+        if (!ev) return;
+        this.selectedEvent.set(ev);
+
+        if (!competitionId) return;
+        this.workspaceService.getCompetitions(ws.id, eventId).subscribe({
+          next: (comps) => {
+            this.competitions.set(comps);
+            const comp = comps.find((c) => c.id === competitionId);
+            if (!comp) return;
+            this.selectedCompetition.set(comp);
+            this.activeCompetitionTab.set('matches');
+
+            this.workspaceService.getStages(ws.id, eventId, competitionId).subscribe({
+              next: (stages) => {
+                this.stages.set(stages);
+                const stage = (stageId ? stages.find((s) => s.id === stageId) : null) || stages[0];
+                if (!stage) return;
+                this.selectedStage.set(stage);
+
+                if (!matchId) return;
+                this.workspaceService.getMatches(ws.id, eventId, competitionId, stage.id).subscribe({
+                  next: (matches) => {
+                    this.matches.set(matches);
+                    const m = matches.find((match) => match.id === matchId);
+                    if (m) {
+                      this.onSelectMatch(m);
+                    }
+                  }
+                });
+              }
+            });
+          }
+        });
+      }
     });
   }
 

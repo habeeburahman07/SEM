@@ -297,6 +297,10 @@ export class WorkspaceService {
     return this.http.get<Workspace[]>(this.apiUrl, { headers: this.headers });
   }
 
+  getDashboardOverview(): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/dashboard/overview`, { headers: this.headers });
+  }
+
   getOne(id: string): Observable<Workspace> {
     return this.http.get<Workspace>(`${this.apiUrl}/${id}`, { headers: this.headers });
   }

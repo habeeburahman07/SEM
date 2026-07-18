@@ -175,15 +175,6 @@
         </button>
         }
       </div>
-
-      <!-- Sidebar Footer -->
-      <div [class.lg:px-2.5]="!isSidebarOpen()" class="p-4 border-t border-white/5 flex flex-col gap-1">
-        <a routerLink="/workspaces" [class.lg:justify-center]="!isSidebarOpen()" [class.lg:px-0]="!isSidebarOpen()"
-          class="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white transition cursor-pointer px-4 py-2.5 hover:bg-white/5 rounded-xl">
-          <i class="fi fi-rr-angle-small-left text-base shrink-0"></i>
-          <span [class.lg:hidden]="!isSidebarOpen()">Back to Workspaces</span>
-        </a>
-      </div>
     </aside>
 
     <!-- Main Content Area -->
@@ -262,16 +253,16 @@
                         <div class="flex flex-col gap-1">
                           @for (player of globalSearchResults().players; track player.id) {
                             <button (click)="selectGlobalPlayer(player)" class="w-full flex items-center gap-2.5 p-2 hover:bg-white/[0.03] rounded-xl text-left transition-colors cursor-pointer border-0 bg-transparent">
-                              @if (player.user?.avatarUrl) {
+                              @if (player.user.avatarUrl) {
                                 <img [src]="player.user.avatarUrl" class="w-6 h-6 rounded-full object-cover" />
                               } @else {
-                                <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-extrabold" [style.background]="avatarColor(player.user?.username || 'P')">
-                                  {{ initials(player.user?.username || 'P') }}
+                                <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-extrabold" [style.background]="avatarColor(player.user.username || 'P')">
+                                  {{ initials(player.user.username || 'P') }}
                                 </div>
                               }
                               <div class="min-w-0 flex-1">
-                                <p class="text-xs font-semibold text-white truncate">{{ player.user?.username }}</p>
-                                <p class="text-[9px] text-slate-400 truncate">Team: {{ player.team?.name }} • Jersey: #{{ player.jerseyNumber || 'N/A' }}</p>
+                                <p class="text-xs font-semibold text-white truncate">{{ player.user.username }}</p>
+                                <p class="text-[9px] text-slate-400 truncate">Team: {{ player.team.name }} • Jersey: #{{ player.jerseyNumber || 'N/A' }}</p>
                               </div>
                             </button>
                           }
@@ -382,7 +373,20 @@
           </div>
         </div>
 
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3">
+          <!-- Workspace Switcher Select Dropdown -->
+          <div class="relative min-w-[160px] max-w-[220px]">
+            <select [ngModel]="workspace()?.id" (ngModelChange)="onSwitchWorkspace($event)"
+              class="w-full bg-slate-900 border border-white/10 hover:border-violet-500/50 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none cursor-pointer appearance-none transition-all truncate pr-8 shadow-sm">
+              @for (ws of allWorkspaces(); track ws.id) {
+                <option [value]="ws.id" class="bg-slate-900 text-white py-1.5">{{ ws.name }}</option>
+              }
+            </select>
+            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">
+              <i class="fi fi-rr-angle-small-down"></i>
+            </span>
+          </div>
+
           <!-- Notification Dropdown Menu -->
           <div class="relative">
             <button (click)="isNotificationOpen.set(!isNotificationOpen())"
@@ -566,130 +570,434 @@
 
       <!-- ═══════════════ OVERVIEW TAB ═══════════════ -->
       @if (activeTab() === 'overview') {
-      <div class="space-y-8 animate-fadeIn">
-        <!-- Hero banner -->
-        <div class="flex items-start justify-between gap-6 pb-6 border-b border-white/10">
+      <div class="space-y-4 md:space-y-5 animate-fadeIn">
+        
+        <!-- Hero banner & Quick Action Toolbar (Compact) -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/10">
           <div>
-            <h1 class="text-2xl font-extrabold text-white tracking-tight">Dashboard</h1>
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 text-[10px] font-semibold mb-1">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              Workspace Active Command Center
+            </div>
+            <h1 class="text-xl font-black text-white tracking-tight">{{ workspace()!.name }} Overview</h1>
             @if (workspace()!.description) {
-            <p class="text-slate-400 mt-1 text-xs max-w-xl">{{ workspace()!.description }}</p>
+            <p class="text-slate-400 mt-0.5 text-xs max-w-xl truncate">{{ workspace()!.description }}</p>
             }
-            <p class="text-[10px] text-slate-600 mt-1.5">Workspace created {{ workspace()!.createdAt | date:'MMMM d, y'
-              }}</p>
+          </div>
+
+          <!-- Workspace Quick Action Buttons -->
+          <div class="flex flex-wrap items-center gap-2">
+            @if (hasPermission('event.create')) {
+              <button (click)="openEventModal()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-xl shadow-md shadow-violet-900/30 transition-all cursor-pointer flex items-center gap-1.5">
+                <i class="fi fi-rr-plus text-xs"></i> New Event
+              </button>
+            }
+            @if (hasPermission('team.manage')) {
+              <button (click)="openTeamModal()" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-semibold rounded-xl border border-white/10 transition-all cursor-pointer flex items-center gap-1.5">
+                <i class="fi fi-rr-users-alt text-xs"></i> Add Team
+              </button>
+            }
+            @if (hasPermission('player.manage')) {
+              <button (click)="openPlayerModal()" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-semibold rounded-xl border border-white/10 transition-all cursor-pointer flex items-center gap-1.5">
+                <i class="fi fi-rr-running text-xs"></i> Add Player
+              </button>
+            }
+            @if (hasPermission('venue.manage')) {
+              <button (click)="openVenueModal()" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-semibold rounded-xl border border-white/10 transition-all cursor-pointer flex items-center gap-1.5">
+                <i class="fi fi-rr-marker text-xs"></i> Add Venue
+              </button>
+            }
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
-          <div
-            class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex items-center justify-between shadow-lg relative overflow-hidden group">
+        <!-- 1. Stats Summary Cards Grid (Compact 5-Col) -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div (click)="activeTab.set('teams')"
+            class="bg-slate-900/90 border border-white/10 hover:border-violet-500/40 rounded-xl p-3.5 flex items-center justify-between shadow-md relative overflow-hidden group cursor-pointer transition-all">
             <div class="absolute top-0 left-0 h-full w-[3px] bg-gradient-to-b from-violet-500 to-indigo-500"></div>
             <div>
-              <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Registered Teams</p>
-              <h3 class="text-3xl font-extrabold text-white mt-1">{{ teams().length }}</h3>
+              <p class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Registered Teams</p>
+              <h3 class="text-2xl font-black text-white mt-0.5">{{ teams().length }}</h3>
             </div>
-            <div class="text-3xl text-violet-500/20 group-hover:text-violet-500/40 transition-colors duration-300"><i
-                class="fi fi-rr-users-alt"></i></div>
+            <div class="text-2xl text-violet-500/30 group-hover:text-violet-400 transition-colors"><i class="fi fi-rr-users-alt"></i></div>
           </div>
 
-          <div
-            class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex items-center justify-between shadow-lg relative overflow-hidden group">
+          <div (click)="activeTab.set('players')"
+            class="bg-slate-900/90 border border-white/10 hover:border-indigo-500/40 rounded-xl p-3.5 flex items-center justify-between shadow-md relative overflow-hidden group cursor-pointer transition-all">
             <div class="absolute top-0 left-0 h-full w-[3px] bg-gradient-to-b from-indigo-500 to-blue-500"></div>
             <div>
-              <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Active Players</p>
-              <h3 class="text-3xl font-extrabold text-white mt-1">{{ players().length }}</h3>
+              <p class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Active Players</p>
+              <h3 class="text-2xl font-black text-white mt-0.5">{{ players().length }}</h3>
             </div>
-            <div class="text-3xl text-indigo-500/20 group-hover:text-indigo-500/40 transition-colors duration-300"><i
-                class="fi fi-rr-running"></i></div>
+            <div class="text-2xl text-indigo-500/30 group-hover:text-indigo-400 transition-colors"><i class="fi fi-rr-running"></i></div>
           </div>
 
-          <div
-            class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex items-center justify-between shadow-lg relative overflow-hidden group">
+          <div (click)="activeTab.set('events')"
+            class="bg-slate-900/90 border border-white/10 hover:border-emerald-500/40 rounded-xl p-3.5 flex items-center justify-between shadow-md relative overflow-hidden group cursor-pointer transition-all">
             <div class="absolute top-0 left-0 h-full w-[3px] bg-gradient-to-b from-emerald-500 to-teal-500"></div>
             <div>
-              <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sports Festivals</p>
-              <h3 class="text-3xl font-extrabold text-white mt-1">{{ events().length }}</h3>
+              <p class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Sports Festivals</p>
+              <h3 class="text-2xl font-black text-white mt-0.5">{{ events().length }}</h3>
             </div>
-            <div class="text-3xl text-emerald-500/20 group-hover:text-emerald-500/40 transition-colors duration-300"><i
-                class="fi fi-rr-trophy"></i></div>
+            <div class="text-2xl text-emerald-500/30 group-hover:text-emerald-400 transition-colors"><i class="fi fi-rr-trophy"></i></div>
           </div>
 
-          <div
-            class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex items-center justify-between shadow-lg relative overflow-hidden group">
+          <div (click)="activeTab.set('venues')"
+            class="bg-slate-900/90 border border-white/10 hover:border-sky-500/40 rounded-xl p-3.5 flex items-center justify-between shadow-md relative overflow-hidden group cursor-pointer transition-all">
             <div class="absolute top-0 left-0 h-full w-[3px] bg-gradient-to-b from-sky-500 to-violet-500"></div>
             <div>
-              <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Venues</p>
-              <h3 class="text-3xl font-extrabold text-white mt-1">{{ venues().length }}</h3>
+              <p class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Venues</p>
+              <h3 class="text-2xl font-black text-white mt-0.5">{{ venues().length }}</h3>
             </div>
-            <div class="text-3xl text-sky-500/20 group-hover:text-sky-500/40 transition-colors duration-300"><i
-                class="fi fi-rr-marker"></i></div>
+            <div class="text-2xl text-sky-500/30 group-hover:text-sky-400 transition-colors"><i class="fi fi-rr-marker"></i></div>
           </div>
 
-          <div
-            class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex items-center justify-between shadow-lg relative overflow-hidden group">
+          <div (click)="activeTab.set('members')"
+            class="bg-slate-900/90 border border-white/10 hover:border-amber-500/40 rounded-xl p-3.5 flex items-center justify-between shadow-md relative overflow-hidden group cursor-pointer transition-all">
             <div class="absolute top-0 left-0 h-full w-[3px] bg-gradient-to-b from-amber-500 to-orange-500"></div>
             <div>
-              <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Collaborators</p>
-              <h3 class="text-3xl font-extrabold text-white mt-1">{{ members().length }}</h3>
+              <p class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Collaborators</p>
+              <h3 class="text-2xl font-black text-white mt-0.5">{{ members().length }}</h3>
             </div>
-            <div class="text-3xl text-amber-500/20 group-hover:text-amber-500/40 transition-colors duration-300"><i
-                class="fi fi-rr-users"></i></div>
+            <div class="text-2xl text-amber-500/30 group-hover:text-amber-400 transition-colors"><i class="fi fi-rr-users"></i></div>
           </div>
         </div>
 
-        <!-- Welcome / Quick Guide -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div class="lg:col-span-2 bg-slate-900/60 border border-white/5 rounded-2xl p-6 flex flex-col gap-4">
-            <h2 class="text-base font-bold text-white flex items-center gap-2">
-              <i class="fi fi-rr-bolt text-violet-400"></i>
-              Tournament Management Console
-            </h2>
-            <p class="text-xs text-slate-400 leading-relaxed">
-              Welcome to the workspace! Use the sidebar navigation on the left to navigate through your sports
-              tournaments.
-              From here you can register participating teams, manage player rosters, set up sports festivals/events, and
-              auto-generate matchups, round-robins, and knockout fixtures.
-            </p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-              <div class="bg-slate-900 border border-white/10 rounded-xl p-4 flex gap-3 items-start">
-                <span class="text-violet-400 text-sm mt-0.5"><i class="fi fi-rr-play"></i></span>
-                <div>
-                  <h4 class="text-xs font-bold text-white">Get Started</h4>
-                  <p class="text-[10px] text-slate-500 mt-1">Register teams under the Teams tab, and link players to
-                    them.</p>
-                </div>
-              </div>
-              <div class="bg-slate-900 border border-white/10 rounded-xl p-4 flex gap-3 items-start">
-                <span class="text-emerald-400 text-sm mt-0.5"><i class="fi fi-rr-magic-wand"></i></span>
-                <div>
-                  <h4 class="text-xs font-bold text-white">Generate Fixtures</h4>
-                  <p class="text-[10px] text-slate-500 mt-1">Configure stages under Events, enroll teams, and generate
-                    random pairings.</p>
-                </div>
-              </div>
-            </div>
+        <!-- High-Density Workspace Status Ribbon -->
+        <div class="bg-slate-950/80 border border-white/10 rounded-xl p-2.5 px-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div class="flex items-center gap-4 text-[11px] font-semibold text-slate-300">
+            <span class="flex items-center gap-1.5 text-rose-400 font-bold">
+              <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+              <i class="fi fi-rr-play-alt text-xs"></i> {{ overviewLiveMatches().length }} Live Match{{ overviewLiveMatches().length !== 1 ? 'es' : '' }}
+            </span>
+            <span class="text-slate-600">•</span>
+            <span class="flex items-center gap-1.5">
+              <i class="fi fi-rr-trophy text-amber-400 text-xs"></i> {{ overviewRunningCompetitions().length }} Tournaments Active
+            </span>
+            <span class="text-slate-600">•</span>
+            <span class="flex items-center gap-1.5">
+              <i class="fi fi-rr-calendar text-violet-400 text-xs"></i> {{ overviewUpcomingMatches().length }} Scheduled Fixtures
+            </span>
           </div>
 
-          <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
-            <h2 class="text-base font-bold text-white">Workspace Info</h2>
-            <div class="flex flex-col gap-3.5 divide-y divide-white/5">
-              <div class="flex justify-between items-center text-xs pt-1">
-                <span class="text-slate-500">Identifier Slug</span>
-                <span class="font-mono text-slate-300">/{{ workspace()!.slug }}</span>
-              </div>
-              <div class="flex justify-between items-center text-xs pt-3.5">
-                <span class="text-slate-500">Your Role</span>
-                <span
-                  class="px-2 py-0.5 bg-violet-500/10 text-violet-400 rounded-md border border-violet-500/20 text-[10px] font-bold uppercase tracking-wider">
-                  {{ isOwner() ? 'Owner' : 'Member' }}
-                </span>
-              </div>
-              <div class="flex justify-between items-center text-xs pt-3.5">
-                <span class="text-slate-500">Created At</span>
-                <span class="text-slate-300">{{ workspace()!.createdAt | date:'mediumDate' }}</span>
-              </div>
+          @if (overviewTopScorers().length > 0) {
+            <div class="flex items-center gap-1.5 text-[10px] bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg text-emerald-300 font-bold">
+              <i class="fi fi-rr-target text-xs"></i> Top Scorer: {{ overviewTopScorers()[0].playerName }} ({{ overviewTopScorers()[0].score }} Goals)
             </div>
-          </div>
+          }
         </div>
+
+        <!-- 2. LIVE MATCHES & SCOREBOARDS (Direct Entry to Live Console) -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-md shadow-rose-500/50 animate-pulse"></div>
+              <h2 class="text-sm font-extrabold text-white tracking-tight flex items-center gap-2">
+                Live Games & Scoreboards
+                @if (overviewLiveMatches().length > 0) {
+                  <span class="px-2 py-0.5 text-[9px] font-extrabold rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                    {{ overviewLiveMatches().length }} LIVE
+                  </span>
+                }
+              </h2>
+            </div>
+            <span class="text-[11px] text-slate-400">Click any match card to enter live scoring console</span>
+          </div>
+
+          @if (overviewLiveMatches().length > 0) {
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              @for (match of overviewLiveMatches(); track match.id) {
+                <div (click)="onEnterLiveMatchFromOverview(match)"
+                  class="group relative overflow-hidden rounded-xl bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border border-rose-500/30 hover:border-rose-500/70 p-4 shadow-lg hover:shadow-rose-500/10 transition-all cursor-pointer">
+                  
+                  <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 via-amber-500 to-rose-500 animate-pulse"></div>
+
+                  <!-- Match Top Meta -->
+                  <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-1.5">
+                      <span class="px-2 py-0.5 text-[9px] font-extrabold rounded-md border uppercase tracking-wider flex items-center gap-1"
+                            [ngClass]="getSportBadgeClass(match.stage?.competition?.sport?.code)">
+                        <i [class]="getSportIconClass(match.stage?.competition?.sport?.code)"></i>
+                        {{ match.stage?.competition?.sport?.name || 'Sport' }}
+                      </span>
+                      <span class="text-xs text-slate-400 truncate max-w-[130px] font-medium">{{ match.stage?.competition?.name }}</span>
+                    </div>
+
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/40 text-rose-400 text-[10px] font-black animate-pulse">
+                      <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                      {{ formatMatchStatusDetail(match) }}
+                    </span>
+                  </div>
+
+                  <!-- Scoreboard Body -->
+                  <div class="flex items-center justify-between my-2 px-1">
+                    <!-- Home Team -->
+                    <div class="flex flex-col items-center text-center space-y-1 w-2/5">
+                      <div class="w-10 h-10 rounded-xl bg-slate-800 border border-white/10 flex items-center justify-center p-1.5 shadow-inner group-hover:scale-105 transition-transform overflow-hidden">
+                        @if (match.homeTeam?.logoUrl) {
+                          <img [src]="match.homeTeam.logoUrl" [alt]="match.homeTeam.name" class="w-full h-full object-contain">
+                        } @else {
+                          <span class="text-xs font-black text-violet-400">{{ match.homeTeam?.name?.slice(0, 2) || 'HT' }}</span>
+                        }
+                      </div>
+                      <span class="text-xs font-bold text-white truncate w-full">{{ match.homeTeam?.name || 'Home Team' }}</span>
+                    </div>
+
+                    <!-- Score Display -->
+                    <div class="flex flex-col items-center justify-center w-1/5">
+                      <div class="text-xl font-black text-white tracking-wider font-mono flex items-center gap-1">
+                        <span>{{ match.homeScore ?? 0 }}</span>
+                        <span class="text-slate-500 text-sm">:</span>
+                        <span>{{ match.awayScore ?? 0 }}</span>
+                      </div>
+                      <span class="text-[8px] text-slate-400 uppercase tracking-widest mt-0.5 font-bold">Live Score</span>
+                    </div>
+
+                    <!-- Away Team -->
+                    <div class="flex flex-col items-center text-center space-y-1 w-2/5">
+                      <div class="w-10 h-10 rounded-xl bg-slate-800 border border-white/10 flex items-center justify-center p-1.5 shadow-inner group-hover:scale-105 transition-transform overflow-hidden">
+                        @if (match.awayTeam?.logoUrl) {
+                          <img [src]="match.awayTeam.logoUrl" [alt]="match.awayTeam.name" class="w-full h-full object-contain">
+                        } @else {
+                          <span class="text-xs font-black text-indigo-400">{{ match.awayTeam?.name?.slice(0, 2) || 'AT' }}</span>
+                        }
+                      </div>
+                      <span class="text-xs font-bold text-white truncate w-full">{{ match.awayTeam?.name || 'Away Team' }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Footer Venue & Action -->
+                  <div class="pt-2.5 mt-2 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
+                    <span class="truncate max-w-[170px] flex items-center gap-1 text-[10px]">
+                      <i class="fi fi-rr-marker text-slate-500 text-xs"></i>
+                      {{ match.venue?.name || 'Stadium' }}
+                    </span>
+                    <span class="text-violet-400 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-1 text-[11px]">
+                      Enter Console <i class="fi fi-rr-angle-small-right text-xs"></i>
+                    </span>
+                  </div>
+
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="p-4 rounded-xl bg-slate-900/50 border border-white/10 text-center space-y-1">
+              <p class="text-xs font-bold text-slate-300">No Matches Currently Live</p>
+              <p class="text-[10px] text-slate-500">There are no matches actively running right now in this workspace.</p>
+            </div>
+          }
+        </div>
+
+        <!-- 3. RUNNING COMPETITION POINTS TABLE (STANDINGS) -->
+        <div class="space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 class="text-sm font-extrabold text-white tracking-tight flex items-center gap-2">
+                <i class="fi fi-rr-trophy text-amber-400 text-sm"></i>
+                Running Competition Points Table
+              </h2>
+              <p class="text-[11px] text-slate-400">Live standings for active tournaments in this workspace</p>
+            </div>
+
+            @if (overviewRunningCompetitions().length > 0) {
+              <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                @for (comp of overviewRunningCompetitions(); track comp.id) {
+                  <button (click)="onSelectOverviewCompetition(comp)"
+                    class="px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer"
+                    [ngClass]="selectedOverviewCompId() === comp.id ? 'bg-violet-600 text-white shadow-sm shadow-violet-600/30' : 'bg-slate-900 text-slate-400 hover:text-white border border-white/10'">
+                    {{ comp.name }}
+                  </button>
+                }
+              </div>
+            }
+          </div>
+
+          @if (selectedOverviewComp() && selectedOverviewComp()?.standings?.length > 0) {
+            <div class="overflow-x-auto rounded-xl border border-white/10 bg-slate-900/90 backdrop-blur-md shadow-lg">
+              <table class="w-full text-left text-xs text-slate-300">
+                <thead class="bg-slate-950/90 text-slate-400 uppercase tracking-wider text-[9px] font-extrabold border-b border-white/10">
+                  <tr>
+                    <th class="py-2.5 px-3 text-center">Pos</th>
+                    <th class="py-2.5 px-3">Team</th>
+                    <th class="py-2.5 px-2 text-center">P</th>
+                    <th class="py-2.5 px-2 text-center">W</th>
+                    <th class="py-2.5 px-2 text-center">D</th>
+                    <th class="py-2.5 px-2 text-center">L</th>
+                    <th class="py-2.5 px-2 text-center">GF</th>
+                    <th class="py-2.5 px-2 text-center">GA</th>
+                    <th class="py-2.5 px-2 text-center">GD</th>
+                    <th class="py-2.5 px-3 text-center font-black text-violet-400">Pts</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5">
+                  @for (row of selectedOverviewComp()?.standings; track row.teamId; let idx = $index) {
+                    <tr class="hover:bg-white/5 transition-colors">
+                      <td class="py-2 px-3 text-center font-black">
+                        @if (idx === 0) {
+                          <span class="inline-flex items-center gap-1 text-amber-400 font-extrabold"><i class="fi fi-rr-medal text-xs"></i> 1</span>
+                        } @else if (idx === 1) {
+                          <span class="inline-flex items-center gap-1 text-slate-300 font-extrabold"><i class="fi fi-rr-medal text-xs"></i> 2</span>
+                        } @else if (idx === 2) {
+                          <span class="inline-flex items-center gap-1 text-amber-600 font-extrabold"><i class="fi fi-rr-medal text-xs"></i> 3</span>
+                        } @else {
+                          <span class="text-slate-500 font-bold">{{ idx + 1 }}</span>
+                        }
+                      </td>
+                      <td class="py-2 px-3 flex items-center gap-2.5 font-semibold text-white">
+                        <div class="w-6 h-6 rounded-md bg-slate-800 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                          @if (row.teamLogoUrl) {
+                            <img [src]="row.teamLogoUrl" [alt]="row.teamName" class="w-full h-full object-cover">
+                          } @else {
+                            <span class="text-[9px] font-bold text-violet-400">{{ row.teamName?.slice(0, 2) }}</span>
+                          }
+                        </div>
+                        <span class="truncate max-w-[180px]">{{ row.teamName }}</span>
+                      </td>
+                      <td class="py-2 px-2 text-center font-medium text-slate-300">{{ row.played }}</td>
+                      <td class="py-2 px-2 text-center font-bold text-emerald-400">{{ row.won }}</td>
+                      <td class="py-2 px-2 text-center font-medium text-amber-400">{{ row.drawn }}</td>
+                      <td class="py-2 px-2 text-center font-medium text-rose-400">{{ row.lost }}</td>
+                      <td class="py-2 px-2 text-center text-slate-400 text-[11px]">{{ row.gf }}</td>
+                      <td class="py-2 px-2 text-center text-slate-400 text-[11px]">{{ row.ga }}</td>
+                      <td class="py-2 px-2 text-center font-bold text-[11px]" [ngClass]="row.gd > 0 ? 'text-emerald-400' : row.gd < 0 ? 'text-rose-400' : 'text-slate-400'">
+                        {{ row.gd > 0 ? '+' + row.gd : row.gd }}
+                      </td>
+                      <td class="py-2 px-3 text-center font-black text-xs text-violet-300 bg-violet-500/10">{{ row.pts }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <div class="p-4 rounded-xl bg-slate-900/50 border border-white/10 text-center text-xs text-slate-400">
+              No active competition points table available.
+            </div>
+          }
+        </div>
+
+        <!-- 4. UPCOMING GAMES & LEADERBOARDS GRID -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+          <!-- Upcoming Games (2 Cols) -->
+          <div class="lg:col-span-2 space-y-3">
+            <div class="flex items-center justify-between">
+              <h2 class="text-sm font-extrabold text-white tracking-tight flex items-center gap-2">
+                <i class="fi fi-rr-calendar text-violet-400 text-sm"></i>
+                Upcoming Matches & Fixtures
+              </h2>
+              <span class="text-[11px] text-slate-400">Scheduled fixtures</span>
+            </div>
+
+            @if (overviewUpcomingMatches().length > 0) {
+              <div class="space-y-2">
+                @for (match of overviewUpcomingMatches(); track match.id) {
+                  <div (click)="onEnterLiveMatchFromOverview(match)"
+                    class="group p-3 rounded-xl bg-slate-900/90 border border-white/10 hover:border-violet-500/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer">
+                    
+                    <div class="flex items-center gap-2.5">
+                      <span class="px-2 py-0.5 text-[9px] font-extrabold rounded-md border uppercase tracking-wider flex items-center gap-1"
+                            [ngClass]="getSportBadgeClass(match.stage?.competition?.sport?.code)">
+                        <i [class]="getSportIconClass(match.stage?.competition?.sport?.code)"></i>
+                        {{ match.stage?.competition?.sport?.name || 'Sport' }}
+                      </span>
+                      <div>
+                        <span class="text-xs font-bold text-white block truncate max-w-[180px]">{{ match.stage?.competition?.name }}</span>
+                        <span class="text-[10px] text-slate-400 flex items-center gap-1">
+                          <i class="fi fi-rr-marker text-[9px] text-slate-500"></i>
+                          {{ match.venue?.name || 'Stadium Venue' }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Teams Versus -->
+                    <div class="flex items-center gap-2.5 font-bold text-xs text-slate-200">
+                      <span class="text-right truncate max-w-[100px]">{{ match.homeTeam?.name || 'Home' }}</span>
+                      <span class="px-1.5 py-0.5 rounded bg-slate-800 text-[9px] font-extrabold text-slate-400">VS</span>
+                      <span class="text-left truncate max-w-[100px]">{{ match.awayTeam?.name || 'Away' }}</span>
+                    </div>
+
+                    <button class="px-3 py-1 rounded-lg bg-violet-600/20 hover:bg-violet-600 text-violet-300 hover:text-white border border-violet-500/30 text-xs font-bold transition flex items-center gap-1 self-end sm:self-center">
+                      Match Details <i class="fi fi-rr-angle-small-right text-xs"></i>
+                    </button>
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="p-4 rounded-xl bg-slate-900/50 border border-white/10 text-center text-xs text-slate-400">
+                No upcoming scheduled games in this workspace.
+              </div>
+            }
+          </div>
+
+          <!-- Leaderboards Column (1 Col) -->
+          <div class="space-y-4">
+
+            <!-- Top Scorers Leaderboard -->
+            <div class="p-4 rounded-xl bg-slate-900/90 border border-white/10 shadow-lg space-y-3">
+              <h3 class="text-xs font-extrabold text-white tracking-tight flex items-center gap-2">
+                <i class="fi fi-rr-target text-emerald-400 text-sm"></i>
+                Top Scorers
+              </h3>
+
+              @if (overviewTopScorers().length > 0) {
+                <div class="space-y-2">
+                  @for (player of overviewTopScorers(); track player.playerId; let idx = $index) {
+                    <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950/70 border border-white/5">
+                      <div class="flex items-center gap-2">
+                        <span class="w-4 text-center text-xs font-black" [ngClass]="idx === 0 ? 'text-amber-400' : 'text-slate-400'">
+                          {{ idx + 1 }}
+                        </span>
+                        <div class="min-w-0">
+                          <span class="text-xs font-bold text-white block truncate max-w-[120px]">{{ player.playerName }}</span>
+                          <span class="text-[9px] text-slate-400 truncate max-w-[120px] block">{{ player.teamName }}</span>
+                        </div>
+                      </div>
+                      <span class="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 font-extrabold text-[11px] border border-emerald-500/30 shrink-0">
+                        {{ player.score }} Goals
+                      </span>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <p class="text-xs text-slate-400 text-center py-3">No top scorers recorded yet.</p>
+              }
+            </div>
+
+            <!-- Top Rated Players Leaderboard -->
+            <div class="p-4 rounded-xl bg-slate-900/90 border border-white/10 shadow-lg space-y-3">
+              <h3 class="text-xs font-extrabold text-white tracking-tight flex items-center gap-2">
+                <i class="fi fi-rr-star text-amber-400 text-sm"></i>
+                Top Rated Players
+              </h3>
+
+              @if (overviewTopRatedPlayers().length > 0) {
+                <div class="space-y-2">
+                  @for (player of overviewTopRatedPlayers(); track player.playerId; let idx = $index) {
+                    <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950/70 border border-white/5">
+                      <div class="flex items-center gap-2">
+                        <span class="w-4 text-center text-xs font-black" [ngClass]="idx === 0 ? 'text-amber-400' : 'text-slate-400'">
+                          {{ idx + 1 }}
+                        </span>
+                        <div class="min-w-0">
+                          <span class="text-xs font-bold text-white block truncate max-w-[120px]">{{ player.playerName }}</span>
+                          <span class="text-[9px] text-slate-400 truncate max-w-[120px] block">{{ player.teamName }} ({{ player.appearances }}g)</span>
+                        </div>
+                      </div>
+                      <span class="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-black text-[11px] border border-amber-500/30 flex items-center gap-1 shrink-0">
+                        <i class="fi fi-rr-star text-amber-300 text-[9px]"></i> {{ player.avgRating }}
+                      </span>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <p class="text-xs text-slate-400 text-center py-3">No player ratings available yet.</p>
+              }
+            </div>
+
+          </div>
+
+        </div>
+
       </div>
       }
 
@@ -1428,15 +1736,15 @@
                 @for (player of teamDetails.squad; track player.id) {
                 <div class="bg-slate-900 border border-white/10 rounded-xl p-4 flex items-center justify-between gap-4">
                   <div class="flex items-center gap-3 min-w-0">
-                    @if (player.user?.avatarUrl) {
+                    @if (player.user.avatarUrl) {
                     <img [src]="player.user.avatarUrl" alt="Avatar" class="w-10 h-10 rounded-full border border-white/10 object-cover" />
                     } @else {
-                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" [style.background]="avatarColor(player.user?.username || 'P')">
-                      {{ initials(player.user?.username || 'P') }}
+                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" [style.background]="avatarColor(player.user.username || 'P')">
+                      {{ initials(player.user.username || 'P') }}
                     </div>
                     }
                     <div class="min-w-0">
-                      <p class="text-xs font-bold text-white truncate">{{ player.user?.username || 'Guest Player' }}</p>
+                      <p class="text-xs font-bold text-white truncate">{{ player.user.username || 'Guest Player' }}</p>
                       <p class="text-[9px] text-slate-500">Player Profile ID</p>
                     </div>
                   </div>
@@ -3962,7 +4270,7 @@
               <!-- ═════ SPORT-SPECIFIC INTERACTIVE SCORING PANELS ═════ -->
               @if (match.status !== 'completed' && hasPermission('match.score')) {
 
-              <!-- ⚽ FOOTBALL live management panel -->
+              <!-- FOOTBALL live management panel -->
               @if (sport === 'football') {
               <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex flex-col gap-6">
                 @if (!match.liveData?.started) {
@@ -4498,7 +4806,7 @@
               </div>
               }
 
-              <!-- 🏏 CRICKET live management panel -->
+              <!-- CRICKET live management panel -->
               @if (sport === 'cricket') {
               <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex flex-col gap-6">
 
@@ -4833,7 +5141,7 @@
               </div>
               }
 
-              <!-- 🏸 BADMINTON live management panel -->
+              <!-- BADMINTON live management panel -->
               @if (sport === 'badminton') {
               <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex flex-col gap-6">
 
@@ -5162,7 +5470,7 @@
                         <i class="fi fi-rr-arrows-repeat text-blue-400"></i> Substitution
                       </span>
                       <span class="text-[10px] text-slate-400">
-                        OUT: {{ players().find(p => p.userId === e.playerOutId)?.user?.username || 'Player' }} ➔
+                        OUT: {{ players().find(p => p.userId === e.playerOutId)?.user?.username || 'Player' }} <i class="fi fi-rr-arrow-right text-[10px]"></i>
                         IN: {{ players().find(p => p.userId === e.playerInId)?.user?.username || 'Player' }}
                         ({{ e.reason }})
                       </span>

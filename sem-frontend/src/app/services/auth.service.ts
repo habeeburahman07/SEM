@@ -27,6 +27,22 @@ export class AuthService {
   isAuthenticated = signal<boolean>(false);
   token = signal<string | null>(null);
 
+  getDefaultWorkspaceId(): string | null {
+    const user = this.currentUser();
+    if (user?.id) {
+      return localStorage.getItem(`default_ws_${user.id}`);
+    }
+    return localStorage.getItem('default_ws');
+  }
+
+  setDefaultWorkspaceId(workspaceId: string): void {
+    const user = this.currentUser();
+    if (user?.id) {
+      localStorage.setItem(`default_ws_${user.id}`, workspaceId);
+    }
+    localStorage.setItem('default_ws', workspaceId);
+  }
+
   constructor() {
     const savedToken = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');

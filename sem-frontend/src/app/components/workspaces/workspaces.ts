@@ -41,6 +41,12 @@ export class WorkspacesComponent implements OnInit {
       next: (data) => {
         this.workspaces.set(data);
         this.isLoading.set(false);
+        // If user has 1 or more workspaces, redirect to their configured default workspace (or first workspace)
+        if (data.length > 0) {
+          const defaultWsId = this.authService.getDefaultWorkspaceId();
+          const targetWs = (defaultWsId && data.find(w => w.id === defaultWsId)) || data[0];
+          this.router.navigate(['/workspaces', targetWs.id], { replaceUrl: true });
+        }
       },
       error: (err) => {
         console.error(err);

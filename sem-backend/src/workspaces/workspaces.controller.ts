@@ -85,6 +85,11 @@ export class WorkspacesController {
     return this.workspacesService.markNotificationsRead(req.user.id);
   }
 
+  @Get('dashboard/overview')
+  getDashboardOverview(@Request() req: any) {
+    return this.workspacesService.getDashboardOverview(req.user.id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string, @Request() req: any) {
     return this.workspacesService.findOne(id, req.user.id);

@@ -14,12 +14,6 @@ export const routes: Routes = [
     canActivate: [noAuthGuard],
   },
 
-  // Legacy dashboard
-  {
-    path: 'dashboard',
-    loadComponent: () => import('./components/dashboard/dashboard').then(m => m.DashboardComponent),
-    canActivate: [authGuard],
-  },
 
   // Workspace routes
   {

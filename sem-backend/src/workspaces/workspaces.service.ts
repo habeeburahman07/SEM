@@ -248,6 +248,246 @@ export class WorkspacesService implements OnModuleInit {
     return memberships.map((m) => m.workspace);
   }
 
+  // ─── Dashboard Overview ──────────────────────────────────────────────────
+
+  async getDashboardOverview(userId: string): Promise<any> {
+    const memberships = await this.memberRepo.find({
+      where: { userId, status: 'joined' },
+      relations: { workspace: true },
+    });
+    const workspaces = memberships.map((m) => m.workspace).filter(Boolean);
+    const workspaceIds = workspaces.map((w) => w.id);
+
+    if (workspaceIds.length === 0) {
+      return {
+        workspaces: [],
+        liveMatches: [],
+        upcomingMatches: [],
+        runningCompetitions: [],
+        topScorers: [],
+        topRatedPlayers: [],
+        statsSummary: {
+          totalWorkspaces: 0,
+          totalEvents: 0,
+          totalTeams: 0,
+          totalPlayers: 0,
+          totalLiveMatches: 0,
+        },
+      };
+    }
+
+    const events = await this.eventRepo.find({
+      where: { workspaceId: In(workspaceIds) },
+    });
+    const eventIds = events.map((e) => e.id);
+
+    let competitions: Competition[] = [];
+    if (eventIds.length > 0) {
+      competitions = await this.competitionRepo.find({
+        where: { eventId: In(eventIds) },
+        relations: { sport: true, event: true },
+      });
+    }
+    const competitionIds = competitions.map((c) => c.id);
+
+    let stages: CompetitionStage[] = [];
+    if (competitionIds.length > 0) {
+      stages = await this.stageRepo.find({
+        where: { competitionId: In(competitionIds) },
+      });
+    }
+    const stageIds = stages.map((s) => s.id);
+
+    let liveMatches: Match[] = [];
+    if (stageIds.length > 0) {
+      liveMatches = await this.matchRepo.find({
+        where: { stageId: In(stageIds), status: 'live' },
+        relations: {
+          homeTeam: true,
+          awayTeam: true,
+          venue: true,
+          stage: { competition: { event: true, sport: true } },
+        },
+        order: { updatedAt: 'DESC' },
+      });
+    }
+
+    let upcomingMatches: Match[] = [];
+    if (stageIds.length > 0) {
+      upcomingMatches = await this.matchRepo.find({
+        where: { stageId: In(stageIds), status: 'scheduled' },
+        relations: {
+          homeTeam: true,
+          awayTeam: true,
+          venue: true,
+          stage: { competition: { event: true, sport: true } },
+        },
+        order: { createdAt: 'ASC' },
+        take: 8,
+      });
+    }
+
+    const runningCompetitions: any[] = [];
+    for (const comp of competitions) {
+      const compStages = stages.filter((s) => s.competitionId === comp.id);
+      const compStageIds = compStages.map((s) => s.id);
+      if (compStageIds.length === 0) continue;
+
+      const compMatches = await this.matchRepo.find({
+        where: { stageId: In(compStageIds) },
+        relations: { homeTeam: true, awayTeam: true },
+      });
+
+      if (compMatches.length === 0) continue;
+
+      const standingsMap = new Map<string, any>();
+      for (const m of compMatches) {
+        if (m.status !== 'completed' && m.status !== 'live') continue;
+        if (!m.homeTeamId || !m.awayTeamId) continue;
+
+        if (!standingsMap.has(m.homeTeamId)) {
+          standingsMap.set(m.homeTeamId, {
+            teamId: m.homeTeamId,
+            teamName: m.homeTeam?.name ?? 'Home',
+            teamLogoUrl: m.homeTeam?.logoUrl,
+            played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, pts: 0,
+          });
+        }
+        if (!standingsMap.has(m.awayTeamId)) {
+          standingsMap.set(m.awayTeamId, {
+            teamId: m.awayTeamId,
+            teamName: m.awayTeam?.name ?? 'Away',
+            teamLogoUrl: m.awayTeam?.logoUrl,
+            played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, pts: 0,
+          });
+        }
+
+        const h = standingsMap.get(m.homeTeamId);
+        const a = standingsMap.get(m.awayTeamId);
+
+        h.played++;
+        a.played++;
+        const hScore = m.homeScore ?? 0;
+        const aScore = m.awayScore ?? 0;
+        h.gf += hScore;
+        h.ga += aScore;
+        a.gf += aScore;
+        a.ga += hScore;
+
+        if (hScore > aScore) {
+          h.won++; h.pts += 3; a.lost++;
+        } else if (hScore < aScore) {
+          a.won++; a.pts += 3; h.lost++;
+        } else {
+          h.drawn++; h.pts += 1; a.drawn++; a.pts += 1;
+        }
+        h.gd = h.gf - h.ga;
+        a.gd = a.gf - a.ga;
+      }
+
+      const standings = Array.from(standingsMap.values()).sort((a, b) => {
+        if (b.pts !== a.pts) return b.pts - a.pts;
+        if (b.gd !== a.gd) return b.gd - a.gd;
+        return b.gf - a.gf;
+      });
+
+      runningCompetitions.push({
+        id: comp.id,
+        name: comp.name,
+        status: comp.status,
+        sport: comp.sport,
+        eventId: comp.eventId,
+        eventName: comp.event?.name,
+        workspaceId: comp.event?.workspaceId,
+        standings,
+      });
+    }
+
+    let topRatedPlayers: any[] = [];
+    let topScorers: any[] = [];
+
+    if (stageIds.length > 0) {
+      const allMatches = await this.matchRepo.find({
+        where: { stageId: In(stageIds) },
+      });
+      const matchIds = allMatches.map((m) => m.id);
+
+      if (matchIds.length > 0) {
+        const allMatchPlayers = await this.matchPlayerRepo.find({
+          where: { matchId: In(matchIds), isPlaying: true },
+          relations: { player: { user: true }, team: true },
+        });
+
+        const ratingsMap = new Map<string, { playerId: string; playerName: string; teamName: string; ratings: number[] }>();
+        for (const mp of allMatchPlayers) {
+          if (mp.rating !== null && mp.rating !== undefined) {
+            const playerName = mp.player?.user?.username ?? mp.player?.jerseyNumber?.toString() ?? 'Player';
+            const teamName = mp.team?.name ?? 'Team';
+            let item = ratingsMap.get(mp.playerId);
+            if (!item) {
+              item = { playerId: mp.playerId, playerName, teamName, ratings: [] };
+              ratingsMap.set(mp.playerId, item);
+            }
+            item.ratings.push(Number(mp.rating));
+          }
+        }
+
+        topRatedPlayers = Array.from(ratingsMap.values()).map((r) => ({
+          playerId: r.playerId,
+          playerName: r.playerName,
+          teamName: r.teamName,
+          avgRating: Math.round((r.ratings.reduce((a, b) => a + b, 0) / r.ratings.length) * 10) / 10,
+          appearances: r.ratings.length,
+        })).sort((a, b) => b.avgRating - a.avgRating).slice(0, 5);
+
+        const scorersMap = new Map<string, { playerId: string; playerName: string; teamName: string; score: number }>();
+        for (const m of allMatches) {
+          const eventsList = (m.liveData as any)?.events;
+          if (Array.isArray(eventsList)) {
+            for (const ev of eventsList) {
+              if (ev.type === 'goal' && ev.goalType !== 'own_goal' && ev.playerUserId) {
+                const mp = allMatchPlayers.find((p) => p.player?.userId === ev.playerUserId);
+                const pId = mp?.playerId ?? ev.playerUserId;
+                const pName = mp?.player?.user?.username ?? ev.playerUserId;
+                const tName = mp?.team?.name ?? 'Team';
+
+                let item = scorersMap.get(pId);
+                if (!item) {
+                  item = { playerId: pId, playerName: pName, teamName: tName, score: 0 };
+                  scorersMap.set(pId, item);
+                }
+                item.score++;
+              }
+            }
+          }
+        }
+
+        topScorers = Array.from(scorersMap.values())
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5);
+      }
+    }
+
+    const totalTeams = await this.teamRepo.count({ where: { workspaceId: In(workspaceIds) } });
+    const totalPlayers = await this.playerRepo.count({ where: { workspaceId: In(workspaceIds) } });
+
+    return {
+      workspaces,
+      liveMatches,
+      upcomingMatches,
+      runningCompetitions,
+      topScorers,
+      topRatedPlayers,
+      statsSummary: {
+        totalWorkspaces: workspaces.length,
+        totalEvents: events.length,
+        totalTeams,
+        totalPlayers,
+        totalLiveMatches: liveMatches.length,
+      },
+    };
+  }
+
   // ─── Find one ─────────────────────────────────────────────────────────────
 
   async findOne(id: string, userId: string): Promise<Workspace> {
