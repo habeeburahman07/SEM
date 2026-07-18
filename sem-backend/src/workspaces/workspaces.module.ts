@@ -15,6 +15,8 @@ import { Permission } from './entities/permission.entity';
 import { Venue } from './entities/venue.entity';
 import { Notification } from './entities/notification.entity';
 import { MatchPlayer } from './entities/match-player.entity';
+import { AuditLog } from './entities/audit-log.entity';
+import { SystemConfig } from './entities/system-config.entity';
 import { WorkspacesService } from './workspaces.service';
 import { WorkspacesController } from './workspaces.controller';
 import { SystemSettingsController } from './system-settings.controller';
@@ -38,9 +40,12 @@ import { UsersModule } from '../users/users.module';
       Venue,
       Notification,
       MatchPlayer,
+      AuditLog,
+      SystemConfig,
     ]),
     UsersModule,
   ],
+
 
   controllers: [WorkspacesController, SystemSettingsController],
   providers: [WorkspacesService],

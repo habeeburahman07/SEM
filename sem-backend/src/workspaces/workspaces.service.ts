@@ -23,6 +23,8 @@ import { CompetitionTeam } from './entities/competition-team.entity';
 import { Venue } from './entities/venue.entity';
 import { Notification, NotificationType, NOTIFICATION_ICONS } from './entities/notification.entity';
 import { MatchPlayer } from './entities/match-player.entity';
+import { AuditLog, AuditCategory } from './entities/audit-log.entity';
+import { SystemConfig } from './entities/system-config.entity';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import { UsersService } from '../users/users.service';
@@ -45,6 +47,11 @@ import { CreateVenueDto } from './dto/create-venue.dto';
 import { UpdateVenueDto } from './dto/update-venue.dto';
 import { BulkImportMembersDto } from './dto/bulk-import-members.dto';
 import { RateMatchPlayerItemDto } from './dto/rate-match-players.dto';
+import { CreateSportDto } from './dto/create-sport.dto';
+import { UpdateSportDto } from './dto/update-sport.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
+import { CreatePermissionDto } from './dto/create-permission.dto';
+import { UpdatePermissionDto } from './dto/update-permission.dto';
 
 @Injectable()
 export class WorkspacesService implements OnModuleInit {
@@ -79,8 +86,13 @@ export class WorkspacesService implements OnModuleInit {
     private readonly notificationRepo: Repository<Notification>,
     @InjectRepository(MatchPlayer)
     private readonly matchPlayerRepo: Repository<MatchPlayer>,
+    @InjectRepository(AuditLog)
+    private readonly auditLogRepo: Repository<AuditLog>,
+    @InjectRepository(SystemConfig)
+    private readonly systemConfigRepo: Repository<SystemConfig>,
     private readonly usersService: UsersService,
   ) { }
+
 
   async onModuleInit() {
     const defaultSports = [
@@ -1108,6 +1120,31 @@ export class WorkspacesService implements OnModuleInit {
     return this.roleRepo.save(role);
   }
 
+  async updateGlobalRole(roleId: string, dto: UpdateRoleDto): Promise<Role> {
+    const role = await this.roleRepo.findOne({ where: { id: roleId, workspaceId: IsNull() } });
+    if (!role) {
+      throw new NotFoundException('Global role not found');
+    }
+
+    if (dto.name && dto.name !== role.name) {
+      const slug = this.generateSlug(dto.name);
+      const existing = await this.roleRepo.findOne({
+        where: { slug, workspaceId: IsNull() },
+      });
+      if (existing && existing.id !== roleId) {
+        throw new ConflictException(`Global role with name "${dto.name}" already exists`);
+      }
+      role.name = dto.name;
+      role.slug = slug;
+    }
+
+    if (dto.description !== undefined) {
+      role.description = dto.description ?? null;
+    }
+
+    return this.roleRepo.save(role);
+  }
+
   async removeGlobalRole(roleId: string): Promise<void> {
     const role = await this.roleRepo.findOne({ where: { id: roleId, workspaceId: IsNull() } });
     if (!role) {
@@ -1129,6 +1166,52 @@ export class WorkspacesService implements OnModuleInit {
     return this.permissionRepo.find({
       order: { name: 'ASC' },
     });
+  }
+
+  async createPermission(dto: CreatePermissionDto): Promise<Permission> {
+    const slug = dto.slug.trim().toLowerCase().replace(/\s+/g, '.');
+    const existing = await this.permissionRepo.findOne({ where: { slug } });
+    if (existing) {
+      throw new ConflictException(`Permission with key/slug "${slug}" already exists`);
+    }
+
+    const permission = this.permissionRepo.create({
+      name: dto.name,
+      slug,
+      description: dto.description ?? null,
+    });
+
+    return this.permissionRepo.save(permission);
+  }
+
+  async updatePermission(permissionId: string, dto: UpdatePermissionDto): Promise<Permission> {
+    const permission = await this.permissionRepo.findOne({ where: { id: permissionId } });
+    if (!permission) {
+      throw new NotFoundException('Permission not found');
+    }
+
+    if (dto.slug && dto.slug !== permission.slug) {
+      const slug = dto.slug.trim().toLowerCase().replace(/\s+/g, '.');
+      const existing = await this.permissionRepo.findOne({ where: { slug } });
+      if (existing && existing.id !== permissionId) {
+        throw new ConflictException(`Permission with key/slug "${slug}" already exists`);
+      }
+      permission.slug = slug;
+    }
+
+    if (dto.name !== undefined) permission.name = dto.name;
+    if (dto.description !== undefined) permission.description = dto.description ?? null;
+
+    return this.permissionRepo.save(permission);
+  }
+
+  async deletePermission(permissionId: string): Promise<void> {
+    const permission = await this.permissionRepo.findOne({ where: { id: permissionId } });
+    if (!permission) {
+      throw new NotFoundException('Permission not found');
+    }
+
+    await this.permissionRepo.remove(permission);
   }
 
   async updateRolePermissions(roleId: string, permissionIds: string[]): Promise<Role> {
@@ -2685,6 +2768,73 @@ export class WorkspacesService implements OnModuleInit {
   async getSports(): Promise<Sport[]> {
     return await this.sportRepo.find({ order: { name: 'ASC' } });
   }
+
+  async createSport(dto: CreateSportDto): Promise<Sport> {
+    const code = dto.code.trim().toLowerCase().replace(/\s+/g, '_');
+    const existingName = await this.sportRepo.findOne({ where: { name: dto.name } });
+    if (existingName) {
+      throw new ConflictException(`Sport with name "${dto.name}" already exists`);
+    }
+
+    const existingCode = await this.sportRepo.findOne({ where: { code } });
+    if (existingCode) {
+      throw new ConflictException(`Sport with code "${code}" already exists`);
+    }
+
+    const sport = this.sportRepo.create({
+      name: dto.name,
+      code,
+      description: dto.description ?? null,
+    });
+
+    return this.sportRepo.save(sport);
+  }
+
+  async updateSport(sportId: string, dto: UpdateSportDto): Promise<Sport> {
+    const sport = await this.sportRepo.findOne({ where: { id: sportId } });
+    if (!sport) {
+      throw new NotFoundException('Sport not found');
+    }
+
+    if (dto.name && dto.name !== sport.name) {
+      const existingName = await this.sportRepo.findOne({ where: { name: dto.name } });
+      if (existingName && existingName.id !== sportId) {
+        throw new ConflictException(`Sport with name "${dto.name}" already exists`);
+      }
+      sport.name = dto.name;
+    }
+
+    if (dto.code && dto.code !== sport.code) {
+      const code = dto.code.trim().toLowerCase().replace(/\s+/g, '_');
+      const existingCode = await this.sportRepo.findOne({ where: { code } });
+      if (existingCode && existingCode.id !== sportId) {
+        throw new ConflictException(`Sport with code "${code}" already exists`);
+      }
+      sport.code = code;
+    }
+
+    if (dto.description !== undefined) {
+      sport.description = dto.description ?? null;
+    }
+
+    return this.sportRepo.save(sport);
+  }
+
+  async deleteSport(sportId: string): Promise<void> {
+    const sport = await this.sportRepo.findOne({ where: { id: sportId } });
+    if (!sport) {
+      throw new NotFoundException('Sport not found');
+    }
+
+    // Check if sport is used in any competition
+    const competition = await this.competitionRepo.findOne({ where: { sportId } });
+    if (competition) {
+      throw new ForbiddenException('Cannot delete sport as it is associated with existing competitions');
+    }
+
+    await this.sportRepo.remove(sport);
+  }
+
 
   // ─── Competitions CRUD ────────────────────────────────────────────────────
 
@@ -5869,5 +6019,145 @@ export class WorkspacesService implements OnModuleInit {
       }
     }
   }
+
+  // ─── System Audit Logs & Monitoring ────────────────────────────────────────
+
+  async logAudit(
+    action: string,
+    category: string = AuditCategory.SYSTEM,
+    entityType?: string,
+    entityId?: string,
+    performedById?: string,
+    performedByName?: string,
+    details?: string,
+    status: string = 'SUCCESS',
+  ): Promise<AuditLog> {
+    try {
+      const log = new AuditLog();
+      log.action = action;
+      log.category = category;
+      log.entityType = entityType ?? null as any;
+      log.entityId = entityId ?? null as any;
+      log.performedById = performedById ?? null as any;
+      log.performedByName = performedByName ?? null as any;
+      log.status = status;
+      log.details = details ?? null as any;
+      return await this.auditLogRepo.save(log);
+    } catch (e) {
+      return null as any;
+    }
+  }
+
+
+  async getAuditLogs(category?: string, limit: number = 100): Promise<AuditLog[]> {
+    const whereClause: any = {};
+    if (category) {
+      whereClause.category = category;
+    }
+    return this.auditLogRepo.find({
+      where: whereClause,
+      order: { createdAt: 'DESC' },
+      take: limit,
+    });
+  }
+
+  async clearAuditLogs(): Promise<void> {
+    await this.auditLogRepo.clear();
+  }
+
+  async getSystemMetrics(): Promise<any> {
+    const uptimeSeconds = Math.floor(process.uptime());
+    const memoryUsage = process.memoryUsage();
+
+    const [
+      totalUsers,
+      totalWorkspaces,
+      totalCompetitions,
+      totalMatches,
+      totalSports,
+      totalAuditLogs,
+    ] = await Promise.all([
+      this.usersService.countAll ? this.usersService.countAll() : Promise.resolve(0),
+      this.workspaceRepo.count(),
+      this.competitionRepo.count(),
+      this.matchRepo.count(),
+      this.sportRepo.count(),
+      this.auditLogRepo.count(),
+    ]);
+
+    return {
+      status: 'OPERATIONAL',
+      uptime: uptimeSeconds,
+      uptimeFormatted: this.formatUptime(uptimeSeconds),
+      environment: process.env.NODE_ENV || 'development',
+      nodeVersion: process.version,
+      platform: process.platform,
+      memory: {
+        rss: `${(memoryUsage.rss / 1024 / 1024).toFixed(2)} MB`,
+        heapTotal: `${(memoryUsage.heapTotal / 1024 / 1024).toFixed(2)} MB`,
+        heapUsed: `${(memoryUsage.heapUsed / 1024 / 1024).toFixed(2)} MB`,
+        heapUsagePercent: `${((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100).toFixed(1)}%`,
+      },
+      counts: {
+        users: totalUsers,
+        workspaces: totalWorkspaces,
+        competitions: totalCompetitions,
+        matches: totalMatches,
+        sports: totalSports,
+        auditLogs: totalAuditLogs,
+      },
+    };
+  }
+
+  private formatUptime(seconds: number): string {
+    const days = Math.floor(seconds / (3600 * 24));
+    const hours = Math.floor((seconds % (3600 * 24)) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    const parts: string[] = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    parts.push(`${secs}s`);
+    return parts.join(' ');
+  }
+
+  async getSystemConfigs(): Promise<Record<string, string>> {
+    const configs = await this.systemConfigRepo.find();
+    const map: Record<string, string> = {
+      maintenance_mode: 'false',
+      allow_registrations: 'true',
+      announcement_text: '',
+      announcement_level: 'info',
+      max_workspaces_per_user: '10',
+    };
+    for (const c of configs) {
+      map[c.key] = c.value;
+    }
+    return map;
+  }
+
+  async updateSystemConfig(key: string, value: string, userId?: string, userName?: string): Promise<Record<string, string>> {
+    let config = await this.systemConfigRepo.findOne({ where: { key } });
+    if (!config) {
+      config = this.systemConfigRepo.create({ key, value });
+    } else {
+      config.value = value;
+    }
+    await this.systemConfigRepo.save(config);
+
+    await this.logAudit(
+      'UPDATE_SYSTEM_CONFIG',
+      AuditCategory.SYSTEM,
+      'SystemConfig',
+      key,
+      userId,
+      userName,
+      `Changed config "${key}" to "${value}"`,
+    );
+
+    return this.getSystemConfigs();
+  }
 }
+
 

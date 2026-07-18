@@ -43,6 +43,53 @@ export interface Role {
   permissions?: Permission[];
 }
 
+export interface AuditLog {
+  id: string;
+  action: string;
+  category: string;
+  entityType?: string;
+  entityId?: string;
+  performedById?: string;
+  performedByName?: string;
+  ipAddress?: string;
+  status: string;
+  details?: string;
+  createdAt: string;
+}
+
+export interface SystemMetrics {
+  status: string;
+  uptime: number;
+  uptimeFormatted: string;
+  environment: string;
+  nodeVersion: string;
+  platform: string;
+  memory: {
+    rss: string;
+    heapTotal: string;
+    heapUsed: string;
+    heapUsagePercent: string;
+  };
+  counts: {
+    users: number;
+    workspaces: number;
+    competitions: number;
+    matches: number;
+    sports: number;
+    auditLogs: number;
+  };
+}
+
+export interface SystemConfigMap {
+  maintenance_mode: string;
+  allow_registrations: string;
+  announcement_text: string;
+  announcement_level: string;
+  max_workspaces_per_user: string;
+  [key: string]: string;
+}
+
+
 export interface Team {
   id: string;
   name: string;
@@ -433,6 +480,14 @@ export class WorkspaceService {
     );
   }
 
+  updateGlobalRole(roleId: string, name?: string, description?: string): Observable<Role> {
+    return this.http.patch<Role>(
+      `${environment.apiUrl}/system-settings/roles/${roleId}`,
+      { name, description },
+      { headers: this.headers },
+    );
+  }
+
   removeGlobalRole(roleId: string): Observable<void> {
     return this.http.delete<void>(`${environment.apiUrl}/system-settings/roles/${roleId}`, {
       headers: this.headers,
@@ -445,6 +500,28 @@ export class WorkspaceService {
     });
   }
 
+  createPermission(name: string, slug: string, description?: string): Observable<Permission> {
+    return this.http.post<Permission>(
+      `${environment.apiUrl}/system-settings/permissions`,
+      { name, slug, description },
+      { headers: this.headers },
+    );
+  }
+
+  updatePermission(permissionId: string, name?: string, slug?: string, description?: string): Observable<Permission> {
+    return this.http.patch<Permission>(
+      `${environment.apiUrl}/system-settings/permissions/${permissionId}`,
+      { name, slug, description },
+      { headers: this.headers },
+    );
+  }
+
+  deletePermission(permissionId: string): Observable<void> {
+    return this.http.delete<void>(`${environment.apiUrl}/system-settings/permissions/${permissionId}`, {
+      headers: this.headers,
+    });
+  }
+
   updateRolePermissions(roleId: string, permissionIds: string[]): Observable<Role> {
     return this.http.post<Role>(
       `${environment.apiUrl}/system-settings/roles/${roleId}/permissions`,
@@ -452,6 +529,68 @@ export class WorkspaceService {
       { headers: this.headers }
     );
   }
+
+  // ─── Sports Master Data CRUD ─────────────────────────────────────────────
+
+  createSport(name: string, code: string, description?: string): Observable<Sport> {
+    return this.http.post<Sport>(
+      `${environment.apiUrl}/system-settings/sports`,
+      { name, code, description },
+      { headers: this.headers },
+    );
+  }
+
+  updateSport(sportId: string, name?: string, code?: string, description?: string): Observable<Sport> {
+    return this.http.patch<Sport>(
+      `${environment.apiUrl}/system-settings/sports/${sportId}`,
+      { name, code, description },
+      { headers: this.headers },
+    );
+  }
+
+  deleteSport(sportId: string): Observable<void> {
+    return this.http.delete<void>(`${environment.apiUrl}/system-settings/sports/${sportId}`, {
+      headers: this.headers,
+    });
+  }
+
+  // ─── System Audit Logs & Monitoring ────────────────────────────────────────
+
+  getAuditLogs(category?: string, limit: number = 100): Observable<AuditLog[]> {
+    let params = `?limit=${limit}`;
+    if (category) params += `&category=${category}`;
+    return this.http.get<AuditLog[]>(`${environment.apiUrl}/system-settings/audit-logs${params}`, {
+      headers: this.headers,
+    });
+  }
+
+  clearAuditLogs(): Observable<void> {
+    return this.http.delete<void>(`${environment.apiUrl}/system-settings/audit-logs`, {
+      headers: this.headers,
+    });
+  }
+
+  getSystemMetrics(): Observable<SystemMetrics> {
+    return this.http.get<SystemMetrics>(`${environment.apiUrl}/system-settings/monitoring`, {
+      headers: this.headers,
+    });
+  }
+
+  getSystemConfigs(): Observable<SystemConfigMap> {
+    return this.http.get<SystemConfigMap>(`${environment.apiUrl}/system-settings/config`, {
+      headers: this.headers,
+    });
+  }
+
+  updateSystemConfig(key: string, value: string): Observable<SystemConfigMap> {
+    return this.http.patch<SystemConfigMap>(
+      `${environment.apiUrl}/system-settings/config`,
+      { key, value },
+      { headers: this.headers },
+    );
+  }
+
+
 
   // ─── Teams ────────────────────────────────────────────────────────────────
 

@@ -115,4 +115,9 @@ export class UsersService {
       `Your password has been changed successfully.`,
     );
   }
+
+  async countAll(): Promise<number> {
+    return await this.userRepository.count();
+  }
 }
+
