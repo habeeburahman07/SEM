@@ -19,20 +19,13 @@ import { WorkspaceRole } from './entities/workspace-member.entity';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
-import { CreateTeamDto } from './dto/create-team.dto';
-import { UpdateTeamDto } from './dto/update-team.dto';
-import { CreatePlayerDto } from './dto/create-player.dto';
-import { UpdatePlayerDto } from './dto/update-player.dto';
-import { CreateEventDto } from './dto/create-event.dto';
-import { UpdateEventDto } from './dto/update-event.dto';
+
 import { CreateCompetitionDto } from './dto/create-competition.dto';
 import { UpdateCompetitionDto } from './dto/update-competition.dto';
 import { CreateStageDto } from './dto/create-stage.dto';
 import { UpdateStageDto } from './dto/update-stage.dto';
 import { CreateMatchDto } from './dto/create-match.dto';
 import { UpdateMatchDto } from './dto/update-match.dto';
-import { CreateVenueDto } from './dto/create-venue.dto';
-import { UpdateVenueDto } from './dto/update-venue.dto';
 import { BulkImportMembersDto } from './dto/bulk-import-members.dto';
 import { UpdateMatchLineupDto } from './dto/update-match-lineup.dto';
 import { RateMatchPlayersDto } from './dto/rate-match-players.dto';
@@ -189,176 +182,10 @@ export class WorkspacesController {
     return this.workspacesService.removeRole(id, roleId, req.user.id);
   }
 
-  // ─── Venues ────────────────────────────────────────────────────────────────
 
-  @Get(':id/venues')
-  getVenues(@Param('id') id: string, @Request() req: any) {
-    return this.workspacesService.getVenues(id, req.user.id);
-  }
 
-  @Post(':id/venues')
-  createVenue(
-    @Param('id') id: string,
-    @Body() dto: CreateVenueDto,
-    @Request() req: any,
-  ) {
-    return this.workspacesService.createVenue(id, dto, req.user.id);
-  }
 
-  @Patch(':id/venues/:venueId')
-  updateVenue(
-    @Param('id') id: string,
-    @Param('venueId') venueId: string,
-    @Body() dto: UpdateVenueDto,
-    @Request() req: any,
-  ) {
-    return this.workspacesService.updateVenue(id, venueId, dto, req.user.id);
-  }
 
-  @Delete(':id/venues/:venueId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  removeVenue(
-    @Param('id') id: string,
-    @Param('venueId') venueId: string,
-    @Request() req: any,
-  ) {
-    return this.workspacesService.removeVenue(id, venueId, req.user.id);
-  }
-
-  // ─── Teams ────────────────────────────────────────────────────────────────
-
-  @Get(':id/teams')
-  getTeams(@Param('id') id: string, @Request() req: any) {
-    return this.workspacesService.getTeams(id, req.user.id);
-  }
-
-  @Post(':id/teams')
-  createTeam(
-    @Param('id') id: string,
-    @Body() dto: CreateTeamDto,
-    @Request() req: any,
-  ) {
-    return this.workspacesService.createTeam(id, dto, req.user.id);
-  }
-
-  @Patch(':id/teams/:teamId')
-  updateTeam(
-    @Param('id') id: string,
-    @Param('teamId') teamId: string,
-    @Body() dto: UpdateTeamDto,
-    @Request() req: any,
-  ) {
-    return this.workspacesService.updateTeam(id, teamId, dto, req.user.id);
-  }
-
-  @Delete(':id/teams/:teamId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  removeTeam(
-    @Param('id') id: string,
-    @Param('teamId') teamId: string,
-    @Request() req: any,
-  ) {
-    return this.workspacesService.removeTeam(id, teamId, req.user.id);
-  }
-
-  @Get(':id/teams/:teamId/stats')
-  getTeamStats(
-    @Param('id') id: string,
-    @Param('teamId') teamId: string,
-    @Request() req: any,
-  ) {
-    return this.workspacesService.getTeamStats(id, teamId, req.user.id);
-  }
-
-  // ─── Players ──────────────────────────────────────────────────────────────
-
-  @Get(':id/players')
-  getPlayers(@Param('id') id: string, @Request() req: any) {
-    return this.workspacesService.getPlayers(id, req.user.id);
-  }
-
-  @Post(':id/players')
-  createPlayer(
-    @Param('id') id: string,
-    @Body() dto: CreatePlayerDto,
-    @Request() req: any,
-  ) {
-    return this.workspacesService.createPlayer(id, dto, req.user.id);
-  }
-
-  @Patch(':id/players/:playerId')
-  updatePlayer(
-    @Param('id') id: string,
-    @Param('playerId') playerId: string,
-    @Body() dto: UpdatePlayerDto,
-    @Request() req: any,
-  ) {
-    return this.workspacesService.updatePlayer(id, playerId, dto, req.user.id);
-  }
-
-  @Delete(':id/players/:playerId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  removePlayer(
-    @Param('id') id: string,
-    @Param('playerId') playerId: string,
-    @Request() req: any,
-  ) {
-    return this.workspacesService.removePlayer(id, playerId, req.user.id);
-  }
-
-  @Get(':id/players/:playerId/stats')
-  getPlayerStats(
-    @Param('id') id: string,
-    @Param('playerId') playerId: string,
-    @Request() req: any,
-  ) {
-    return this.workspacesService.getPlayerStats(id, playerId, req.user.id);
-  }
-
-  // ─── Events ───────────────────────────────────────────────────────────────
-
-  @Get(':id/events')
-  getEvents(@Param('id') id: string, @Request() req: any) {
-    return this.workspacesService.getEvents(id, req.user.id);
-  }
-
-  @Post(':id/events')
-  createEvent(
-    @Param('id') id: string,
-    @Body() dto: CreateEventDto,
-    @Request() req: any,
-  ) {
-    return this.workspacesService.createEvent(id, dto, req.user.id);
-  }
-
-  @Patch(':id/events/:eventId')
-  updateEvent(
-    @Param('id') id: string,
-    @Param('eventId') eventId: string,
-    @Body() dto: UpdateEventDto,
-    @Request() req: any,
-  ) {
-    return this.workspacesService.updateEvent(id, eventId, dto, req.user.id);
-  }
-
-  @Delete(':id/events/:eventId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  removeEvent(
-    @Param('id') id: string,
-    @Param('eventId') eventId: string,
-    @Request() req: any,
-  ) {
-    return this.workspacesService.removeEvent(id, eventId, req.user.id);
-  }
-
-  @Get(':id/events/:eventId/standings')
-  getEventStandings(
-    @Param('id') id: string,
-    @Param('eventId') eventId: string,
-    @Request() req: any,
-  ) {
-    return this.workspacesService.getEventStandings(id, eventId, req.user.id);
-  }
 
   // ─── Competitions ─────────────────────────────────────────────────────────
 

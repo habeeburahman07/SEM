@@ -3,44 +3,64 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { DatePipe, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { WorkspaceService, Workspace, WorkspaceMember, AppNotification, Role, Team, Player, WorkspaceEvent, Sport, Competition, CompetitionStage, CompetitionTeam, Match, Venue, PointsConfigEntry, MatchPlayer, CompetitionStats } from '../../services/workspace.service';
+import { WorkspaceService, Workspace, WorkspaceMember, AppNotification, Role, Team, Player, WorkspaceEvent, Sport, Competition, CompetitionStage, CompetitionTeam, Match, PointsConfigEntry, MatchPlayer, CompetitionStats } from '../../services/workspace.service';
+import { VenueService, Venue } from '../../services/venue.service';
 import { AuthService } from '../../services/auth.service';
 import { UiService } from '../../services/ui.service';
 import { SocketService } from '../../services/socket.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { VenueListComponent } from './venues/venue-list';
+import { VenueModalComponent } from './venues/venue-modal';
+import { TeamService } from '../../services/team.service';
+import { TeamListComponent } from './teams/team-list';
+import { TeamModalComponent } from './teams/team-modal';
+import { PlayerService } from '../../services/player.service';
+import { PlayerListComponent } from './players/player-list';
+import { PlayerModalComponent } from './players/player-modal';
+import { EventService } from '../../services/event.service';
 
 declare const L: any;
 
 @Component({
   selector: 'app-workspace-detail',
   standalone: true,
-  imports: [RouterLink, DatePipe, FormsModule, NgClass],
+  imports: [
+    RouterLink,
+    DatePipe,
+    FormsModule,
+    NgClass,
+    VenueListComponent,
+    VenueModalComponent,
+    TeamListComponent,
+    TeamModalComponent,
+    PlayerListComponent,
+    PlayerModalComponent,
+  ],
   templateUrl: './workspace-detail.html',
   styleUrl: './workspace-detail.css',
 })
 export class WorkspaceDetailComponent implements OnInit {
   private workspaceService = inject(WorkspaceService);
+  private venueService = inject(VenueService);
   authService = inject(AuthService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private uiService = inject(UiService);
   private socketService = inject(SocketService);
   private destroyRef = inject(DestroyRef);
+  private teamService = inject(TeamService);
+  private playerService = inject(PlayerService);
+  private eventService = inject(EventService);
 
-  selectedTeamForDetails = signal<any | null>(null);
-  isLoadingTeamStats = signal<boolean>(false);
-  activeTeamDetailTab = signal<'overview' | 'competitions' | 'squad'>('overview');
-
-  selectedPlayerForDetails = signal<any | null>(null);
-  isLoadingPlayerStats = signal<boolean>(false);
-  activePlayerDetailTab = signal<'overview' | 'competitions'>('overview');
+  selectedPlayerId = signal<string | null>(null);
+  selectedTeamId = signal<string | null>(null);
 
   constructor() {
     effect(() => {
       // Clear team/player details when main tab changes
       this.activeTab();
-      this.selectedTeamForDetails.set(null);
-      this.selectedPlayerForDetails.set(null);
+      this.selectedTeamId.set(null);
+      this.selectedPlayerId.set(null);
     });
   }
 
@@ -206,13 +226,13 @@ export class WorkspaceDetailComponent implements OnInit {
 
   selectGlobalTeam(team: Team) {
     this.activeTab.set('teams');
-    this.onViewTeamDetails(team);
+    this.selectedTeamId.set(team.id);
     this.clearGlobalSearch();
   }
 
   selectGlobalPlayer(player: Player) {
     this.activeTab.set('players');
-    this.onViewPlayerDetails(player);
+    this.selectedPlayerId.set(player.id);
     this.clearGlobalSearch();
   }
 
@@ -262,59 +282,18 @@ export class WorkspaceDetailComponent implements OnInit {
   // Image Upload Loading States
   isUploadingAvatar = signal(false);
   isUploadingWorkspaceLogo = signal(false);
-  isUploadingTeamLogo = signal(false);
+
   isUploadingEventLogo = signal(false);
 
   // ── Teams State ────────────────────────────────────────────────────────────
   teams = signal<Team[]>([]);
   isTeamModalOpen = signal(false);
-  newTeamName = signal('');
-  newTeamCode = signal('');
-  newTeamDescription = signal('');
-  newTeamLogoUrl = signal('');
-  newTeamPrimaryColor = signal('#7c3aed');
-  newTeamSecondaryColor = signal('#4f46e5');
-  isCreatingTeam = signal(false);
-  teamCreateError = signal('');
-  teamCreateSuccess = signal('');
-
-  // Bulk Import Teams State
-  isBulkModalOpen = signal(false);
-  isImportingBulk = signal(false);
-  bulkImportProgress = signal(0);
-  bulkImportTeams = signal<any[]>([]);
-  bulkImportError = signal('');
-  bulkImportSuccess = signal('');
-
-  // Editing state for Teams
   editingTeam = signal<Team | null>(null);
-  editTeamName = signal('');
-  editTeamCode = signal('');
-  editTeamDescription = signal('');
-  editTeamLogoUrl = signal('');
-  editTeamPrimaryColor = signal('');
-  editTeamSecondaryColor = signal('');
-  isUpdatingTeam = signal(false);
-  teamUpdateError = signal('');
-  teamUpdateSuccess = signal('');
 
   // ── Players State ──────────────────────────────────────────────────────────
   players = signal<Player[]>([]);
   isPlayerModalOpen = signal(false);
-  newPlayerUserId = signal('');
-  newPlayerJerseyNumber = signal('');
-  newPlayerTeamId = signal('');
-  isCreatingPlayer = signal(false);
-  playerCreateError = signal('');
-  playerCreateSuccess = signal('');
-
-  // Bulk Import Players State
-  isPlayerBulkModalOpen = signal(false);
-  isImportingPlayerBulk = signal(false);
-  playerBulkImportProgress = signal(0);
-  bulkImportPlayers = signal<any[]>([]);
-  playerBulkImportError = signal('');
-  playerBulkImportSuccess = signal('');
+  editingPlayer = signal<Player | null>(null);
 
   // Bulk Import Members State
   isMemberBulkModalOpen = signal(false);
@@ -325,14 +304,6 @@ export class WorkspaceDetailComponent implements OnInit {
   memberBulkImportError = signal('');
   memberBulkImportSuccess = signal('');
   showBulkImportPassword = signal(false);
-
-  // Editing state for Players
-  editingPlayer = signal<Player | null>(null);
-  editPlayerJerseyNumber = signal('');
-  editPlayerTeamId = signal('');
-  isUpdatingPlayer = signal(false);
-  playerUpdateError = signal('');
-  playerUpdateSuccess = signal('');
 
   // ── Events State ────────────────────────────────────────────────────────────
   events = signal<WorkspaceEvent[]>([]);
@@ -687,24 +658,7 @@ export class WorkspaceDetailComponent implements OnInit {
   // ── Venues State ───────────────────────────────────────────────────────────
   venues = signal<Venue[]>([]);
   isVenueModalOpen = signal(false);
-  newVenueName = signal('');
-  newVenueLocation = signal('');
-  newVenueCapacity = signal<number | null>(null);
-  newVenueImageUrl = signal('');
-  isCreatingVenue = signal(false);
-  venueCreateError = signal('');
-  venueCreateSuccess = signal('');
-
-  // Editing state for Venues
   editingVenue = signal<Venue | null>(null);
-  editVenueName = signal('');
-  editVenueLocation = signal('');
-  editVenueCapacity = signal<number | null>(null);
-  editVenueImageUrl = signal('');
-  isUpdatingVenue = signal(false);
-  venueUpdateError = signal('');
-  venueUpdateSuccess = signal('');
-  isUploadingVenueImage = signal(false);
 
   newMatchVenueId = signal('');
 
@@ -975,7 +929,7 @@ export class WorkspaceDetailComponent implements OnInit {
     if (!ws || !eventId) return;
 
     this.activeTab.set('events');
-    this.workspaceService.getEvents(ws.id).subscribe({
+    this.eventService.getEvents(ws.id).subscribe({
       next: (events) => {
         this.events.set(events);
         const ev = events.find((e) => e.id === eventId);
@@ -1259,7 +1213,7 @@ export class WorkspaceDetailComponent implements OnInit {
   // ── Venues CRUD ────────────────────────────────────────────────────────────
 
   loadVenues(workspaceId: string) {
-    this.workspaceService.getVenues(workspaceId).subscribe({
+    this.venueService.getVenues(workspaceId).subscribe({
       next: (venues) => this.venues.set(venues),
       error: (err) => console.error('Failed to load venues', err),
     });
@@ -1267,293 +1221,27 @@ export class WorkspaceDetailComponent implements OnInit {
 
   onAddVenue() {
     this.editingVenue.set(null);
-    this.newVenueName.set('');
-    this.newVenueLocation.set('');
-    this.newVenueCapacity.set(null);
-    this.newVenueImageUrl.set('');
-    this.venueCreateError.set('');
-    this.venueCreateSuccess.set('');
     this.isVenueModalOpen.set(true);
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          this.initMap(position.coords.latitude, position.coords.longitude);
-        },
-        () => {
-          this.initMap();
-        }
-      );
-    } else {
-      this.initMap();
-    }
-  }
-
-  onCreateVenue() {
-    const name = this.newVenueName().trim();
-    const location = this.newVenueLocation().trim();
-    const capacity = this.newVenueCapacity();
-    const imageUrl = this.newVenueImageUrl().trim();
-    const ws = this.workspace();
-    if (!ws || !name) return;
-
-    this.isCreatingVenue.set(true);
-    this.venueCreateError.set('');
-    this.venueCreateSuccess.set('');
-
-    const payload: any = { name };
-    if (location) payload.location = location;
-    if (capacity !== null && capacity !== undefined) payload.capacity = capacity;
-    if (imageUrl) payload.imageUrl = imageUrl;
-
-    this.workspaceService.createVenue(ws.id, payload).subscribe({
-      next: (venue) => {
-        this.isCreatingVenue.set(false);
-        this.venueCreateSuccess.set(`Venue "${venue.name}" registered successfully!`);
-        this.newVenueName.set('');
-        this.newVenueLocation.set('');
-        this.newVenueCapacity.set(null);
-        this.newVenueImageUrl.set('');
-        this.venues.update(prev => [...prev, venue]);
-        setTimeout(() => this.closeVenueModal(), 1000);
-      },
-      error: (err) => {
-        this.isCreatingVenue.set(false);
-        this.venueCreateError.set(err.error?.message ?? 'Failed to create venue.');
-      }
-    });
   }
 
   onEditVenue(venue: Venue) {
     this.editingVenue.set(venue);
-    this.editVenueName.set(venue.name);
-    this.editVenueLocation.set(venue.location ?? '');
-    this.editVenueCapacity.set(venue.capacity);
-    this.editVenueImageUrl.set(venue.imageUrl ?? '');
-    this.venueUpdateError.set('');
-    this.venueUpdateSuccess.set('');
     this.isVenueModalOpen.set(true);
-
-    const coordsMatch = venue.location?.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
-    if (coordsMatch) {
-      const lat = parseFloat(coordsMatch[1]);
-      const lng = parseFloat(coordsMatch[2]);
-      this.initMap(lat, lng);
-    } else if (venue.location) {
-      this.geocodeAndCenterMap(venue.location);
-    } else {
-      this.initMap();
-    }
-  }
-
-  onCancelEditVenue() {
-    this.closeVenueModal();
   }
 
   closeVenueModal() {
     this.isVenueModalOpen.set(false);
     this.editingVenue.set(null);
-    this.venueCreateError.set('');
-    this.venueCreateSuccess.set('');
-    this.venueUpdateError.set('');
-    this.venueUpdateSuccess.set('');
-    this.newVenueImageUrl.set('');
-    this.editVenueImageUrl.set('');
-    if (this.map) {
-      try {
-        this.map.remove();
-      } catch (e) {
-        console.error(e);
-      }
-      this.map = null;
-      this.marker = null;
+  }
+
+  onVenueSaved(savedVenue: Venue) {
+    const isEdit = this.venues().some(v => v.id === savedVenue.id);
+    if (isEdit) {
+      this.venues.update(prev => prev.map(v => v.id === savedVenue.id ? savedVenue : v));
+      this.matches.update(prevMatches => prevMatches.map(m => m.venueId === savedVenue.id ? { ...m, venue: savedVenue } : m));
+    } else {
+      this.venues.update(prev => [...prev, savedVenue]);
     }
-  }
-
-  initMap(latitude?: number, longitude?: number) {
-    if (this.map) {
-      try {
-        this.map.remove();
-      } catch (e) {
-        console.error(e);
-      }
-      this.map = null;
-      this.marker = null;
-    }
-
-    const lat = latitude ?? 51.505;
-    const lng = longitude ?? -0.09;
-    const zoom = latitude && longitude ? 15 : 13;
-
-    const mapEl = document.getElementById('venue-map');
-    if (!mapEl) {
-      setTimeout(() => this.initMap(latitude, longitude), 100);
-      return;
-    }
-
-    try {
-      this.map = L.map('venue-map').setView([lat, lng], zoom);
-
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(this.map);
-
-      // Fix default Leaflet marker icon paths
-      const DefaultIcon = L.icon({
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-      });
-
-      this.marker = L.marker([lat, lng], { draggable: true, icon: DefaultIcon }).addTo(this.map);
-
-      const updateCoords = (newLat: number, newLng: number) => {
-        this.reverseGeocode(newLat, newLng);
-      };
-
-      this.marker.on('dragend', (event: any) => {
-        const markerPos = event.target.getLatLng();
-        updateCoords(markerPos.lat, markerPos.lng);
-      });
-
-      this.map.on('click', (event: any) => {
-        const clickedPos = event.latlng;
-        this.marker.setLatLng(clickedPos);
-        updateCoords(clickedPos.lat, clickedPos.lng);
-      });
-    } catch (e) {
-      console.error('Error initializing map:', e);
-    }
-  }
-
-  reverseGeocode(lat: number, lng: number) {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
-    fetch(url, {
-      headers: {
-        'Accept-Language': 'en'
-      }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.display_name) {
-          const address = data.display_name;
-          if (this.editingVenue()) {
-            this.editVenueLocation.set(address);
-          } else {
-            this.newVenueLocation.set(address);
-          }
-        } else {
-          const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-          if (this.editingVenue()) {
-            this.editVenueLocation.set(coords);
-          } else {
-            this.newVenueLocation.set(coords);
-          }
-        }
-      })
-      .catch(err => {
-        console.error('Reverse geocoding failed:', err);
-        const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-        if (this.editingVenue()) {
-          this.editVenueLocation.set(coords);
-        } else {
-          this.newVenueLocation.set(coords);
-        }
-      });
-  }
-
-  geocodeAndCenterMap(query: string) {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
-    fetch(url, {
-      headers: {
-        'Accept-Language': 'en'
-      }
-    })
-      .then(res => res.json())
-      .then(results => {
-        if (results && results.length > 0) {
-          const lat = parseFloat(results[0].lat);
-          const lng = parseFloat(results[0].lon);
-          this.initMap(lat, lng);
-        } else {
-          this.initMap();
-        }
-      })
-      .catch(err => {
-        console.error('Geocoding failed:', err);
-        this.initMap();
-      });
-  }
-
-  searchMapLocation(query: string) {
-    if (!query.trim()) return;
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
-    fetch(url, {
-      headers: {
-        'Accept-Language': 'en'
-      }
-    })
-      .then(res => res.json())
-      .then(results => {
-        if (results && results.length > 0) {
-          const lat = parseFloat(results[0].lat);
-          const lng = parseFloat(results[0].lon);
-          
-          if (this.map && this.marker) {
-            this.map.setView([lat, lng], 15);
-            this.marker.setLatLng([lat, lng]);
-            if (this.editingVenue()) {
-              this.editVenueLocation.set(results[0].display_name);
-            } else {
-              this.newVenueLocation.set(results[0].display_name);
-            }
-          } else {
-            this.initMap(lat, lng);
-          }
-        } else {
-          this.uiService.error('Location not found. Please try a different search.');
-        }
-      })
-      .catch(err => {
-        console.error('Geocoding search failed:', err);
-        this.uiService.error('Failed to search location.');
-      });
-  }
-
-  onUpdateVenue() {
-    const name = this.editVenueName().trim();
-    const location = this.editVenueLocation().trim();
-    const capacity = this.editVenueCapacity();
-    const imageUrl = this.editVenueImageUrl().trim();
-    const ws = this.workspace();
-    const venue = this.editingVenue();
-    if (!ws || !venue || !name) return;
-
-    this.isUpdatingVenue.set(true);
-    this.venueUpdateError.set('');
-    this.venueUpdateSuccess.set('');
-
-    const payload: any = { name };
-    payload.location = location || null;
-    payload.capacity = capacity !== null && capacity !== undefined ? capacity : null;
-    payload.imageUrl = imageUrl || null;
-
-    this.workspaceService.updateVenue(ws.id, venue.id, payload).subscribe({
-      next: (updated) => {
-        this.isUpdatingVenue.set(false);
-        this.venueUpdateSuccess.set(`Venue updated successfully!`);
-        this.venues.update(prev => prev.map(v => v.id === venue.id ? updated : v));
-        this.matches.update(prevMatches => prevMatches.map(m => m.venueId === venue.id ? { ...m, venue: updated } : m));
-        setTimeout(() => this.closeVenueModal(), 1000);
-      },
-      error: (err) => {
-        this.isUpdatingVenue.set(false);
-        this.venueUpdateError.set(err.error?.message ?? 'Failed to update venue.');
-      }
-    });
   }
 
   async onDeleteVenue(venue: Venue) {
@@ -1567,7 +1255,7 @@ export class WorkspaceDetailComponent implements OnInit {
     });
     if (!confirmed) return;
 
-    this.workspaceService.removeVenue(ws.id, venue.id).subscribe({
+    this.venueService.removeVenue(ws.id, venue.id).subscribe({
       next: () => {
         this.venues.update(prev => prev.filter(v => v.id !== venue.id));
         this.matches.update(prevMatches => prevMatches.map(m => m.venueId === venue.id ? { ...m, venueId: null, venue: null } : m));
@@ -1580,342 +1268,48 @@ export class WorkspaceDetailComponent implements OnInit {
   // ── Teams CRUD ─────────────────────────────────────────────────────────────
 
   loadTeams(workspaceId: string) {
-    this.workspaceService.getTeams(workspaceId).subscribe({
+    this.teamService.getTeams(workspaceId).subscribe({
       next: (teams) => this.teams.set(teams),
       error: (err) => console.error('Failed to load teams', err),
     });
   }
 
-  onViewTeamDetails(team: Team) {
-    const ws = this.workspace();
-    if (!ws) return;
-    this.isLoadingTeamStats.set(true);
-    this.workspaceService.getTeamStats(ws.id, team.id).subscribe({
-      next: (stats) => {
-        this.selectedTeamForDetails.set(stats);
-        this.activeTeamDetailTab.set('overview');
-        this.isLoadingTeamStats.set(false);
-      },
-      error: (err) => {
-        this.isLoadingTeamStats.set(false);
-        this.uiService.error('Failed to load team statistics.');
-      }
-    });
-  }
-
-  onBackToTeams() {
-    this.selectedTeamForDetails.set(null);
-  }
-
   onAddTeam() {
     this.editingTeam.set(null);
-    this.newTeamName.set('');
-    this.newTeamCode.set('');
-    this.newTeamDescription.set('');
-    this.newTeamLogoUrl.set('');
-    this.newTeamPrimaryColor.set('#7c3aed');
-    this.newTeamSecondaryColor.set('#4f46e5');
-    this.teamCreateError.set('');
-    this.teamCreateSuccess.set('');
     this.isTeamModalOpen.set(true);
-  }
-
-  onCreateTeam() {
-    const name = this.newTeamName().trim();
-    const code = this.newTeamCode().trim().toUpperCase();
-    const description = this.newTeamDescription().trim();
-    const logoUrl = this.newTeamLogoUrl().trim();
-    const primaryColor = this.newTeamPrimaryColor().trim();
-    const secondaryColor = this.newTeamSecondaryColor().trim();
-    const ws = this.workspace();
-    if (!ws || !name || !code) return;
-
-    this.isCreatingTeam.set(true);
-    this.teamCreateError.set('');
-    this.teamCreateSuccess.set('');
-
-    this.workspaceService.createTeam(ws.id, name, code, description || undefined, logoUrl || undefined, primaryColor || undefined, secondaryColor || undefined).subscribe({
-      next: (team) => {
-        this.isCreatingTeam.set(false);
-        this.teamCreateSuccess.set(`Team "${team.name}" registered successfully!`);
-        this.newTeamName.set('');
-        this.newTeamCode.set('');
-        this.newTeamDescription.set('');
-        this.newTeamLogoUrl.set('');
-        this.newTeamPrimaryColor.set('#7c3aed');
-        this.newTeamSecondaryColor.set('#4f46e5');
-        this.teams.update(prev => [...prev, team]);
-        setTimeout(() => this.closeTeamModal(), 1000);
-      },
-      error: (err) => {
-        this.isCreatingTeam.set(false);
-        this.teamCreateError.set(err.error?.message ?? 'Failed to create team.');
-      }
-    });
   }
 
   onEditTeam(team: Team) {
     this.editingTeam.set(team);
-    this.editTeamName.set(team.name);
-    this.editTeamCode.set(team.code ?? '');
-    this.editTeamDescription.set(team.description ?? '');
-    this.editTeamLogoUrl.set(team.logoUrl ?? '');
-    this.editTeamPrimaryColor.set(team.primaryColor ?? '#7c3aed');
-    this.editTeamSecondaryColor.set(team.secondaryColor ?? '#4f46e5');
-    this.teamUpdateError.set('');
-    this.teamUpdateSuccess.set('');
     this.isTeamModalOpen.set(true);
-  }
-
-  onCancelEditTeam() {
-    this.closeTeamModal();
   }
 
   closeTeamModal() {
     this.isTeamModalOpen.set(false);
     this.editingTeam.set(null);
-    this.teamCreateError.set('');
-    this.teamCreateSuccess.set('');
-    this.teamUpdateError.set('');
-    this.teamUpdateSuccess.set('');
   }
 
-  onUpdateTeam() {
-    const name = this.editTeamName().trim();
-    const code = this.editTeamCode().trim().toUpperCase();
-    const description = this.editTeamDescription().trim();
-    const logoUrl = this.editTeamLogoUrl().trim();
-    const primaryColor = this.editTeamPrimaryColor().trim();
-    const secondaryColor = this.editTeamSecondaryColor().trim();
-    const ws = this.workspace();
-    const team = this.editingTeam();
-    if (!ws || !team || !name || !code) return;
-
-    this.isUpdatingTeam.set(true);
-    this.teamUpdateError.set('');
-    this.teamUpdateSuccess.set('');
-
-    this.workspaceService.updateTeam(ws.id, team.id, name, code, description || undefined, logoUrl || undefined, primaryColor || undefined, secondaryColor || undefined).subscribe({
-      next: (updated) => {
-        this.isUpdatingTeam.set(false);
-        this.teamUpdateSuccess.set(`Team updated successfully!`);
-        this.teams.update(prev => prev.map(t => t.id === team.id ? updated : t));
-        setTimeout(() => this.closeTeamModal(), 1000);
-      },
-      error: (err) => {
-        this.isUpdatingTeam.set(false);
-        this.teamUpdateError.set(err.error?.message ?? 'Failed to update team.');
-      }
-    });
-  }
-
-  openBulkModal() {
-    this.bulkImportTeams.set([]);
-    this.bulkImportError.set('');
-    this.bulkImportSuccess.set('');
-    this.bulkImportProgress.set(0);
-    this.isImportingBulk.set(false);
-    this.isBulkModalOpen.set(true);
-  }
-
-  closeBulkModal() {
-    this.isBulkModalOpen.set(false);
-    this.bulkImportTeams.set([]);
-    this.bulkImportError.set('');
-    this.bulkImportSuccess.set('');
-    this.bulkImportProgress.set(0);
-    this.isImportingBulk.set(false);
-  }
-
-  async downloadTemplate() {
-    const XLSX = await import('xlsx-js-style') as any;
-    
-    // Create the structure with cell objects that have styles
-    const ws: any = {
-      '!ref': 'A1:D3',
-      
-      // Row 1: Field values (bold)
-      'A1': { v: 'Name', t: 's', s: { font: { bold: true } } },
-      'B1': { v: 'Code', t: 's', s: { font: { bold: true } } },
-      'C1': { v: 'Description', t: 's', s: { font: { bold: true } } },
-      'D1': { v: 'LogoUrl', t: 's', s: { font: { bold: true } } },
-      
-      // Row 2: Required or Optional (dark grey color: #4B525D)
-      'A2': { v: '#Required', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-      'B2': { v: '#Required', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-      'C2': { v: '#Optional', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-      'D2': { v: '#Optional', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-      
-      // Row 3: eg. (italic)
-      'A3': { v: 'eg. Warriors FC', t: 's', s: { font: { italic: true } } },
-      'B3': { v: 'eg. WAR', t: 's', s: { font: { italic: true } } },
-      'C3': { v: 'eg. A passionate local football club.', t: 's', s: { font: { italic: true } } },
-      'D3': { v: 'eg. https://example.com/logo.png', t: 's', s: { font: { italic: true } } }
-    };
-
-    // Auto-fit or define column widths to prevent truncation
-    ws['!cols'] = [
-      { wch: 22 }, // Column A width (Name)
-      { wch: 15 }, // Column B width (Code)
-      { wch: 42 }, // Column C width (Description)
-      { wch: 42 }  // Column D width (LogoUrl)
-    ];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Teams Template');
-    XLSX.writeFile(wb, 'teams_import_template.xlsx');
-  }
-
-  onExcelUpload(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (!input.files || input.files.length === 0) return;
-    const file = input.files[0];
-    const reader = new FileReader();
-    reader.onload = async (e: any) => {
-      try {
-        const XLSX = await import('xlsx');
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
-        
-        // Map and validate rows, filtering out instructions and examples
-        const parsedTeams = json.map((row: any) => {
-          const nameKey = Object.keys(row).find(k => k.toLowerCase() === 'name') || 'Name';
-          const codeKey = Object.keys(row).find(k => k.toLowerCase() === 'code') || 'Code';
-          const descKey = Object.keys(row).find(k => k.toLowerCase() === 'description') || 'Description';
-          const logoKey = Object.keys(row).find(k => k.toLowerCase() === 'logourl' || k.toLowerCase() === 'logo') || 'LogoUrl';
-          
-          const name = (row[nameKey] || '').toString().trim();
-          const code = (row[codeKey] || '').toString().trim();
-          const description = (row[descKey] || '').toString().trim();
-          const logoUrl = (row[logoKey] || '').toString().trim();
-
-          let status = 'pending';
-          let error = '';
-
-          if (!name) {
-            status = 'failed';
-            error = 'Team Name is missing';
-          } else {
-            const nameExists = this.teams().some(t => t.name.toLowerCase() === name.toLowerCase());
-            const codeExists = code && this.teams().some(t => t.code && t.code.toUpperCase() === code.toUpperCase());
-
-            if (nameExists) {
-              status = 'exist';
-              error = 'Team Name already registered';
-            } else if (codeExists) {
-              status = 'exist';
-              error = 'Team Code already registered';
-            }
-          }
-
-          return {
-            name,
-            code,
-            description,
-            logoUrl,
-            status,
-            error
-          };
-        }).filter(t => {
-          if (!t.name) return false;
-          
-          // Exclude template metadata/example rows
-          const lowerName = t.name.toLowerCase();
-          if (lowerName === '#required' || lowerName === 'required') return false;
-          if (lowerName.startsWith('eg.')) return false;
-          if (lowerName.startsWith('eg ')) return false;
-          
-          return true;
-        });
-        
-        this.bulkImportTeams.set(parsedTeams);
-        this.bulkImportError.set('');
-        if (parsedTeams.length === 0) {
-          this.bulkImportError.set('No valid teams found in the spreadsheet. Make sure you have a "Name" column.');
+  onTeamSaved(savedTeam: Team) {
+    const isEdit = this.teams().some(t => t.id === savedTeam.id);
+    if (isEdit) {
+      this.teams.update(prev => prev.map(t => t.id === savedTeam.id ? savedTeam : t));
+      this.matches.update(prevMatches => prevMatches.map(m => {
+        let updated = { ...m };
+        if (m.homeTeamId === savedTeam.id) {
+          updated.homeTeam = savedTeam;
         }
-      } catch (err) {
-        console.error('Failed to parse file', err);
-        this.bulkImportError.set('Failed to parse spreadsheet. Please ensure it is a valid format.');
-      }
-    };
-    reader.readAsArrayBuffer(file);
-    input.value = '';
+        if (m.awayTeamId === savedTeam.id) {
+          updated.awayTeam = savedTeam;
+        }
+        return updated;
+      }));
+    } else {
+      this.teams.update(prev => [...prev, savedTeam]);
+    }
   }
 
-  async onConfirmBulkImport() {
-    const ws = this.workspace();
-    const teamsToImport = [...this.bulkImportTeams()];
-    if (!ws || teamsToImport.length === 0) return;
-
-    this.isImportingBulk.set(true);
-    this.bulkImportProgress.set(0);
-    this.bulkImportError.set('');
-    this.bulkImportSuccess.set('');
-
-    let successCount = 0;
-    let failCount = 0;
-    let existCount = 0;
-
-    for (let i = 0; i < teamsToImport.length; i++) {
-      const item = teamsToImport[i];
-
-      if (item.status === 'failed') {
-        failCount++;
-        this.bulkImportProgress.set(Math.round(((i + 1) / teamsToImport.length) * 100));
-        continue;
-      }
-      if (item.status === 'exist') {
-        existCount++;
-        this.bulkImportProgress.set(Math.round(((i + 1) / teamsToImport.length) * 100));
-        continue;
-      }
-
-      try {
-        await new Promise<void>((resolve) => {
-          const finalCode = item.code || item.name.substring(0, 3).toUpperCase() + Math.floor(100 + Math.random() * 900);
-          this.workspaceService.createTeam(ws.id, item.name, finalCode, item.description || undefined, item.logoUrl || undefined).subscribe({
-            next: (team) => {
-              this.teams.update(prev => [...prev, team]);
-              item.status = 'success';
-              item.error = '';
-              successCount++;
-              this.bulkImportTeams.set([...teamsToImport]);
-              resolve();
-            },
-            error: (err) => {
-              const errMsg = err.error?.message ?? 'Unknown error';
-              if (errMsg.toLowerCase().includes('already registered') || errMsg.toLowerCase().includes('unique') || err.status === 409) {
-                item.status = 'exist';
-                item.error = 'Team Code/Name already registered';
-                existCount++;
-              } else {
-                item.status = 'failed';
-                item.error = errMsg;
-                failCount++;
-              }
-              this.bulkImportTeams.set([...teamsToImport]);
-              resolve();
-            }
-          });
-        });
-      } catch (err) {
-        item.status = 'failed';
-        item.error = 'Import failed';
-        failCount++;
-        this.bulkImportTeams.set([...teamsToImport]);
-      }
-      this.bulkImportProgress.set(Math.round(((i + 1) / teamsToImport.length) * 100));
-    }
-
-    this.isImportingBulk.set(false);
-    if (failCount === 0 && existCount === 0) {
-      this.bulkImportSuccess.set(`Successfully imported all ${successCount} teams!`);
-    } else {
-      this.bulkImportSuccess.set(`Import finished: ${successCount} successful, ${existCount} already existed, ${failCount} failed.`);
-    }
+  onTeamsImported(importedList: Team[]) {
+    this.teams.update(prev => [...prev, ...importedList]);
   }
 
   async onDeleteTeam(team: Team) {
@@ -1929,9 +1323,21 @@ export class WorkspaceDetailComponent implements OnInit {
     });
     if (!confirmed) return;
 
-    this.workspaceService.removeTeam(ws.id, team.id).subscribe({
+    this.teamService.removeTeam(ws.id, team.id).subscribe({
       next: () => {
         this.teams.update(prev => prev.filter(t => t.id !== team.id));
+        this.matches.update(prevMatches => prevMatches.map(m => {
+          let updated = { ...m };
+          if (m.homeTeamId === team.id) {
+            updated.homeTeamId = null;
+            updated.homeTeam = null;
+          }
+          if (m.awayTeamId === team.id) {
+            updated.awayTeamId = null;
+            updated.awayTeam = null;
+          }
+          return updated;
+        }));
         this.uiService.success(`Team "${team.name}" deleted successfully.`);
       },
       error: (err) => {
@@ -1943,40 +1349,19 @@ export class WorkspaceDetailComponent implements OnInit {
   // ── Players CRUD ───────────────────────────────────────────────────────────
 
   loadPlayers(workspaceId: string) {
-    this.workspaceService.getPlayers(workspaceId).subscribe({
+    this.playerService.getPlayers(workspaceId).subscribe({
       next: (players) => this.players.set(players),
       error: (err) => console.error('Failed to load players', err),
     });
   }
 
-  onViewPlayerDetails(player: Player) {
-    const ws = this.workspace();
-    if (!ws) return;
-    this.isLoadingPlayerStats.set(true);
-    this.workspaceService.getPlayerStats(ws.id, player.id).subscribe({
-      next: (stats) => {
-        this.selectedPlayerForDetails.set(stats);
-        this.activePlayerDetailTab.set('overview');
-        this.isLoadingPlayerStats.set(false);
-      },
-      error: (err) => {
-        this.isLoadingPlayerStats.set(false);
-        this.uiService.error('Failed to load player statistics.');
-      }
-    });
-  }
-
-  onBackToPlayers() {
-    this.selectedPlayerForDetails.set(null);
-  }
-
   onAddPlayer() {
     this.editingPlayer.set(null);
-    this.newPlayerUserId.set('');
-    this.newPlayerJerseyNumber.set('');
-    this.newPlayerTeamId.set('');
-    this.playerCreateError.set('');
-    this.playerCreateSuccess.set('');
+    this.isPlayerModalOpen.set(true);
+  }
+
+  onEditPlayer(player: Player) {
+    this.editingPlayer.set(player);
     this.isPlayerModalOpen.set(true);
   }
 
@@ -1985,90 +1370,27 @@ export class WorkspaceDetailComponent implements OnInit {
     this.editingPlayer.set(null);
   }
 
-  openPlayerBulkModal() {
-    this.bulkImportPlayers.set([]);
-    this.playerBulkImportProgress.set(0);
-    this.playerBulkImportError.set('');
-    this.playerBulkImportSuccess.set('');
-    this.isPlayerBulkModalOpen.set(true);
+  onPlayerSaved(player: Player) {
+    const exists = this.players().some(p => p.id === player.id);
+    if (exists) {
+      this.players.update(prev => prev.map(p => p.id === player.id ? player : p));
+    } else {
+      this.players.update(prev => [...prev, player]);
+    }
   }
 
-  closePlayerBulkModal() {
-    this.isPlayerBulkModalOpen.set(false);
-  }
-
-  onCreatePlayer() {
-    const userId = this.newPlayerUserId();
-    const jerseyNumber = this.newPlayerJerseyNumber().trim();
-    const teamId = this.newPlayerTeamId();
-    const ws = this.workspace();
-    if (!ws || !userId || !teamId) return;
-
-    this.isCreatingPlayer.set(true);
-    this.playerCreateError.set('');
-    this.playerCreateSuccess.set('');
-
-    const payload = {
-      userId,
-      teamId,
-      ...(jerseyNumber && { jerseyNumber }),
-    };
-
-    this.workspaceService.createPlayer(ws.id, payload).subscribe({
-      next: (player) => {
-        this.isCreatingPlayer.set(false);
-        this.playerCreateSuccess.set(`Player "${player.user.username}" registered successfully!`);
-        this.players.update(prev => [...prev, player]);
-        setTimeout(() => this.closePlayerModal(), 1500);
-      },
-      error: (err) => {
-        this.isCreatingPlayer.set(false);
-        this.playerCreateError.set(err.error?.message ?? 'Failed to register player.');
-      }
-    });
-  }
-
-  onEditPlayer(player: Player) {
-    this.editingPlayer.set(player);
-    this.editPlayerJerseyNumber.set(player.jerseyNumber ?? '');
-    this.editPlayerTeamId.set(player.teamId);
-    this.playerUpdateError.set('');
-    this.playerUpdateSuccess.set('');
-    this.isPlayerModalOpen.set(true);
-  }
-
-  onCancelEditPlayer() {
-    this.closePlayerModal();
-  }
-
-  onUpdatePlayer() {
-    const jerseyNumber = this.editPlayerJerseyNumber().trim();
-    const teamId = this.editPlayerTeamId();
-    const ws = this.workspace();
-    const player = this.editingPlayer();
-    if (!ws || !player || !teamId) return;
-
-    this.isUpdatingPlayer.set(true);
-    this.playerUpdateError.set('');
-    this.playerUpdateSuccess.set('');
-
-    const payload = {
-      teamId,
-      jerseyNumber: jerseyNumber || undefined,
-    };
-
-    this.workspaceService.updatePlayer(ws.id, player.id, payload).subscribe({
-      next: (updated) => {
-        this.isUpdatingPlayer.set(false);
-        this.playerUpdateSuccess.set(`Player updated successfully!`);
-        this.players.update(prev => prev.map(p => p.id === player.id ? updated : p));
-        setTimeout(() => this.closePlayerModal(), 1500);
-      },
-      error: (err) => {
-        this.isUpdatingPlayer.set(false);
-        this.playerUpdateError.set(err.error?.message ?? 'Failed to update player.');
-      }
-    });
+  onPlayersImported(importedList: Player[]) {
+    if (importedList && importedList.length > 0) {
+      this.players.update(prev => {
+        const list = [...prev];
+        importedList.forEach(p => {
+          if (!list.some(x => x.id === p.id)) {
+            list.push(p);
+          }
+        });
+        return list;
+      });
+    }
   }
 
   openMemberBulkModal() {
@@ -2245,215 +1567,7 @@ export class WorkspaceDetailComponent implements OnInit {
     });
   }
 
-  async downloadPlayerTemplate() {
-    try {
-      const XLSX = await import('xlsx-js-style') as any;
-      const ws: any = {
-        '!ref': 'A1:C3',
-        'A1': { v: 'Username', t: 's', s: { font: { bold: true } } },
-        'B1': { v: 'TeamCode', t: 's', s: { font: { bold: true } } },
-        'C1': { v: 'JerseyNumber', t: 's', s: { font: { bold: true } } },
-        'A2': { v: '#Required (must exist on system)', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-        'B2': { v: '#Required', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-        'C2': { v: '#Optional', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-        'A3': { v: 'eg. john_doe', t: 's', s: { font: { italic: true } } },
-        'B3': { v: 'eg. WAR', t: 's', s: { font: { italic: true } } },
-        'C3': { v: 'eg. 10', t: 's', s: { font: { italic: true } } }
-      };
-      ws['!cols'] = [
-        { wch: 32 },
-        { wch: 15 },
-        { wch: 15 }
-      ];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Players Template');
-      XLSX.writeFile(wb, 'players_import_template.xlsx');
-    } catch (err) {
-      console.error('Failed to generate template', err);
-    }
-  }
 
-  onPlayerExcelUpload(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (!input.files || input.files.length === 0) return;
-    const file = input.files[0];
-    const reader = new FileReader();
-    reader.onload = async (e: any) => {
-      try {
-        const XLSX = await import('xlsx');
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
-
-        const parsedPlayers = json.map((row: any) => {
-          const usernameKey = Object.keys(row).find(k => k.toLowerCase() === 'username') || 'Username';
-          const teamCodeKey = Object.keys(row).find(k => k.toLowerCase() === 'teamcode') || 'TeamCode';
-          const jerseyKey = Object.keys(row).find(k => k.toLowerCase() === 'jerseynumber' || k.toLowerCase() === 'jersey') || 'JerseyNumber';
-
-          const username = (row[usernameKey] || '').toString().trim();
-          const teamCode = (row[teamCodeKey] || '').toString().trim();
-          const jerseyNumber = (row[jerseyKey] || '').toString().trim();
-
-          const member = this.members().find(m => m.user.username.toLowerCase() === username.toLowerCase());
-          const team = this.teams().find(t => t.code && t.code.toUpperCase() === teamCode.toUpperCase());
-
-          let status = 'pending';
-          let error = '';
-
-          if (!username) {
-            status = 'failed';
-            error = 'Username is missing';
-          } else if (!member) {
-            status = 'failed';
-            error = 'User not found in workspace';
-          } else if (!teamCode) {
-            status = 'failed';
-            error = 'Team Code is missing';
-          } else if (!team) {
-            status = 'failed';
-            error = 'Team Code not found';
-          } else {
-            const alreadyExists = this.players().some(p => 
-              p.user.username.toLowerCase() === username.toLowerCase() && 
-              p.teamId === team.id
-            );
-            if (alreadyExists) {
-              status = 'exist';
-              error = 'Already registered in this team';
-            }
-          }
-
-          return {
-            username,
-            teamCode,
-            jerseyNumber,
-            status,
-            error
-          };
-        }).filter(p => {
-          if (!p.username) return false;
-          const lowerUser = p.username.toLowerCase();
-          if (lowerUser.startsWith('#required') || lowerUser === 'required') return false;
-          if (lowerUser.startsWith('eg.')) return false;
-          if (lowerUser.startsWith('eg ')) return false;
-          return true;
-        });
-
-        this.bulkImportPlayers.set(parsedPlayers);
-        this.playerBulkImportError.set('');
-        if (parsedPlayers.length === 0) {
-          this.playerBulkImportError.set('No valid players found in the spreadsheet. Make sure you have a "Username" column.');
-        }
-      } catch (err) {
-        console.error('Failed to parse file', err);
-        this.playerBulkImportError.set('Failed to parse spreadsheet. Please ensure it is a valid format.');
-      }
-    };
-    reader.readAsArrayBuffer(file);
-    input.value = '';
-  }
-
-  async onConfirmPlayerBulkImport() {
-    const ws = this.workspace();
-    const playersToImport = [...this.bulkImportPlayers()];
-    if (!ws || playersToImport.length === 0) return;
-
-    this.isImportingPlayerBulk.set(true);
-    this.playerBulkImportProgress.set(0);
-    this.playerBulkImportError.set('');
-    this.playerBulkImportSuccess.set('');
-
-    let successCount = 0;
-    let failCount = 0;
-    let existCount = 0;
-
-    for (let i = 0; i < playersToImport.length; i++) {
-      const item = playersToImport[i];
-
-      if (item.status === 'failed') {
-        failCount++;
-        this.playerBulkImportProgress.set(Math.round(((i + 1) / playersToImport.length) * 100));
-        continue;
-      }
-      if (item.status === 'exist') {
-        existCount++;
-        this.playerBulkImportProgress.set(Math.round(((i + 1) / playersToImport.length) * 100));
-        continue;
-      }
-
-      const member = this.members().find(m => m.user.username.toLowerCase() === item.username.toLowerCase());
-      const team = this.teams().find(t => t.code && t.code.toUpperCase() === item.teamCode.toUpperCase());
-
-      if (!member) {
-        item.status = 'failed';
-        item.error = 'User not found in workspace';
-        failCount++;
-        this.bulkImportPlayers.set([...playersToImport]);
-        this.playerBulkImportProgress.set(Math.round(((i + 1) / playersToImport.length) * 100));
-        continue;
-      }
-      if (!team) {
-        item.status = 'failed';
-        item.error = 'Team Code not found';
-        failCount++;
-        this.bulkImportPlayers.set([...playersToImport]);
-        this.playerBulkImportProgress.set(Math.round(((i + 1) / playersToImport.length) * 100));
-        continue;
-      }
-
-      try {
-        await new Promise<void>((resolve) => {
-          const payload = {
-            userId: member.userId,
-            teamId: team.id,
-            ...(item.jerseyNumber && { jerseyNumber: item.jerseyNumber }),
-          };
-
-          this.workspaceService.createPlayer(ws.id, payload).subscribe({
-            next: (player) => {
-              if (!this.players().some(p => p.id === player.id)) {
-                this.players.update(prev => [...prev, player]);
-              }
-              item.status = 'success';
-              item.error = '';
-              successCount++;
-              this.bulkImportPlayers.set([...playersToImport]);
-              resolve();
-            },
-            error: (err) => {
-              const errMsg = err.error?.message ?? 'Unknown error';
-              if (errMsg.toLowerCase().includes('already registered') || err.status === 409) {
-                item.status = 'exist';
-                item.error = 'Already registered in this team';
-                existCount++;
-              } else {
-                item.status = 'failed';
-                item.error = errMsg;
-                failCount++;
-              }
-              this.bulkImportPlayers.set([...playersToImport]);
-              resolve();
-            }
-          });
-        });
-      } catch (err) {
-        item.status = 'failed';
-        item.error = 'Registration failed';
-        failCount++;
-        this.bulkImportPlayers.set([...playersToImport]);
-      }
-      this.playerBulkImportProgress.set(Math.round(((i + 1) / playersToImport.length) * 100));
-    }
-
-    this.isImportingPlayerBulk.set(false);
-    if (failCount === 0 && existCount === 0) {
-      this.playerBulkImportSuccess.set(`Successfully imported all ${successCount} players!`);
-    } else {
-      this.playerBulkImportSuccess.set(`Import finished: ${successCount} successful, ${existCount} already existed, ${failCount} failed.`);
-    }
-  }
 
   async onDeletePlayer(player: Player) {
     const ws = this.workspace();
@@ -2466,7 +1580,7 @@ export class WorkspaceDetailComponent implements OnInit {
     });
     if (!confirmed) return;
 
-    this.workspaceService.removePlayer(ws.id, player.id).subscribe({
+    this.playerService.removePlayer(ws.id, player.id).subscribe({
       next: () => {
         this.players.update(prev => prev.filter(p => p.id !== player.id));
         this.uiService.success(`Player "${player.user.username}" deleted successfully.`);
@@ -2498,7 +1612,7 @@ export class WorkspaceDetailComponent implements OnInit {
   // ── Events CRUD ────────────────────────────────────────────────────────────
 
   loadEvents(workspaceId: string) {
-    this.workspaceService.getEvents(workspaceId).subscribe({
+    this.eventService.getEvents(workspaceId).subscribe({
       next: (events) => {
         this.events.set(events);
         this.loadAllCompetitions(workspaceId, events);
@@ -2607,7 +1721,7 @@ export class WorkspaceDetailComponent implements OnInit {
       teamIds: this.selectedEventTeamIds(),
     };
 
-    this.workspaceService.createEvent(ws.id, payload).subscribe({
+    this.eventService.createEvent(ws.id, payload).subscribe({
       next: (event) => {
         this.isCreatingEvent.set(false);
         this.eventCreateSuccess.set(`Event "${event.name}" created successfully!`);
@@ -2663,7 +1777,7 @@ export class WorkspaceDetailComponent implements OnInit {
       teamIds: this.selectedEventTeamIds(),
     };
 
-    this.workspaceService.updateEvent(ws.id, event.id, payload).subscribe({
+    this.eventService.updateEvent(ws.id, event.id, payload).subscribe({
       next: (updated) => {
         this.isUpdatingEvent.set(false);
         this.eventUpdateSuccess.set(`Event updated successfully!`);
@@ -2695,7 +1809,7 @@ export class WorkspaceDetailComponent implements OnInit {
     });
     if (!confirmed) return;
 
-    this.workspaceService.removeEvent(ws.id, event.id).subscribe({
+    this.eventService.removeEvent(ws.id, event.id).subscribe({
       next: () => {
         this.events.update(prev => prev.filter(e => e.id !== event.id));
         this.uiService.success(`Event "${event.name}" deleted successfully.`);
@@ -2749,7 +1863,7 @@ export class WorkspaceDetailComponent implements OnInit {
   loadEventStandings(eventId: string) {
     const ws = this.workspace();
     if (!ws) return;
-    this.workspaceService.getEventStandings(ws.id, eventId).subscribe({
+    this.eventService.getEventStandings(ws.id, eventId).subscribe({
       next: (data) => {
         this.eventStandings.set(data);
       },
@@ -6010,28 +5124,6 @@ export class WorkspaceDetailComponent implements OnInit {
     });
   }
 
-  onTeamLogoUpload(event: any, isEdit: boolean) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    this.isUploadingTeamLogo.set(true);
-    this.workspaceService.uploadImage(file, 'team').subscribe({
-      next: (res) => {
-        this.isUploadingTeamLogo.set(false);
-        if (isEdit) {
-          this.editTeamLogoUrl.set(res.url);
-        } else {
-          this.newTeamLogoUrl.set(res.url);
-        }
-        this.uiService.success('Team logo uploaded successfully.');
-      },
-      error: (err) => {
-        this.isUploadingTeamLogo.set(false);
-        console.error(err);
-        this.uiService.error('Team logo upload failed.');
-      }
-    });
-  }
 
   onEventLogoUpload(event: any, isEdit: boolean) {
     const file = event.target.files?.[0];
@@ -6052,29 +5144,6 @@ export class WorkspaceDetailComponent implements OnInit {
         this.isUploadingEventLogo.set(false);
         console.error(err);
         this.uiService.error('Event logo upload failed.');
-      }
-    });
-  }
-
-  onVenueImageUpload(event: any, isEdit: boolean) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    this.isUploadingVenueImage.set(true);
-    this.workspaceService.uploadImage(file, 'venue').subscribe({
-      next: (res) => {
-        this.isUploadingVenueImage.set(false);
-        if (isEdit) {
-          this.editVenueImageUrl.set(res.url);
-        } else {
-          this.newVenueImageUrl.set(res.url);
-        }
-        this.uiService.success('Venue image uploaded successfully.');
-      },
-      error: (err) => {
-        this.isUploadingVenueImage.set(false);
-        console.error(err);
-        this.uiService.error('Venue image upload failed.');
       }
     });
   }

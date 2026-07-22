@@ -14,18 +14,8 @@ export interface Workspace {
   createdAt: string;
   updatedAt: string;
 }
-
-export interface Venue {
-  id: string;
-  name: string;
-  location: string | null;
-  capacity: number | null;
-  imageUrl?: string | null;
-  workspaceId: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
+import { Venue } from './venue.service';
+export type { Venue };
 export interface Permission {
   id: string;
   name: string;
@@ -622,85 +612,9 @@ export class WorkspaceService {
     });
   }
 
-  // ─── Players ──────────────────────────────────────────────────────────────
 
-  getPlayers(workspaceId: string): Observable<Player[]> {
-    return this.http.get<Player[]>(`${this.apiUrl}/${workspaceId}/players`, {
-      headers: this.headers,
-    });
-  }
 
-  createPlayer(
-    workspaceId: string,
-    payload: { userId: string; jerseyNumber?: string; teamId: string }
-  ): Observable<Player> {
-    return this.http.post<Player>(
-      `${this.apiUrl}/${workspaceId}/players`,
-      payload,
-      { headers: this.headers }
-    );
-  }
-
-  updatePlayer(
-    workspaceId: string,
-    playerId: string,
-    payload: { jerseyNumber?: string; teamId?: string }
-  ): Observable<Player> {
-    return this.http.patch<Player>(
-      `${this.apiUrl}/${workspaceId}/players/${playerId}`,
-      payload,
-      { headers: this.headers }
-    );
-  }
-
-  removePlayer(workspaceId: string, playerId: string): Observable<void> {
-    return this.http.delete<void>(`${this.apiUrl}/${workspaceId}/players/${playerId}`, {
-      headers: this.headers,
-    });
-  }
-
-  // ─── Events ───────────────────────────────────────────────────────────────
-
-  getEvents(workspaceId: string): Observable<WorkspaceEvent[]> {
-    return this.http.get<WorkspaceEvent[]>(`${this.apiUrl}/${workspaceId}/events`, {
-      headers: this.headers,
-    });
-  }
-
-  createEvent(
-    workspaceId: string,
-    payload: { name: string; description?: string; startDate?: string; endDate?: string; status?: string; logoUrl?: string; teamIds?: string[] }
-  ): Observable<WorkspaceEvent> {
-    return this.http.post<WorkspaceEvent>(
-      `${this.apiUrl}/${workspaceId}/events`,
-      payload,
-      { headers: this.headers }
-    );
-  }
-
-  updateEvent(
-    workspaceId: string,
-    eventId: string,
-    payload: { name?: string; description?: string; startDate?: string | null; endDate?: string | null; status?: string; logoUrl?: string; teamIds?: string[] }
-  ): Observable<WorkspaceEvent> {
-    return this.http.patch<WorkspaceEvent>(
-      `${this.apiUrl}/${workspaceId}/events/${eventId}`,
-      payload,
-      { headers: this.headers }
-    );
-  }
-
-  removeEvent(workspaceId: string, eventId: string): Observable<void> {
-    return this.http.delete<void>(`${this.apiUrl}/${workspaceId}/events/${eventId}`, {
-      headers: this.headers,
-    });
-  }
-
-  getEventStandings(workspaceId: string, eventId: string): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/${workspaceId}/events/${eventId}/standings`, {
-      headers: this.headers,
-    });
-  }
+  // ─── Events (Moved to EventService) ───
 
   // ─── Competitions ─────────────────────────────────────────────────────────
 
@@ -840,42 +754,6 @@ export class WorkspaceService {
     );
   }
 
-  // ─── Venues ────────────────────────────────────────────────────────────────
-
-  getVenues(workspaceId: string): Observable<Venue[]> {
-    return this.http.get<Venue[]>(`${this.apiUrl}/${workspaceId}/venues`, {
-      headers: this.headers,
-    });
-  }
-
-  createVenue(
-    workspaceId: string,
-    payload: { name: string; location?: string; capacity?: number }
-  ): Observable<Venue> {
-    return this.http.post<Venue>(
-      `${this.apiUrl}/${workspaceId}/venues`,
-      payload,
-      { headers: this.headers }
-    );
-  }
-
-  updateVenue(
-    workspaceId: string,
-    venueId: string,
-    payload: { name?: string; location?: string; capacity?: number }
-  ): Observable<Venue> {
-    return this.http.patch<Venue>(
-      `${this.apiUrl}/${workspaceId}/venues/${venueId}`,
-      payload,
-      { headers: this.headers }
-    );
-  }
-
-  removeVenue(workspaceId: string, venueId: string): Observable<void> {
-    return this.http.delete<void>(`${this.apiUrl}/${workspaceId}/venues/${venueId}`, {
-      headers: this.headers,
-    });
-  }
 
   // ─── Matches ──────────────────────────────────────────────────────────────
 
@@ -989,10 +867,4 @@ export class WorkspaceService {
     );
   }
 
-  getPlayerStats(workspaceId: string, playerId: string): Observable<any> {
-    return this.http.get<any>(
-      `${this.apiUrl}/${workspaceId}/players/${playerId}/stats`,
-      { headers: this.headers }
-    );
-  }
 }

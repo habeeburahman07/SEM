@@ -1,0 +1,704 @@
+<div class="flex flex-col gap-6 w-full animate-fadeIn text-left">
+  @if (selectedTeamForDetails(); as teamDetails) {
+    <!-- ─── Team View Page (Detailed Stats) ─── -->
+    <div class="flex flex-col gap-6 text-left animate-fadeIn">
+      <!-- Header section with back button & basic team info -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-5">
+        <div class="flex items-center gap-4">
+          <button (click)="onBackToTeams()"
+            class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-white/10 hover:border-white/20 rounded-xl transition-all cursor-pointer">
+            <i class="fi fi-rr-arrow-small-left text-xl"></i>
+          </button>
+          @if (teamDetails.team.logoUrl) {
+          <img [src]="teamDetails.team.logoUrl" alt="Logo" class="w-16 h-16 rounded-2xl object-cover border border-white/10" />
+          } @else {
+          <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-base font-extrabold shadow-inner"
+            [style.background]="avatarColor(teamDetails.team.name)">
+            {{ initials(teamDetails.team.name) }}
+          </div>
+          }
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-xl font-bold text-white">{{ teamDetails.team.name }}</h2>
+              @if (teamDetails.team.code) {
+              <span class="text-xs font-bold px-2 py-0.5 bg-slate-800 text-violet-400 border border-white/5 rounded">
+                {{ teamDetails.team.code }}
+              </span>
+              }
+            </div>
+            <p class="text-xs text-slate-400 mt-1">Registered {{ teamDetails.team.createdAt | date: 'MMM d, y' }}</p>
+          </div>
+        </div>
+
+        <!-- Color theme and actions -->
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-1.5 bg-slate-900 border border-white/10 px-3 py-1.5 rounded-xl">
+            <span class="text-[10px] text-slate-500 font-mono">Theme:</span>
+            <div class="w-3.5 h-3.5 rounded-full border border-white/20" [style.backgroundColor]="teamDetails.team.primaryColor || '#7c3aed'"></div>
+            <div class="w-3.5 h-3.5 rounded-full border border-white/20" [style.backgroundColor]="teamDetails.team.secondaryColor || '#4f46e5'"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab selection within Team Details -->
+      <div class="flex border-b border-white/5">
+        <button (click)="activeTeamDetailTab.set('overview')"
+          [class.text-violet-400]="activeTeamDetailTab() === 'overview'"
+          [class.border-violet-500]="activeTeamDetailTab() === 'overview'"
+          [class.border-transparent]="activeTeamDetailTab() !== 'overview'"
+          [class.text-slate-400]="activeTeamDetailTab() !== 'overview'"
+          class="px-4 py-2.5 text-xs font-bold border-b-2 hover:text-white transition-all cursor-pointer">
+          All-Time Stats
+        </button>
+        <button (click)="activeTeamDetailTab.set('competitions')"
+          [class.text-violet-400]="activeTeamDetailTab() === 'competitions'"
+          [class.border-violet-500]="activeTeamDetailTab() === 'competitions'"
+          [class.border-transparent]="activeTeamDetailTab() !== 'competitions'"
+          [class.text-slate-400]="activeTeamDetailTab() !== 'competitions'"
+          class="px-4 py-2.5 text-xs font-bold border-b-2 hover:text-white transition-all cursor-pointer">
+          Competition History
+        </button>
+        <button (click)="activeTeamDetailTab.set('squad')"
+          [class.text-violet-400]="activeTeamDetailTab() === 'squad'"
+          [class.border-violet-500]="activeTeamDetailTab() === 'squad'"
+          [class.border-transparent]="activeTeamDetailTab() !== 'squad'"
+          [class.text-slate-400]="activeTeamDetailTab() !== 'squad'"
+          class="px-4 py-2.5 text-xs font-bold border-b-2 hover:text-white transition-all cursor-pointer">
+          Squad ({{ teamDetails.squad.length }})
+        </button>
+      </div>
+
+      <!-- TAB CONTENT: OVERVIEW (ALL-TIME STATS) -->
+      @if (activeTeamDetailTab() === 'overview') {
+      <div class="flex flex-col gap-6 animate-fadeIn">
+        
+        <!-- Key Stats Row -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-2xl p-5 shadow-xl flex items-center gap-4 relative overflow-hidden">
+            <div class="absolute -right-4 -bottom-4 text-white/5 text-6xl font-black">CT</div>
+            <div class="w-12 h-12 rounded-xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+              <i class="fi fi-rr-layers text-xl"></i>
+            </div>
+            <div>
+              <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Competitions</p>
+              <p class="text-2xl font-black text-white mt-0.5">{{ teamDetails.allTime.participations }}</p>
+            </div>
+          </div>
+
+          <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-2xl p-5 shadow-xl flex items-center gap-4 relative overflow-hidden">
+            <div class="absolute -right-4 -bottom-4 text-white/5 text-6xl font-black">GP</div>
+            <div class="w-12 h-12 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+              <i class="fi fi-rr-running text-xl"></i>
+            </div>
+            <div>
+              <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Games Played</p>
+              <p class="text-2xl font-black text-white mt-0.5">{{ teamDetails.allTime.totalGames }}</p>
+            </div>
+          </div>
+
+          <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-2xl p-5 shadow-xl flex items-center gap-4 relative overflow-hidden">
+            <div class="absolute -right-4 -bottom-4 text-white/5 text-6xl font-black">VP</div>
+            <div class="w-12 h-12 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-400">
+              <i class="fi fi-rr-trophy text-xl"></i>
+            </div>
+            <div>
+              <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Squad MVPs</p>
+              <p class="text-2xl font-black text-yellow-400 mt-0.5">{{ teamDetails.allTime.mvps }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sport Specific Aggregates Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <!-- Football Stats -->
+          <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+            <h3 class="text-xs font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2 uppercase tracking-wide">
+              <i class="fi fi-rr-football text-violet-400"></i> Football Metrics
+            </h3>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                <p class="text-[9px] text-slate-400 uppercase font-semibold">Total Goals</p>
+                <p class="text-lg font-black text-emerald-400">{{ teamDetails.allTime.goals }}</p>
+              </div>
+              <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                <p class="text-[9px] text-slate-400 uppercase font-semibold">Total Assists</p>
+                <p class="text-lg font-black text-blue-400">{{ teamDetails.allTime.assists }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cricket Stats -->
+          <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+            <h3 class="text-xs font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2 uppercase tracking-wide">
+              <i class="fi fi-rr-cricket text-violet-400"></i> Cricket Metrics
+            </h3>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                <p class="text-[9px] text-slate-400 uppercase font-semibold">Total Runs</p>
+                <p class="text-lg font-black text-emerald-400">{{ teamDetails.allTime.runs }}</p>
+              </div>
+              <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                <p class="text-[9px] text-slate-400 uppercase font-semibold">Total Wickets</p>
+                <p class="text-lg font-black text-blue-400">{{ teamDetails.allTime.wickets }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Badminton Stats -->
+          <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-4">
+            <h3 class="text-xs font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2 uppercase tracking-wide">
+              <i class="fi fi-rr-play text-violet-400"></i> Badminton Metrics
+            </h3>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                <p class="text-[9px] text-slate-400 uppercase font-semibold">Rallies Won</p>
+                <p class="text-lg font-black text-emerald-400">{{ teamDetails.allTime.ralliesWon }}</p>
+              </div>
+              <div class="bg-slate-950/40 p-3 rounded-xl border border-white/5">
+                <p class="text-[9px] text-slate-400 uppercase font-semibold">Rallies Lost</p>
+                <p class="text-lg font-black text-rose-400">{{ teamDetails.allTime.ralliesLost }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Best Players Grid -->
+        <div class="flex flex-col gap-4 mt-2">
+          <h3 class="text-xs font-black text-white uppercase tracking-wide flex items-center gap-2">
+            <i class="fi fi-rr-trophy text-violet-400"></i> Club MVP Standout Players
+          </h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Football Best Player -->
+            <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-3">
+              <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                <i class="fi fi-rr-football text-violet-400"></i> Football Best Player
+              </h4>
+              @if (teamDetails.bestPlayers.football; as bp) {
+              <div class="flex items-center gap-3 bg-slate-950/20 p-3 rounded-xl border border-white/5 mt-1">
+                @if (bp.avatarUrl) {
+                <img [src]="bp.avatarUrl" alt="Avatar" class="w-10 h-10 rounded-full border border-white/10" />
+                } @else {
+                <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" [style.background]="avatarColor(bp.playerName)">
+                  {{ initials(bp.playerName) }}
+                </div>
+                }
+                <div class="min-w-0 flex-1">
+                  <p class="text-xs font-bold text-white truncate">{{ bp.playerName }}</p>
+                  <p class="text-[9px] text-slate-500 truncate">{{ bp.appearances }} apps</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[9px] text-slate-400 font-bold uppercase">Rating</p>
+                  <p class="text-sm font-black text-violet-400">{{ bp.avgRating.toFixed(2) }}</p>
+                </div>
+              </div>
+              } @else {
+              <p class="text-xs text-slate-500 py-3 text-center">No Football matches played yet</p>
+              }
+            </div>
+
+            <!-- Cricket Best Player -->
+            <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-3">
+              <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                <i class="fi fi-rr-cricket text-violet-400"></i> Cricket Best Player
+              </h4>
+              @if (teamDetails.bestPlayers.cricket; as bp) {
+              <div class="flex items-center gap-3 bg-slate-950/20 p-3 rounded-xl border border-white/5 mt-1">
+                @if (bp.avatarUrl) {
+                <img [src]="bp.avatarUrl" alt="Avatar" class="w-10 h-10 rounded-full border border-white/10" />
+                } @else {
+                <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" [style.background]="avatarColor(bp.playerName)">
+                  {{ initials(bp.playerName) }}
+                </div>
+                }
+                <div class="min-w-0 flex-1">
+                  <p class="text-xs font-bold text-white truncate">{{ bp.playerName }}</p>
+                  <p class="text-[9px] text-slate-500 truncate">{{ bp.appearances }} apps</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[9px] text-slate-400 font-bold uppercase">Rating</p>
+                  <p class="text-sm font-black text-violet-400">{{ bp.avgRating.toFixed(2) }}</p>
+                </div>
+              </div>
+              } @else {
+              <p class="text-xs text-slate-500 py-3 text-center">No Cricket matches played yet</p>
+              }
+            </div>
+
+            <!-- Badminton Best Player -->
+            <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-xl flex flex-col gap-3">
+              <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                <i class="fi fi-rr-play text-violet-400"></i> Badminton Best Player
+              </h4>
+              @if (teamDetails.bestPlayers.badminton; as bp) {
+              <div class="flex items-center gap-3 bg-slate-950/20 p-3 rounded-xl border border-white/5 mt-1">
+                @if (bp.avatarUrl) {
+                <img [src]="bp.avatarUrl" alt="Avatar" class="w-10 h-10 rounded-full border border-white/10" />
+                } @else {
+                <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" [style.background]="avatarColor(bp.playerName)">
+                  {{ initials(bp.playerName) }}
+                </div>
+                }
+                <div class="min-w-0 flex-1">
+                  <p class="text-xs font-bold text-white truncate">{{ bp.playerName }}</p>
+                  <p class="text-[9px] text-slate-500 truncate">{{ bp.appearances }} apps</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[9px] text-slate-400 font-bold uppercase">Rating</p>
+                  <p class="text-sm font-black text-violet-400">{{ bp.avgRating.toFixed(2) }}</p>
+                </div>
+              </div>
+              } @else {
+              <p class="text-xs text-slate-500 py-3 text-center">No Badminton matches played yet</p>
+              }
+            </div>
+          </div>
+        </div>
+
+      </div>
+      }
+
+      <!-- TAB CONTENT: COMPETITIONS (HISTORY BY COMPETITION) -->
+      @if (activeTeamDetailTab() === 'competitions') {
+      <div class="flex flex-col gap-4 animate-fadeIn">
+        @for (c of teamDetails.competitions; track c.competitionId) {
+        <div class="bg-slate-900 border border-white/10 rounded-2xl p-5 flex flex-col gap-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-white/5 gap-2">
+            <div>
+              <h4 class="text-sm font-bold text-white">{{ c.competitionName }}</h4>
+              <p class="text-[10px] text-slate-500 uppercase font-bold mt-0.5 flex items-center gap-1">
+                @if (c.sportCode === 'football') {
+                  <i class="fi fi-rr-football text-violet-400"></i> Football
+                } @else if (c.sportCode === 'cricket') {
+                  <i class="fi fi-rr-cricket text-violet-400"></i> Cricket
+                } @else {
+                  <i class="fi fi-rr-play text-violet-400"></i> Badminton
+                }
+              </p>
+            </div>
+            <div class="flex items-center gap-3 text-xs font-semibold text-slate-300">
+              <div>Games Played: <span class="text-white font-bold">{{ c.gamesPlayed }}</span></div>
+              @if (c.mvps > 0) {
+                <div class="flex items-center gap-1 text-yellow-400"><i class="fi fi-rr-trophy"></i> MVPs: <span class="font-bold">{{ c.mvps }}</span></div>
+              }
+            </div>
+          </div>
+
+          <!-- Metrics breakdown -->
+          @if (c.sportCode === 'football') {
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+            <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+              <span class="text-[9px] text-slate-400 uppercase font-semibold">Goals Scored</span>
+              <p class="text-base font-black text-emerald-400 mt-0.5">{{ c.goals }}</p>
+            </div>
+            <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+              <span class="text-[9px] text-slate-400 uppercase font-semibold">Assists Made</span>
+              <p class="text-base font-black text-blue-400 mt-0.5">{{ c.assists }}</p>
+            </div>
+          </div>
+          }
+
+          @if (c.sportCode === 'cricket') {
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+            <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+              <span class="text-[9px] text-slate-400 uppercase font-semibold">Runs Scored</span>
+              <p class="text-base font-black text-emerald-400 mt-0.5">{{ c.runs }}</p>
+            </div>
+            <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+              <span class="text-[9px] text-slate-400 uppercase font-semibold">Wickets Taken</span>
+              <p class="text-base font-black text-blue-400 mt-0.5">{{ c.wickets }}</p>
+            </div>
+          </div>
+          }
+
+          @if (c.sportCode === 'badminton') {
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+            <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+              <span class="text-[9px] text-slate-400 uppercase font-semibold">Rallies Won</span>
+              <p class="text-base font-black text-emerald-400 mt-0.5">{{ c.ralliesWon }}</p>
+            </div>
+            <div class="bg-slate-950/40 p-2.5 rounded-xl border border-white/5">
+              <span class="text-[9px] text-slate-400 uppercase font-semibold">Rallies Lost</span>
+              <p class="text-base font-black text-rose-400 mt-0.5">{{ c.ralliesLost }}</p>
+            </div>
+          </div>
+          }
+
+          <!-- Competition Best Player for Team -->
+          @if (c.bestPlayer; as bp) {
+          <div class="flex items-center gap-3 bg-slate-950/20 p-2.5 border border-white/5 rounded-xl mt-1 max-w-sm">
+            @if (bp.avatarUrl) {
+            <img [src]="bp.avatarUrl" alt="Avatar" class="w-8 h-8 rounded-full border border-white/10" />
+            } @else {
+            <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold" [style.background]="avatarColor(bp.playerName)">
+              {{ initials(bp.playerName) }}
+            </div>
+            }
+            <div class="min-w-0 flex-1 text-left">
+              <p class="text-[11px] font-bold text-white truncate">{{ bp.playerName }}</p>
+              <p class="text-[9px] text-slate-500 truncate">Competition Best ({{ bp.appearances }} apps)</p>
+            </div>
+            <div class="text-right">
+              <p class="text-[9px] text-slate-400 font-bold uppercase">Rating</p>
+              <p class="text-xs font-black text-violet-400">{{ bp.avgRating.toFixed(2) }}</p>
+            </div>
+          </div>
+          }
+        </div>
+        } @empty {
+        <div class="bg-slate-900 border border-white/10 rounded-2xl p-8 text-center text-slate-500 text-xs">
+          This team has not registered in any competition yet.
+        </div>
+        }
+      </div>
+      }
+
+      <!-- TAB CONTENT: SQUAD (PLAYERS LISTING) -->
+      @if (activeTeamDetailTab() === 'squad') {
+      <div class="flex flex-col gap-4 animate-fadeIn">
+        <h3 class="text-xs font-black text-white uppercase tracking-wider pl-1 mb-1">Squad Members</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          @for (player of teamDetails.squad; track player.id) {
+          <div class="bg-slate-900 border border-white/10 rounded-xl p-4 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3 min-w-0">
+              @if (player.user.avatarUrl) {
+              <img [src]="player.user.avatarUrl" alt="Avatar" class="w-10 h-10 rounded-full border border-white/10 object-cover" />
+              } @else {
+              <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" [style.background]="avatarColor(player.user.username || 'P')">
+                {{ initials(player.user.username || 'P') }}
+              </div>
+              }
+              <div class="min-w-0">
+                <p class="text-xs font-bold text-white truncate">{{ player.user.username || 'Guest Player' }}</p>
+                <p class="text-[9px] text-slate-500">Player Profile ID</p>
+              </div>
+            </div>
+            @if (player.jerseyNumber) {
+            <span class="text-xs font-black px-2 py-1 bg-violet-600/10 text-violet-400 border border-violet-500/20 rounded-lg">
+              #{{ player.jerseyNumber }}
+            </span>
+            }
+          </div>
+          } @empty {
+          <div class="col-span-full bg-slate-900 border border-white/10 rounded-2xl p-8 text-center text-slate-500 text-xs">
+            No squad members registered in this team.
+          </div>
+          }
+        </div>
+      </div>
+      }
+    </div>
+  } @else {
+    <!-- Teams Header -->
+    <div class="flex items-center justify-between border-b border-white/5 pb-4">
+      <div>
+        <h2 class="text-xl font-bold text-white">Registered Teams</h2>
+        <p class="text-xs text-slate-400 mt-1">Teams belonging to this workspace that can participate in events.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-xs font-semibold px-2.5 py-1 bg-slate-900 border border-white/10 text-violet-400 rounded-lg">
+          {{ teams().length }} Total
+        </span>
+        @if (canUpdate()) {
+        <button (click)="openBulkModal()"
+          class="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-white/10 text-white hover:text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-violet-400" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          Bulk Import
+        </button>
+        <button (click)="add.emit()"
+          class="flex items-center gap-1.5 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-violet-900/20 transition-all cursor-pointer">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          Add Team
+        </button>
+        }
+      </div>
+    </div>
+
+    <!-- Teams Grid -->
+    @if (teams().length === 0) {
+    <div class="flex flex-col items-center justify-center py-20 text-center bg-slate-900/40 border border-white/10 rounded-2xl">
+      <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-white/10 flex items-center justify-center mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-slate-600" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+        </svg>
+      </div>
+      <h3 class="text-sm font-bold text-white mb-1">No teams registered</h3>
+      <p class="text-xs text-slate-500 max-w-xs">Register your first team to start organizing events.</p>
+    </div>
+    } @else {
+      <!-- Search and Filter Bar -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/20 border border-white/5 p-4 rounded-2xl mb-4">
+        <div class="text-xs text-slate-400 font-medium">
+          @if (teamSearchQuery()) {
+            Showing {{ filteredTeams().length }} of {{ teams().length }} teams
+          } @else {
+            {{ teams().length }} team{{ teams().length !== 1 ? 's' : '' }} registered
+          }
+        </div>
+        <div class="relative w-full sm:w-72">
+          <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+            <i class="fi fi-rr-search text-xs"></i>
+          </span>
+          <input type="text" [ngModel]="teamSearchQuery()" (ngModelChange)="teamSearchQuery.set($event)"
+            placeholder="Search teams by name or code..."
+            class="w-full bg-slate-950/40 border border-white/10 focus:border-violet-500/50 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none transition-all" />
+          @if (teamSearchQuery()) {
+          <button (click)="teamSearchQuery.set('')"
+            class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 cursor-pointer bg-transparent border-0">
+            <i class="fi fi-rr-cross text-[10px]"></i>
+          </button>
+          }
+        </div>
+      </div>
+
+      @if (filteredTeams().length === 0) {
+      <div class="flex flex-col items-center justify-center py-20 text-center bg-slate-900/40 border border-white/10 rounded-2xl w-full">
+        <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-white/10 flex items-center justify-center mb-4">
+          <i class="fi fi-rr-search text-slate-600 text-2xl"></i>
+        </div>
+        <h3 class="text-sm font-bold text-white mb-1">No matching teams</h3>
+        <p class="text-xs text-slate-500 max-w-xs">No teams match your search query "{{ teamSearchQuery() }}".</p>
+      </div>
+      } @else {
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        @for (team of filteredTeams(); track team.id) {
+        <div class="bg-slate-900 border rounded-2xl p-5 flex flex-col gap-4 group transition-all duration-300 relative overflow-hidden"
+          [style.borderColor]="team.primaryColor ? team.primaryColor + '20' : 'rgba(255,255,255,0.1)'">
+
+          <!-- Subtle color accent line at the top -->
+          <div class="absolute top-0 left-0 w-full h-[3px]"
+            [style.background]="'linear-gradient(to right, ' + (team.primaryColor || '#7c3aed') + ', ' + (team.secondaryColor || '#4f46e5') + ')'">
+          </div>
+
+          <!-- Soft background glow -->
+          <div class="absolute -right-6 -top-6 w-16 h-16 rounded-full filter blur-xl opacity-5 pointer-events-none"
+            [style.background]="team.primaryColor || '#7c3aed'"></div>
+
+          <div class="flex items-start gap-4">
+            <!-- Team Logo / Avatar -->
+            @if (team.logoUrl) {
+            <img [src]="team.logoUrl" alt="Logo" class="w-16 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0" />
+            } @else {
+            <div class="w-16 h-16 rounded-xl flex items-center justify-center text-white text-base font-extrabold shadow-inner flex-shrink-0"
+              [style.background]="avatarColor(team.name)">
+              {{ initials(team.name) }}
+            </div>
+            }
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <h4 class="text-sm font-bold text-white truncate">{{ team.name }}</h4>
+                @if (team.code) {
+                <span class="text-[10px] font-bold px-1.5 py-0.5 bg-slate-800 text-violet-400 border border-white/5 rounded">
+                  {{ team.code }}
+                </span>
+                }
+              </div>
+              <p class="text-[10px] text-slate-500 mt-1">Registered {{ team.createdAt | date: 'MMM d, y' }}</p>
+
+              <!-- Color Badges -->
+              <div class="flex items-center gap-1.5 mt-2">
+                <span class="text-[9px] text-slate-500 font-mono">Theme:</span>
+                <div class="w-3 h-3 rounded-full border border-white/20"
+                  [style.backgroundColor]="team.primaryColor || '#7c3aed'" title="Primary Color"></div>
+                <div class="w-3 h-3 rounded-full border border-white/20"
+                  [style.backgroundColor]="team.secondaryColor || '#4f46e5'" title="Secondary Color"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex items-center justify-end gap-2 pt-3 border-t border-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button (click)="selectedTeamId.set(team.id)"
+              class="px-2.5 py-1.5 text-[11px] font-bold text-violet-400 hover:text-white hover:bg-violet-600/20 border border-violet-500/10 hover:border-violet-500/30 rounded-lg transition-all cursor-pointer font-bold">
+              View Stats
+            </button>
+            @if (canUpdate()) {
+            <button (click)="edit.emit(team)"
+              class="px-2.5 py-1.5 text-[11px] font-bold text-slate-300 hover:text-white hover:bg-white/5 border border-white/10 rounded-lg transition-all cursor-pointer">
+              Edit
+            </button>
+            <button (click)="delete.emit(team)"
+              class="px-2.5 py-1.5 text-[11px] font-bold text-rose-400 hover:text-white hover:bg-rose-600/20 border border-rose-500/10 hover:border-rose-500/30 rounded-lg transition-all cursor-pointer">
+              Delete
+            </button>
+            }
+          </div>
+        </div>
+        }
+      </div>
+      }
+    }
+  }
+
+  <!-- Bulk Import Teams Modal -->
+  @if (isBulkModalOpen()) {
+  <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" (click)="closeBulkModal()">
+    <div class="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden" (click)="$event.stopPropagation()">
+      <!-- Gradient top line -->
+      <div class="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-violet-500 to-indigo-500"></div>
+
+      <!-- Header -->
+      <div class="px-6 py-5 border-b border-white/5 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            <span>Bulk Import Teams</span>
+          </h3>
+          <p class="text-xs text-slate-400 mt-1">Upload a spreadsheet or Excel file to register multiple teams at once.</p>
+        </div>
+        <button (click)="closeBulkModal()" class="text-slate-400 hover:text-white transition cursor-pointer bg-transparent border-0">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Content -->
+      <div class="p-6 overflow-y-auto flex-1 flex flex-col gap-5">
+        <!-- Step 1: Download format -->
+        <div class="bg-slate-950/50 border border-white/5 rounded-xl p-4 flex flex-col gap-3">
+          <h4 class="text-xs font-bold text-white uppercase tracking-wider">1. Prepare your spreadsheet</h4>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Your file must contain a header row with at least a <strong class="text-violet-400">Name</strong> column.
+            Optional columns: <strong class="text-slate-300">Description</strong> and <strong class="text-slate-300">LogoUrl</strong>.
+          </p>
+          <button (click)="downloadTemplate()"
+            class="self-start flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white hover:text-slate-950 text-xs font-bold rounded-lg border border-white/10 transition cursor-pointer">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Download Excel Template
+          </button>
+        </div>
+
+        <!-- Step 2: Upload File -->
+        <div class="flex flex-col gap-2">
+          <h4 class="text-xs font-bold text-white uppercase tracking-wider">2. Upload spreadsheet file</h4>
+          <label class="flex flex-col items-center justify-center border-2 border-dashed border-white/10 hover:border-violet-500/50 rounded-xl p-6 cursor-pointer bg-slate-950/20 hover:bg-slate-950/40 transition">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-slate-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span class="text-xs font-bold text-white">Choose Excel or CSV File</span>
+            <span class="text-[10px] text-slate-500 mt-1">Supports .xlsx, .xls, .csv</span>
+            <input type="file" (change)="onExcelUpload($event)" accept=".xlsx,.xls,.csv" class="hidden" />
+          </label>
+        </div>
+
+        <!-- Status Banners -->
+        @if (bulkImportError()) {
+        <div class="rounded-xl bg-rose-500/10 border border-rose-500/30 p-3 text-rose-300 text-xs flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+          </svg>
+          {{ bulkImportError() }}
+        </div>
+        }
+        @if (bulkImportSuccess()) {
+        <div class="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3 text-emerald-300 text-xs flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+          </svg>
+          {{ bulkImportSuccess() }}
+        </div>
+        }
+
+        <!-- Preview & Progress -->
+        @if (bulkImportTeams().length > 0) {
+        <div class="flex flex-col gap-2">
+          <h4 class="text-xs font-bold text-white uppercase tracking-wider flex justify-between">
+            <span>Preview Teams ({{ bulkImportTeams().length }} found)</span>
+            <span class="text-violet-400 capitalize">Ready</span>
+          </h4>
+          <div class="max-h-64 overflow-y-auto border border-white/5 rounded-xl bg-slate-950/40 p-2 text-xs flex flex-col gap-1.5">
+            @for (t of bulkImportTeams(); track $index) {
+            <div class="flex items-center justify-between px-3 py-2 bg-slate-900/60 rounded-xl border border-white/5 gap-4">
+              <div class="flex flex-col min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-bold text-white truncate max-w-[150px]">{{ t.name }}</span>
+                  @if (t.code) {
+                  <span class="text-[10px] px-1.5 py-0.5 bg-slate-950 border border-white/10 text-violet-400 font-mono font-bold rounded uppercase">
+                    Code: {{ t.code }}
+                  </span>
+                  }
+                </div>
+                <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                  <span class="text-[10px] text-slate-500 truncate max-w-[200px]">{{ t.description || 'No description' }}</span>
+                  @if (t.error) {
+                  <span class="text-[10px] text-rose-400 font-medium">| {{ t.error }}</span>
+                  }
+                </div>
+              </div>
+              <div class="flex-shrink-0">
+                @if (t.status === 'success') {
+                <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  Imported
+                </span>
+                } @else if (t.status === 'exist') {
+                <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                  Already Exists
+                </span>
+                } @else if (t.status === 'failed') {
+                <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                  Failed
+                </span>
+                } @else {
+                <span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800 border border-white/5 text-slate-400 flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-slate-500 animate-pulse"></span>
+                  Ready
+                </span>
+                }
+              </div>
+            </div>
+            }
+          </div>
+        </div>
+        }
+
+        @if (isImportingBulk()) {
+        <div class="flex flex-col gap-2 bg-slate-950/30 p-4 border border-white/5 rounded-xl">
+          <div class="flex justify-between text-xs font-bold text-white">
+            <span>Importing Teams...</span>
+            <span>{{ bulkImportProgress() }}%</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-white/5">
+            <div class="bg-gradient-to-r from-violet-500 to-indigo-500 h-full rounded-full transition-all duration-300" [style.width]="bulkImportProgress() + '%'"></div>
+          </div>
+        </div>
+        }
+      </div>
+
+      <!-- Footer Buttons -->
+      <div class="px-6 py-5 border-t border-white/5 flex justify-end gap-3 flex-shrink-0">
+        <button type="button" (click)="closeBulkModal()" [disabled]="isImportingBulk()"
+          class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white hover:text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+          Close
+        </button>
+        <button type="button" (click)="onConfirmBulkImport()"
+          [disabled]="isImportingBulk() || bulkImportTeams().length === 0"
+          class="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2">
+          @if (isImportingBulk()) {
+          <svg class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          Importing...
+          } @else {
+          Import Teams
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+</div>
