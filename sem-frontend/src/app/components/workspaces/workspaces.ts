@@ -1,10 +1,12 @@
-import { Component, OnInit, signal, inject, computed } from '@angular/core';
+import { Component, OnInit, signal, inject, computed, DestroyRef } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { WorkspaceService, Workspace, WorkspaceMember, AppNotification } from '../../services/workspace.service';
 import { AuthService } from '../../services/auth.service';
 import { UiService } from '../../services/ui.service';
+import { SocketService } from '../../services/socket.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-workspaces',
@@ -18,6 +20,8 @@ export class WorkspacesComponent implements OnInit {
   authService = inject(AuthService);
   private router = inject(Router);
   private uiService = inject(UiService);
+  private socketService = inject(SocketService);
+  private destroyRef = inject(DestroyRef);
 
   workspaces = signal<Workspace[]>([]);
   isLoading = signal(true);
@@ -37,6 +41,13 @@ export class WorkspacesComponent implements OnInit {
   totalBadgeCount = computed(() => this.pendingInvitations().length + this.unreadNotificationsCount());
 
   ngOnInit() {
+    this.socketService.notification$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((notification) => {
+        this.notifications.update((prev) => [notification, ...prev]);
+        this.uiService.info(notification.message);
+      });
+
     this.workspaceService.getAll().subscribe({
       next: (data) => {
         this.workspaces.set(data);

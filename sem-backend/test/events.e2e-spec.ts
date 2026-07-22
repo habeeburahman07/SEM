@@ -226,6 +226,47 @@ describe('Events & Competitions Controller (e2e)', () => {
     expect(res.body[0].id).toBe(matchId);
   });
 
+  it('should create players and set lineup for the match', async () => {
+    const u1 = `playera_${Date.now()}`;
+    const reg1 = await request(app.getHttpServer())
+      .post('/auth/register')
+      .send({ username: u1, password: 'password123' })
+      .expect(201);
+    const u1Id = reg1.body.id;
+
+    const u2 = `playerb_${Date.now()}`;
+    const reg2 = await request(app.getHttpServer())
+      .post('/auth/register')
+      .send({ username: u2, password: 'password123' })
+      .expect(201);
+    const u2Id = reg2.body.id;
+
+    const playerARes = await request(app.getHttpServer())
+      .post(`/workspaces/${workspaceId}/players`)
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({ userId: u1Id, teamId: teamAId, jerseyNumber: '10' })
+      .expect(201);
+    const playerAId = playerARes.body.id;
+
+    const playerBRes = await request(app.getHttpServer())
+      .post(`/workspaces/${workspaceId}/players`)
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({ userId: u2Id, teamId: teamBId, jerseyNumber: '7' })
+      .expect(201);
+    const playerBId = playerBRes.body.id;
+
+    await request(app.getHttpServer())
+      .post(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${matchId}/lineup`)
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({
+        lineups: [
+          { playerId: playerAId, teamId: teamAId, isPlaying: true },
+          { playerId: playerBId, teamId: teamBId, isPlaying: true }
+        ]
+      })
+      .expect(201);
+  });
+
   it('should update match score and liveData', async () => {
     const res = await request(app.getHttpServer())
       .patch(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${matchId}`)

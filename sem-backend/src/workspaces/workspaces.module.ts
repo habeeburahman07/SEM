@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { Role } from './entities/role.entity';
@@ -21,6 +23,7 @@ import { WorkspacesService } from './workspaces.service';
 import { WorkspacesController } from './workspaces.controller';
 import { SystemSettingsController } from './system-settings.controller';
 import { UsersModule } from '../users/users.module';
+import { EventsGateway } from './events.gateway';
 
 @Module({
   imports: [
@@ -44,11 +47,19 @@ import { UsersModule } from '../users/users.module';
       SystemConfig,
     ]),
     UsersModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET', 'super-secret-key-12345'),
+        signOptions: {
+          expiresIn: configService.get<any>('JWT_EXPIRATION', '24h'),
+        },
+      }),
+    }),
   ],
-
-
   controllers: [WorkspacesController, SystemSettingsController],
-  providers: [WorkspacesService],
-  exports: [WorkspacesService],
+  providers: [WorkspacesService, EventsGateway],
+  exports: [WorkspacesService, EventsGateway],
 })
 export class WorkspacesModule {}

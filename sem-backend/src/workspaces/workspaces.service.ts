@@ -48,6 +48,7 @@ import { UpdateVenueDto } from './dto/update-venue.dto';
 import { BulkImportMembersDto } from './dto/bulk-import-members.dto';
 import { RateMatchPlayerItemDto } from './dto/rate-match-players.dto';
 import { CreateSportDto } from './dto/create-sport.dto';
+import { EventsGateway } from './events.gateway';
 import { UpdateSportDto } from './dto/update-sport.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { CreatePermissionDto } from './dto/create-permission.dto';
@@ -91,6 +92,7 @@ export class WorkspacesService implements OnModuleInit {
     @InjectRepository(SystemConfig)
     private readonly systemConfigRepo: Repository<SystemConfig>,
     private readonly usersService: UsersService,
+    private readonly eventsGateway: EventsGateway,
   ) { }
 
 
@@ -885,7 +887,8 @@ export class WorkspacesService implements OnModuleInit {
       workspaceId: workspaceId ?? null,
       metadata: metadata ?? null,
     });
-    await this.notificationRepo.save(notification);
+    const saved = await this.notificationRepo.save(notification);
+    this.eventsGateway.sendNotification(userId, saved);
   }
 
   /**
@@ -910,7 +913,10 @@ export class WorkspacesService implements OnModuleInit {
         metadata: metadata ?? null,
       }),
     );
-    await this.notificationRepo.save(notifications);
+    const saved = await this.notificationRepo.save(notifications);
+    for (const notification of saved) {
+      this.eventsGateway.sendNotification(notification.userId, notification);
+    }
   }
 
   /**
@@ -3466,6 +3472,7 @@ export class WorkspacesService implements OnModuleInit {
       }
     }
 
+    this.eventsGateway.sendMatchUpdate(populated.id, workspaceId, populated);
     return populated;
   }
 

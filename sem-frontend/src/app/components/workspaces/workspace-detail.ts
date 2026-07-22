@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, inject, computed, effect, HostListener } from '@angular/core';
+import { Component, OnInit, signal, inject, computed, effect, HostListener, DestroyRef } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { DatePipe, NgClass } from '@angular/common';
@@ -6,6 +6,8 @@ import { FormsModule } from '@angular/forms';
 import { WorkspaceService, Workspace, WorkspaceMember, AppNotification, Role, Team, Player, WorkspaceEvent, Sport, Competition, CompetitionStage, CompetitionTeam, Match, Venue, PointsConfigEntry, MatchPlayer, CompetitionStats } from '../../services/workspace.service';
 import { AuthService } from '../../services/auth.service';
 import { UiService } from '../../services/ui.service';
+import { SocketService } from '../../services/socket.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 declare const L: any;
 
@@ -22,6 +24,8 @@ export class WorkspaceDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private uiService = inject(UiService);
+  private socketService = inject(SocketService);
+  private destroyRef = inject(DestroyRef);
 
   selectedTeamForDetails = signal<any | null>(null);
   isLoadingTeamStats = signal<boolean>(false);
@@ -754,6 +758,46 @@ export class WorkspaceDetailComponent implements OnInit {
     this.loadInvitationsAndNotifications();
     this.loadAllWorkspaces();
 
+    this.socketService.notification$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((notification) => {
+        this.notifications.update((prev) => [notification, ...prev]);
+        this.uiService.info(notification.message);
+      });
+
+    this.socketService.matchUpdated$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((updatedMatch) => {
+        // 1. Update in the matches list signal
+        this.matches.update((prev) =>
+          prev.map((m) => (m.id === updatedMatch.id ? updatedMatch : m))
+        );
+
+        // 2. Update in overviewLiveMatches
+        this.overviewLiveMatches.update((prev) =>
+          prev.map((m) => (m.id === updatedMatch.id ? updatedMatch : m))
+        );
+
+        // 3. Update in overviewUpcomingMatches
+        this.overviewUpcomingMatches.update((prev) =>
+          prev.map((m) => (m.id === updatedMatch.id ? updatedMatch : m))
+        );
+
+        // 4. Update selectedMatch if currently viewing this match in live console
+        if (this.selectedMatch()?.id === updatedMatch.id) {
+          this.selectedMatch.set(updatedMatch);
+        }
+      });
+
+    this.destroyRef.onDestroy(() => {
+      if (this.currentSubscribedWorkspaceId) {
+        this.socketService.unsubscribeWorkspace(this.currentSubscribedWorkspaceId);
+      }
+      if (this.currentSubscribedMatchId) {
+        this.socketService.unsubscribeMatch(this.currentSubscribedMatchId);
+      }
+    });
+
     this.route.paramMap.subscribe((params) => {
       const id = params.get('id');
       if (id) {
@@ -781,9 +825,19 @@ export class WorkspaceDetailComponent implements OnInit {
     }
   }
 
+  private currentSubscribedWorkspaceId: string | null = null;
+
   loadWorkspaceDetails(id: string) {
     this.isLoading.set(true);
     this.error.set('');
+
+    if (this.currentSubscribedWorkspaceId) {
+      this.socketService.unsubscribeWorkspace(this.currentSubscribedWorkspaceId);
+      this.currentSubscribedWorkspaceId = null;
+    }
+    this.socketService.subscribeWorkspace(id);
+    this.currentSubscribedWorkspaceId = id;
+
     this.workspaceService.getOne(id).subscribe({
       next: (ws) => {
         this.workspace.set(ws);
@@ -3439,13 +3493,22 @@ export class WorkspaceDetailComponent implements OnInit {
     });
   }
 
+  private currentSubscribedMatchId: string | null = null;
+
   onSelectMatch(match: Match | null) {
+    if (this.currentSubscribedMatchId) {
+      this.socketService.unsubscribeMatch(this.currentSubscribedMatchId);
+      this.currentSubscribedMatchId = null;
+    }
+
     this.selectedMatch.set(match);
     this.stopBadmintonTimer();
     this.badmintonDuration.set(0);
     this.matchLineup.set([]);
     
     if (match) {
+      this.socketService.subscribeMatch(match.id);
+      this.currentSubscribedMatchId = match.id;
       this.loadMatchLineup(match.id);
       const sportCode = this.selectedCompetition()?.sport?.code;
       if (sportCode === 'football' && match.status === 'live') {
