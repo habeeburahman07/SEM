@@ -78,7 +78,7 @@ describe('Events & Competitions Controller (e2e)', () => {
 
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body.length).toBeGreaterThanOrEqual(3);
-    
+
     // Find Football
     const football = res.body.find((s: any) => s.code === 'football');
     expect(football).toBeDefined();
@@ -135,7 +135,9 @@ describe('Events & Competitions Controller (e2e)', () => {
 
   it('should create a group & knockout combined stage inside the competition', async () => {
     const res = await request(app.getHttpServer())
-      .post(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages`)
+      .post(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .send({
         name: 'Combined Stage Play',
@@ -166,7 +168,9 @@ describe('Events & Competitions Controller (e2e)', () => {
 
   it('should retrieve list of stages for the competition', async () => {
     const res = await request(app.getHttpServer())
-      .get(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages`)
+      .get(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .expect(200);
 
@@ -177,7 +181,9 @@ describe('Events & Competitions Controller (e2e)', () => {
 
   it('should update the stage configuration', async () => {
     const res = await request(app.getHttpServer())
-      .patch(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}`)
+      .patch(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .send({
         name: 'Group Play v2',
@@ -197,7 +203,9 @@ describe('Events & Competitions Controller (e2e)', () => {
 
   it('should create a match in the stage', async () => {
     const res = await request(app.getHttpServer())
-      .post(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`)
+      .post(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .send({
         homeTeamId: teamAId,
@@ -217,7 +225,9 @@ describe('Events & Competitions Controller (e2e)', () => {
 
   it('should retrieve list of matches for the stage', async () => {
     const res = await request(app.getHttpServer())
-      .get(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`)
+      .get(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .expect(200);
 
@@ -256,20 +266,24 @@ describe('Events & Competitions Controller (e2e)', () => {
     const playerBId = playerBRes.body.id;
 
     await request(app.getHttpServer())
-      .post(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${matchId}/lineup`)
+      .post(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${matchId}/lineup`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .send({
         lineups: [
           { playerId: playerAId, teamId: teamAId, isPlaying: true },
-          { playerId: playerBId, teamId: teamBId, isPlaying: true }
-        ]
+          { playerId: playerBId, teamId: teamBId, isPlaying: true },
+        ],
       })
       .expect(201);
   });
 
   it('should update match score and liveData', async () => {
     const res = await request(app.getHttpServer())
-      .patch(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${matchId}`)
+      .patch(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${matchId}`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .send({
         homeScore: 2,
@@ -279,9 +293,14 @@ describe('Events & Competitions Controller (e2e)', () => {
           elapsedSeconds: 300,
           timerRunning: true,
           events: [
-            { type: 'goal', teamId: teamAId, playerUserId: 'some-id', minute: 5 }
-          ]
-        }
+            {
+              type: 'goal',
+              teamId: teamAId,
+              playerUserId: 'some-id',
+              minute: 5,
+            },
+          ],
+        },
       })
       .expect(200);
 
@@ -293,12 +312,16 @@ describe('Events & Competitions Controller (e2e)', () => {
 
   it('should delete the match', async () => {
     await request(app.getHttpServer())
-      .delete(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${matchId}`)
+      .delete(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${matchId}`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .expect(204);
 
     const res = await request(app.getHttpServer())
-      .get(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`)
+      .get(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .expect(200);
 
@@ -307,13 +330,17 @@ describe('Events & Competitions Controller (e2e)', () => {
 
   it('should delete the stage', async () => {
     await request(app.getHttpServer())
-      .delete(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}`)
+      .delete(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .expect(204);
 
     // Verify it is gone
     const res = await request(app.getHttpServer())
-      .get(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages`)
+      .get(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .expect(200);
 
@@ -322,7 +349,9 @@ describe('Events & Competitions Controller (e2e)', () => {
 
   it('should update the competition details', async () => {
     const res = await request(app.getHttpServer())
-      .patch(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}`)
+      .patch(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .send({
         name: 'Inter-House Football Cup v2',
@@ -336,7 +365,9 @@ describe('Events & Competitions Controller (e2e)', () => {
 
   it('should delete the competition', async () => {
     await request(app.getHttpServer())
-      .delete(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}`)
+      .delete(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .expect(204);
 

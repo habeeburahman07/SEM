@@ -16,48 +16,48 @@ export enum MatchType {
   WOMENS_SINGLES = "Women's Singles",
   MENS_DOUBLES = "Men's Doubles",
   WOMENS_DOUBLES = "Women's Doubles",
-  MIXED_DOUBLES = "Mixed Doubles"
+  MIXED_DOUBLES = 'Mixed Doubles',
 }
 
 export enum MatchStatus {
-  SCHEDULED = "Scheduled",
-  WARM_UP = "WarmUp",
-  FIRST_GAME = "FirstGame",
-  BREAK = "Break",
-  SECOND_GAME = "SecondGame",
-  THIRD_GAME = "ThirdGame",
-  FINISHED = "Finished",
-  WALKOVER = "Walkover",
-  RETIRED = "Retired",
-  ABANDONED = "Abandoned"
+  SCHEDULED = 'Scheduled',
+  WARM_UP = 'WarmUp',
+  FIRST_GAME = 'FirstGame',
+  BREAK = 'Break',
+  SECOND_GAME = 'SecondGame',
+  THIRD_GAME = 'ThirdGame',
+  FINISHED = 'Finished',
+  WALKOVER = 'Walkover',
+  RETIRED = 'Retired',
+  ABANDONED = 'Abandoned',
 }
 
 export enum RallyResult {
-  WINNER = "Winner",
-  FORCED_ERROR = "ForcedError",
-  UNFORCED_ERROR = "UnforcedError",
-  NET_TOUCH = "NetTouch",
-  SHUTTLE_OUT = "ShuttleOut",
-  DOUBLE_HIT = "DoubleHit",
-  CARRIED_SHUTTLE = "CarriedShuttle",
-  SERVICE_FAULT = "ServiceFault",
-  FOOT_FAULT = "FootFault",
-  WRONG_RECEIVER = "WrongReceiver",
-  WRONG_SERVER = "WrongServer",
-  LET_SHUTTLE_BREAKS = "LetShuttleBreaks",
-  LET_RECEIVER_NOT_READY = "LetReceiverNotReady",
-  LET_EXTERNAL_INTERRUPTION = "LetExternalInterruption",
-  LET_UMPIRE_CALL = "LetUmpireCall"
+  WINNER = 'Winner',
+  FORCED_ERROR = 'ForcedError',
+  UNFORCED_ERROR = 'UnforcedError',
+  NET_TOUCH = 'NetTouch',
+  SHUTTLE_OUT = 'ShuttleOut',
+  DOUBLE_HIT = 'DoubleHit',
+  CARRIED_SHUTTLE = 'CarriedShuttle',
+  SERVICE_FAULT = 'ServiceFault',
+  FOOT_FAULT = 'FootFault',
+  WRONG_RECEIVER = 'WrongReceiver',
+  WRONG_SERVER = 'WrongServer',
+  LET_SHUTTLE_BREAKS = 'LetShuttleBreaks',
+  LET_RECEIVER_NOT_READY = 'LetReceiverNotReady',
+  LET_EXTERNAL_INTERRUPTION = 'LetExternalInterruption',
+  LET_UMPIRE_CALL = 'LetUmpireCall',
 }
 
 @Entity('matches')
-@Index('idx_matches_stage_id', ['stageId'])                         // FK: all matches in a stage (primary access pattern)
-@Index('idx_matches_status', ['status'])                            // Filter live/completed matches globally
-@Index('idx_matches_stage_status', ['stageId', 'status'])           // Composite: live matches within a stage (hot path)
-@Index('idx_matches_home_team_id', ['homeTeamId'])                  // FK: matches involving a team as home
-@Index('idx_matches_away_team_id', ['awayTeamId'])                  // FK: matches involving a team as away
-@Index('idx_matches_venue_id', ['venueId'])                         // FK: matches at a venue
-@Index('idx_matches_created_at', ['createdAt'])                     // Pagination / chronological ordering
+@Index('idx_matches_stage_id', ['stageId']) // FK: all matches in a stage (primary access pattern)
+@Index('idx_matches_status', ['status']) // Filter live/completed matches globally
+@Index('idx_matches_stage_status', ['stageId', 'status']) // Composite: live matches within a stage (hot path)
+@Index('idx_matches_home_team_id', ['homeTeamId']) // FK: matches involving a team as home
+@Index('idx_matches_away_team_id', ['awayTeamId']) // FK: matches involving a team as away
+@Index('idx_matches_venue_id', ['venueId']) // FK: matches at a venue
+@Index('idx_matches_created_at', ['createdAt']) // Pagination / chronological ordering
 export class Match extends AuditableEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -114,5 +114,3 @@ export class Match extends AuditableEntity {
   @Column({ type: 'json', nullable: true })
   liveData: any;
 }
-
-

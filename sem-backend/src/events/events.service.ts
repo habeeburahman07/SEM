@@ -1,0 +1,310 @@
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, In } from 'typeorm';
+import { Event } from '../workspaces/entities/event.entity';
+import { Team } from '../workspaces/entities/team.entity';
+import { WorkspacesService } from '../workspaces/workspaces.service';
+import { CreateEventDto } from './dto/create-event.dto';
+import { UpdateEventDto } from './dto/update-event.dto';
+import { NotificationType } from '../workspaces/entities/notification.entity';
+import { CompetitionsService } from '../competitions/competitions.service';
+
+@Injectable()
+export class EventsService {
+  constructor(
+    @InjectRepository(Event)
+    private readonly eventRepo: Repository<Event>,
+    @InjectRepository(Team)
+    private readonly teamRepo: Repository<Team>,
+    private readonly workspacesService: WorkspacesService,
+    private readonly competitionsService: CompetitionsService,
+  ) {}
+
+  async getEvents(workspaceId: string, userId: string): Promise<Event[]> {
+    await this.workspacesService.ensureMember(workspaceId, userId);
+    return this.eventRepo.find({
+      where: { workspaceId },
+      relations: { teams: true },
+      order: { name: 'ASC' },
+    });
+  }
+
+  async createEvent(
+    workspaceId: string,
+    dto: CreateEventDto,
+    userId: string,
+  ): Promise<Event> {
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'event.manage',
+    );
+    let teams: Team[] = [];
+    if (dto.teamIds && dto.teamIds.length > 0) {
+      teams = await this.teamRepo.findBy({ id: In(dto.teamIds), workspaceId });
+      if (teams.length !== dto.teamIds.length) {
+        throw new BadRequestException(
+          'Some teams were not found or do not belong to this workspace',
+        );
+      }
+    }
+    const event = this.eventRepo.create({
+      name: dto.name,
+      description: dto.description ?? null,
+      startDate: dto.startDate ? new Date(dto.startDate) : null,
+      endDate: dto.endDate ? new Date(dto.endDate) : null,
+      status: dto.status ?? 'upcoming',
+      logoUrl: dto.logoUrl ?? null,
+      workspaceId,
+      teams,
+    });
+    const saved = await this.eventRepo.save(event);
+
+    // 4.1 — Notify workspace members of new event
+    const memberIds = await this.workspacesService.getWorkspaceMemberUserIds(
+      workspaceId,
+      userId,
+    );
+    await this.workspacesService.sendNotificationToMany(
+      memberIds,
+      NotificationType.EVENT_CREATED,
+      `New event "${saved.name}" has been created.`,
+      workspaceId,
+      { eventId: saved.id, eventName: saved.name },
+    );
+
+    return saved;
+  }
+
+  async updateEvent(
+    workspaceId: string,
+    eventId: string,
+    dto: UpdateEventDto,
+    userId: string,
+  ): Promise<Event> {
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'event.manage',
+    );
+    const event = await this.eventRepo.findOne({
+      where: { id: eventId, workspaceId },
+      relations: { teams: true },
+    });
+    if (!event) {
+      throw new NotFoundException('Event not found in this workspace');
+    }
+
+    const oldStatus = event.status;
+
+    if (dto.teamIds !== undefined) {
+      if (dto.teamIds.length > 0) {
+        event.teams = await this.teamRepo.findBy({
+          id: In(dto.teamIds),
+          workspaceId,
+        });
+        if (event.teams.length !== dto.teamIds.length) {
+          throw new BadRequestException(
+            'Some teams were not found or do not belong to this workspace',
+          );
+        }
+      } else {
+        event.teams = [];
+      }
+    }
+
+    Object.assign(event, {
+      ...(dto.name !== undefined && { name: dto.name }),
+      ...(dto.description !== undefined && { description: dto.description }),
+      ...(dto.startDate !== undefined && {
+        startDate: dto.startDate ? new Date(dto.startDate) : null,
+      }),
+      ...(dto.endDate !== undefined && {
+        endDate: dto.endDate ? new Date(dto.endDate) : null,
+      }),
+      ...(dto.status !== undefined && { status: dto.status }),
+      ...(dto.logoUrl !== undefined && { logoUrl: dto.logoUrl }),
+    });
+
+    const saved = await this.eventRepo.save(event);
+
+    // 4.2 / 4.3 / 4.4 / 4.5 / 4.6 — Notify about status changes
+    if (dto.status !== undefined && dto.status !== oldStatus) {
+      const memberIds = await this.workspacesService.getWorkspaceMemberUserIds(
+        workspaceId,
+        userId,
+      );
+      if (dto.status === 'ongoing') {
+        await this.workspacesService.sendNotificationToMany(
+          memberIds,
+          NotificationType.EVENT_STARTED,
+          `Event "${saved.name}" has started!`,
+          workspaceId,
+          { eventId: saved.id, eventName: saved.name },
+        );
+      } else if (dto.status === 'cancelled') {
+        await this.workspacesService.sendNotificationToMany(
+          memberIds,
+          NotificationType.EVENT_CANCELLED,
+          `Event "${saved.name}" has been cancelled.`,
+          workspaceId,
+          { eventId: saved.id, eventName: saved.name },
+        );
+      } else if (dto.status === 'completed') {
+        await this.workspacesService.sendNotificationToMany(
+          memberIds,
+          NotificationType.EVENT_COMPLETED,
+          `Event "${saved.name}" has been completed!`,
+          workspaceId,
+          { eventId: saved.id, eventName: saved.name },
+        );
+
+        // 4.5 & 4.6 — Determine Event Champions
+        try {
+          const standings = await this.getEventStandings(
+            workspaceId,
+            eventId,
+            userId,
+          );
+          if (standings && standings.length > 0) {
+            const champion = standings[0];
+            // Announcement to all
+            await this.workspacesService.sendNotificationToMany(
+              memberIds,
+              NotificationType.EVENT_CHAMPION_ANNOUNCEMENT,
+              `🏆 ${champion.teamName} has won the ${saved.name} event with ${champion.points} points!`,
+              workspaceId,
+              {
+                eventId: saved.id,
+                eventName: saved.name,
+                championTeamId: champion.teamId,
+                championTeamName: champion.teamName,
+                points: champion.points,
+              },
+            );
+            // Notify winning team players
+            const winningPlayers =
+              await this.workspacesService.getTeamPlayerUserIds(
+                champion.teamId,
+              );
+            await this.workspacesService.sendNotificationToMany(
+              winningPlayers,
+              NotificationType.EVENT_CHAMPION,
+              `🏆 Congratulations! Your team ${champion.teamName} is the overall champion of ${saved.name}!`,
+              workspaceId,
+              {
+                eventId: saved.id,
+                eventName: saved.name,
+                points: champion.points,
+              },
+            );
+          }
+        } catch (e) {
+          // Ignore error silently to prevent blocking the event completion save
+        }
+      }
+    }
+
+    return saved;
+  }
+
+  async removeEvent(
+    workspaceId: string,
+    eventId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'event.manage',
+    );
+    const event = await this.eventRepo.findOne({
+      where: { id: eventId, workspaceId },
+    });
+    if (!event) {
+      throw new NotFoundException('Event not found in this workspace');
+    }
+    event.deletedAt = new Date();
+    await this.eventRepo.save(event);
+  }
+
+  async getEventStandings(
+    workspaceId: string,
+    eventId: string,
+    userId: string,
+  ): Promise<any> {
+    await this.workspacesService.ensureMember(workspaceId, userId);
+    const event = await this.eventRepo.findOne({
+      where: { id: eventId, workspaceId },
+      relations: { teams: true, competitions: { stages: true } },
+    });
+    if (!event) {
+      throw new NotFoundException(
+        `Event "${eventId}" not found in this workspace`,
+      );
+    }
+
+    const teams = event.teams || [];
+    const competitions = event.competitions || [];
+    const completedCompetitions = competitions.filter(
+      (c) => c.status === 'completed',
+    );
+
+    const teamPointsMap = new Map<
+      string,
+      { points: number; breakdown: any[] }
+    >();
+
+    for (const team of teams) {
+      teamPointsMap.set(team.id, { points: 0, breakdown: [] });
+    }
+
+    for (const comp of completedCompetitions) {
+      const rankings = await this.competitionsService.getCompetitionRankings(
+        comp.id,
+      );
+      const pointsConfig = comp.pointsConfig || [];
+
+      for (const team of teams) {
+        const pos = rankings.get(team.id) || null;
+        let pointsEarned = 0;
+        if (pos !== null) {
+          const configEntry = pointsConfig.find(
+            (entry) => entry.position === pos,
+          );
+          if (configEntry) {
+            pointsEarned = configEntry.points;
+          }
+        }
+
+        const teamData = teamPointsMap.get(team.id);
+        if (teamData) {
+          teamData.points += pointsEarned;
+          teamData.breakdown.push({
+            competitionId: comp.id,
+            competitionName: comp.name,
+            position: pos,
+            points: pointsEarned,
+          });
+        }
+      }
+    }
+
+    return teams
+      .map((team) => {
+        const data = teamPointsMap.get(team.id) || { points: 0, breakdown: [] };
+        return {
+          teamId: team.id,
+          teamName: team.name,
+          teamLogoUrl: team.logoUrl || null,
+          points: data.points,
+          breakdown: data.breakdown,
+        };
+      })
+      .sort((a, b) => b.points - a.points);
+  }
+}

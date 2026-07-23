@@ -12,7 +12,7 @@ describe('Fixture Generation (e2e)', () => {
   let sportId: string;
   let competitionId: string;
   let stageId: string;
-  let teamIds: string[] = [];
+  const teamIds: string[] = [];
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -100,7 +100,9 @@ describe('Fixture Generation (e2e)', () => {
   it('should generate fixtures for group_knockout with 2 groups and 4 teams', async () => {
     // 1. Create a stage of type group_knockout with 2 groups
     const stageRes = await request(app.getHttpServer())
-      .post(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages`)
+      .post(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .send({
         name: 'Group + KO Stage',
@@ -122,7 +124,9 @@ describe('Fixture Generation (e2e)', () => {
 
     // 2. Generate fixtures
     const genRes = await request(app.getHttpServer())
-      .post(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/generate-fixtures`)
+      .post(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/generate-fixtures`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .expect(201);
 
@@ -130,19 +134,25 @@ describe('Fixture Generation (e2e)', () => {
 
     // 3. Retrieve matches
     const matchesRes = await request(app.getHttpServer())
-      .get(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`)
+      .get(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .expect(200);
 
     const matches = matchesRes.body;
     console.log('--- GENERATED MATCHES ---');
     matches.forEach((m: any) => {
-      console.log(`Match ID: ${m.id}, Home: ${m.homeTeam?.name || 'TBD'} (${m.homeTeamId}), Away: ${m.awayTeam?.name || 'TBD'} (${m.awayTeamId}), Round: ${m.config?.round}`);
+      console.log(
+        `Match ID: ${m.id}, Home: ${m.homeTeam?.name || 'TBD'} (${m.homeTeamId}), Away: ${m.awayTeam?.name || 'TBD'} (${m.awayTeamId}), Round: ${m.config?.round}`,
+      );
     });
     console.log('-------------------------');
 
     // Group stage matches should have defined team IDs, and each unique team should appear in only one group
-    const groupMatches = matches.filter((m: any) => m.config?.round?.startsWith('Group'));
+    const groupMatches = matches.filter((m: any) =>
+      m.config?.round?.startsWith('Group'),
+    );
     expect(groupMatches.length).toBeGreaterThan(0);
 
     const groupTeamsMap = new Map<string, Set<string>>();
@@ -155,7 +165,10 @@ describe('Fixture Generation (e2e)', () => {
       if (m.awayTeamId) groupTeamsMap.get(round)!.add(m.awayTeamId);
     });
 
-    console.log('Group Teams Map:', Array.from(groupTeamsMap.entries()).map(([k, v]) => [k, Array.from(v)]));
+    console.log(
+      'Group Teams Map:',
+      Array.from(groupTeamsMap.entries()).map(([k, v]) => [k, Array.from(v)]),
+    );
 
     // Verify groups have unique teams (no overlap between Group A and Group B)
     const groupA = groupTeamsMap.get('Group A') || new Set();
@@ -164,62 +177,86 @@ describe('Fixture Generation (e2e)', () => {
     expect(groupA.size).toBe(2);
     expect(groupB.size).toBe(2);
 
-    const intersection = new Set([...groupA].filter(x => groupB.has(x)));
+    const intersection = new Set([...groupA].filter((x) => groupB.has(x)));
     expect(intersection.size).toBe(0);
 
     // 4. Complete a match in Group A and verify that Group B matches are NOT changed
-    const groupAMatch = groupMatches.find((m: any) => m.config.round === 'Group A');
+    const groupAMatch = groupMatches.find(
+      (m: any) => m.config.round === 'Group A',
+    );
     expect(groupAMatch).toBeDefined();
 
-    const originalGroupBMatches = groupMatches.filter((m: any) => m.config.round === 'Group B');
-    const originalGroupBTeamIds = originalGroupBMatches.map((m: any) => [m.homeTeamId, m.awayTeamId]);
+    const originalGroupBMatches = groupMatches.filter(
+      (m: any) => m.config.round === 'Group B',
+    );
+    const originalGroupBTeamIds = originalGroupBMatches.map((m: any) => [
+      m.homeTeamId,
+      m.awayTeamId,
+    ]);
 
     // Update match in Group A to completed
     await request(app.getHttpServer())
-      .patch(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${groupAMatch.id}`)
+      .patch(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${groupAMatch.id}`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .send({
         status: 'completed',
         homeScore: 3,
         awayScore: 1,
-        liveData: { result: 'Home Win' }
+        liveData: { result: 'Home Win' },
       })
       .expect(200);
 
     // Retrieve matches again and check Group B matches have not changed
     const matchesResAfter = await request(app.getHttpServer())
-      .get(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`)
+      .get(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .expect(200);
 
-    const groupBMatchesAfter = matchesResAfter.body.filter((m: any) => m.config.round === 'Group B');
-    const groupBTeamIdsAfter = groupBMatchesAfter.map((m: any) => [m.homeTeamId, m.awayTeamId]);
+    const groupBMatchesAfter = matchesResAfter.body.filter(
+      (m: any) => m.config.round === 'Group B',
+    );
+    const groupBTeamIdsAfter = groupBMatchesAfter.map((m: any) => [
+      m.homeTeamId,
+      m.awayTeamId,
+    ]);
 
     expect(groupBTeamIdsAfter).toEqual(originalGroupBTeamIds);
 
     // 5. Complete Group B match and verify the winners are promoted to the Final
-    const groupBMatch = groupMatches.find((m: any) => m.config.round === 'Group B');
+    const groupBMatch = groupMatches.find(
+      (m: any) => m.config.round === 'Group B',
+    );
     expect(groupBMatch).toBeDefined();
 
     // Complete the Group B match with Away Win (so the away team wins Group B)
     await request(app.getHttpServer())
-      .patch(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${groupBMatch.id}`)
+      .patch(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${groupBMatch.id}`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .send({
         status: 'completed',
         homeScore: 1,
         awayScore: 3,
-        liveData: { result: 'Away Win' }
+        liveData: { result: 'Away Win' },
       })
       .expect(200);
 
     // Retrieve all matches to see if the Final match has been updated with the winners
     const finalRes = await request(app.getHttpServer())
-      .get(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`)
+      .get(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .expect(200);
 
-    const finalMatch = finalRes.body.find((m: any) => m.config?.round === 'Final');
+    const finalMatch = finalRes.body.find(
+      (m: any) => m.config?.round === 'Final',
+    );
     expect(finalMatch).toBeDefined();
 
     // Winner of Group A is the home team of the completed Group A match
@@ -230,42 +267,50 @@ describe('Fixture Generation (e2e)', () => {
     expect(finalMatch.homeTeamId).toBe(winnerGroupA);
     expect(finalMatch.awayTeamId).toBe(winnerGroupB);
 
-    const thirdMatch = finalRes.body.find((m: any) => m.config?.round === 'Third Place Match');
+    const thirdMatch = finalRes.body.find(
+      (m: any) => m.config?.round === 'Third Place Match',
+    );
     expect(thirdMatch).toBeDefined();
     expect(thirdMatch.homeTeamId).toBe(groupAMatch.awayTeamId); // Group A runner-up (Team 4)
     expect(thirdMatch.awayTeamId).toBe(groupBMatch.homeTeamId); // Group B runner-up (Team 1)
 
     // 6. Set competition pointsConfig
     await request(app.getHttpServer())
-      .patch(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}`)
+      .patch(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .send({
         pointsConfig: [
           { position: 1, label: 'Winner', points: 10 },
-          { position: 2, label: 'Runner-up', points: 5 }
-        ]
+          { position: 2, label: 'Runner-up', points: 5 },
+        ],
       })
       .expect(200);
 
     // Complete Third Place Match
     await request(app.getHttpServer())
-      .patch(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${thirdMatch.id}`)
+      .patch(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${thirdMatch.id}`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .send({
         status: 'completed',
         homeScore: 1,
-        awayScore: 0
+        awayScore: 0,
       })
       .expect(200);
 
     // 7. Complete the Final match (Group A winner wins, Group B winner loses)
     await request(app.getHttpServer())
-      .patch(`/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${finalMatch.id}`)
+      .patch(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${competitionId}/stages/${stageId}/matches/${finalMatch.id}`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .send({
         status: 'completed',
         homeScore: 2,
-        awayScore: 0
+        awayScore: 0,
       })
       .expect(200);
 
@@ -312,7 +357,9 @@ describe('Fixture Generation (e2e)', () => {
 
     // 2. Create a stage of type knockout
     const koStageRes = await request(app.getHttpServer())
-      .post(`/workspaces/${workspaceId}/events/${eventId}/competitions/${koCompId}/stages`)
+      .post(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${koCompId}/stages`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .send({
         name: 'Knockout Stage',
@@ -328,22 +375,30 @@ describe('Fixture Generation (e2e)', () => {
 
     // 3. Generate fixtures
     await request(app.getHttpServer())
-      .post(`/workspaces/${workspaceId}/events/${eventId}/competitions/${koCompId}/generate-fixtures`)
+      .post(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${koCompId}/generate-fixtures`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .expect(201);
 
     // 4. Retrieve matches
     const matchesRes = await request(app.getHttpServer())
-      .get(`/workspaces/${workspaceId}/events/${eventId}/competitions/${koCompId}/stages/${koStageId}/matches`)
+      .get(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${koCompId}/stages/${koStageId}/matches`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .expect(200);
 
     const matches = matchesRes.body;
-    
+
     // There should be 2 Semi-Finals, 1 Final, and 1 Third Place Match
-    const semiFinals = matches.filter((m: any) => m.config?.round === 'Semi-Final');
+    const semiFinals = matches.filter(
+      (m: any) => m.config?.round === 'Semi-Final',
+    );
     const finalMatch = matches.find((m: any) => m.config?.round === 'Final');
-    const thirdMatch = matches.find((m: any) => m.config?.round === 'Third Place Match');
+    const thirdMatch = matches.find(
+      (m: any) => m.config?.round === 'Third Place Match',
+    );
 
     expect(semiFinals.length).toBe(2);
     expect(finalMatch).toBeDefined();
@@ -352,37 +407,47 @@ describe('Fixture Generation (e2e)', () => {
     // 5. Complete Semi-Final 1 (Team 1 vs Team 2 -> Team 1 wins, Team 2 loses)
     const sf1 = semiFinals[0];
     await request(app.getHttpServer())
-      .patch(`/workspaces/${workspaceId}/events/${eventId}/competitions/${koCompId}/stages/${koStageId}/matches/${sf1.id}`)
+      .patch(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${koCompId}/stages/${koStageId}/matches/${sf1.id}`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .send({
         status: 'completed',
         homeScore: 3,
         awayScore: 1,
-        liveData: { result: 'Home Win' }
+        liveData: { result: 'Home Win' },
       })
       .expect(200);
 
     // 6. Complete Semi-Final 2 (Team 3 vs Team 4 -> Team 4 wins, Team 3 loses)
     const sf2 = semiFinals[1];
     await request(app.getHttpServer())
-      .patch(`/workspaces/${workspaceId}/events/${eventId}/competitions/${koCompId}/stages/${koStageId}/matches/${sf2.id}`)
+      .patch(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${koCompId}/stages/${koStageId}/matches/${sf2.id}`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .send({
         status: 'completed',
         homeScore: 1,
         awayScore: 2,
-        liveData: { result: 'Away Win' }
+        liveData: { result: 'Away Win' },
       })
       .expect(200);
 
     // 7. Verify the winners advanced to the Final, and losers to the Third Place Match
     const matchesAfterSFRes = await request(app.getHttpServer())
-      .get(`/workspaces/${workspaceId}/events/${eventId}/competitions/${koCompId}/stages/${koStageId}/matches`)
+      .get(
+        `/workspaces/${workspaceId}/events/${eventId}/competitions/${koCompId}/stages/${koStageId}/matches`,
+      )
       .set('Authorization', `Bearer ${jwtToken}`)
       .expect(200);
 
-    const updatedFinal = matchesAfterSFRes.body.find((m: any) => m.id === finalMatch.id);
-    const updatedThird = matchesAfterSFRes.body.find((m: any) => m.id === thirdMatch.id);
+    const updatedFinal = matchesAfterSFRes.body.find(
+      (m: any) => m.id === finalMatch.id,
+    );
+    const updatedThird = matchesAfterSFRes.body.find(
+      (m: any) => m.id === thirdMatch.id,
+    );
 
     const sf1Winner = sf1.homeTeamId;
     const sf1Loser = sf1.awayTeamId;

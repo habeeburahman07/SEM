@@ -10,9 +10,9 @@ import { Workspace } from './workspace.entity';
 import { AuditableEntity } from '../../common/auditable.entity';
 
 @Entity('teams')
-@Index('idx_teams_workspace_id', ['workspaceId'])             // FK: all teams in a workspace
-@Index('idx_teams_workspace_name', ['workspaceId', 'name'])   // Composite: search teams by name within workspace
-@Index('idx_teams_code', ['code'])                            // Unique code lookup
+@Index('idx_teams_workspace_id', ['workspaceId']) // FK: all teams in a workspace
+@Index('idx_teams_workspace_name', ['workspaceId', 'name']) // Composite: search teams by name within workspace
+@Index('idx_teams_code', ['code']) // Unique code lookup
 export class Team extends AuditableEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -29,10 +29,20 @@ export class Team extends AuditableEntity {
   @Column({ name: 'logo_url', type: 'varchar', length: 500, nullable: true })
   logoUrl: string | null;
 
-  @Column({ name: 'primary_color', type: 'varchar', length: 50, nullable: true })
+  @Column({
+    name: 'primary_color',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
   primaryColor: string | null;
 
-  @Column({ name: 'secondary_color', type: 'varchar', length: 50, nullable: true })
+  @Column({
+    name: 'secondary_color',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
   secondaryColor: string | null;
 
   @Column({ name: 'workspace_id', type: 'uuid' })

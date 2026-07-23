@@ -1,7 +1,7 @@
 <router-outlet></router-outlet>
 
 <!-- Toaster Container -->
-<div class="fixed top-6 right-6 z-[9999] flex flex-col gap-3 w-full max-w-sm pointer-events-none">
+<div aria-live="polite" role="log" aria-label="Notifications" class="fixed top-6 right-6 z-[9999] flex flex-col gap-3 w-full max-w-sm pointer-events-none">
   @for (toast of uiService.toasts(); track toast.id) {
     <div class="bg-slate-900/95 border border-white/10 backdrop-blur-md rounded-xl p-4 shadow-2xl flex items-start gap-3 pointer-events-auto transition-all duration-350 hover:scale-[1.02] relative overflow-hidden group">
       <!-- Glow effect based on type -->
@@ -39,7 +39,7 @@
       </div>
 
       <!-- Close Button -->
-      <button (click)="uiService.removeToast(toast.id)" class="text-slate-500 hover:text-slate-300 transition-colors pointer-events-auto">
+      <button (click)="uiService.removeToast(toast.id)" aria-label="Close notification" class="text-slate-500 hover:text-slate-300 transition-colors pointer-events-auto rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
         </svg>
@@ -50,7 +50,11 @@
 
 <!-- Confirm Modal Overlay -->
 @if (uiService.confirmModalOpen()) {
-  <div class="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-[9998] flex items-center justify-center p-4">
+  <div class="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-[9998] flex items-center justify-center p-4"
+       role="alertdialog"
+       aria-modal="true"
+       aria-labelledby="confirm-modal-title"
+       aria-describedby="confirm-modal-desc">
     <div class="bg-slate-900 border border-white/10 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-scaleUp text-left">
       <!-- Header -->
       <div class="flex items-start gap-4 mb-5">
@@ -75,10 +79,10 @@
           }
         </div>
         <div class="flex-1">
-          <h3 class="text-base font-extrabold text-white">
+          <h3 id="confirm-modal-title" class="text-base font-extrabold text-white">
             {{ uiService.confirmOptions()?.title }}
           </h3>
-          <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">
+          <p id="confirm-modal-desc" class="text-xs text-slate-400 mt-1.5 leading-relaxed">
             {{ uiService.confirmOptions()?.message }}
           </p>
         </div>
@@ -86,10 +90,10 @@
 
       <!-- Actions -->
       <div class="flex items-center justify-end gap-3 pt-3 border-t border-white/5">
-        <button (click)="uiService.handleConfirm(false)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white hover:text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer">
+        <button (click)="uiService.handleConfirm(false)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white hover:text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
           {{ uiService.confirmOptions()?.cancelText || 'Cancel' }}
         </button>
-        <button (click)="uiService.handleConfirm(true)" class="px-4.5 py-2 text-white text-xs font-bold rounded-xl transition-all cursor-pointer" [ngClass]="{
+        <button (click)="uiService.handleConfirm(true)" class="px-4.5 py-2 text-white text-xs font-bold rounded-xl transition-all cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500" [ngClass]="{
           'bg-rose-600 hover:bg-rose-500': uiService.confirmOptions()?.type === 'danger',
           'bg-amber-600 hover:bg-amber-500': uiService.confirmOptions()?.type === 'warning',
           'bg-violet-600 hover:bg-violet-500': uiService.confirmOptions()?.type === 'info' || !uiService.confirmOptions()?.type

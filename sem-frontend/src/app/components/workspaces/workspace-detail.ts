@@ -1,46 +1,89 @@
 import { Component, OnInit, signal, inject, computed, effect, HostListener, DestroyRef } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { DatePipe, NgClass } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { WorkspaceService, Workspace, WorkspaceMember, AppNotification, Role, Team, Player, WorkspaceEvent, Sport, Competition, CompetitionStage, CompetitionTeam, Match, Venue, PointsConfigEntry, MatchPlayer, CompetitionStats } from '../../services/workspace.service';
+import { WorkspaceService, Workspace, WorkspaceMember, AppNotification, Role, Team, Player, WorkspaceEvent, Sport, Competition, CompetitionStage, CompetitionTeam, Match, PointsConfigEntry, MatchPlayer, CompetitionStats } from '../../services/workspace.service';
+import { VenueService, Venue } from '../../services/venue.service';
 import { AuthService } from '../../services/auth.service';
 import { UiService } from '../../services/ui.service';
 import { SocketService } from '../../services/socket.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { VenueListComponent } from './venues/venue-list';
+import { VenueModalComponent } from './venues/venue-modal';
+import { TeamService } from '../../services/team.service';
+import { TeamListComponent } from './teams/team-list';
+import { TeamModalComponent } from './teams/team-modal';
+import { PlayerService } from '../../services/player.service';
+import { PlayerListComponent } from './players/player-list';
+import { PlayerModalComponent } from './players/player-modal';
+import { EventService } from '../../services/event.service';
+import { CompetitionService } from '../../services/competition.service';
+import { FootballConsoleComponent } from './consoles/football-console/football-console';
+import { CricketConsoleComponent } from './consoles/cricket-console/cricket-console';
+import { BadmintonConsoleComponent } from './consoles/badminton-console/badminton-console';
+import { AvatarComponent } from '../../shared/components/avatar/avatar';
+import { InitialsPipe } from '../../shared/pipes/initials.pipe';
+import { SidebarComponent } from './layout/sidebar/sidebar';
+import { TopbarComponent } from './layout/topbar/topbar';
+import { WorkspaceDashboardComponent } from './dashboard/dashboard';
+import { WorkspaceMembersComponent } from './members/members';
+import { WorkspaceSettingsComponent } from './settings/settings';
+import { WorkspaceReportsComponent } from './reports/reports';
 
 declare const L: any;
 
 @Component({
   selector: 'app-workspace-detail',
   standalone: true,
-  imports: [RouterLink, DatePipe, FormsModule, NgClass],
+  imports: [
+    RouterLink,
+    DatePipe,
+    FormsModule,
+    VenueListComponent,
+    VenueModalComponent,
+    TeamListComponent,
+    TeamModalComponent,
+    PlayerListComponent,
+    PlayerModalComponent,
+    FootballConsoleComponent,
+    CricketConsoleComponent,
+    BadmintonConsoleComponent,
+    AvatarComponent,
+    InitialsPipe,
+    SidebarComponent,
+    TopbarComponent,
+    WorkspaceDashboardComponent,
+    WorkspaceMembersComponent,
+    WorkspaceSettingsComponent,
+    WorkspaceReportsComponent,
+  ],
   templateUrl: './workspace-detail.html',
   styleUrl: './workspace-detail.css',
 })
 export class WorkspaceDetailComponent implements OnInit {
   private workspaceService = inject(WorkspaceService);
+  private venueService = inject(VenueService);
   authService = inject(AuthService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private uiService = inject(UiService);
   private socketService = inject(SocketService);
   private destroyRef = inject(DestroyRef);
+  private teamService = inject(TeamService);
+  private playerService = inject(PlayerService);
+  private eventService = inject(EventService);
+  private competitionService = inject(CompetitionService);
 
-  selectedTeamForDetails = signal<any | null>(null);
-  isLoadingTeamStats = signal<boolean>(false);
-  activeTeamDetailTab = signal<'overview' | 'competitions' | 'squad'>('overview');
-
-  selectedPlayerForDetails = signal<any | null>(null);
-  isLoadingPlayerStats = signal<boolean>(false);
-  activePlayerDetailTab = signal<'overview' | 'competitions'>('overview');
+  selectedPlayerId = signal<string | null>(null);
+  selectedTeamId = signal<string | null>(null);
 
   constructor() {
     effect(() => {
       // Clear team/player details when main tab changes
       this.activeTab();
-      this.selectedTeamForDetails.set(null);
-      this.selectedPlayerForDetails.set(null);
+      this.selectedTeamId.set(null);
+      this.selectedPlayerId.set(null);
     });
   }
 
@@ -65,7 +108,7 @@ export class WorkspaceDetailComponent implements OnInit {
   roles = signal<Role[]>([]);
   isLoading = signal(true);
   error = signal('');
-  activeTab = signal<'overview' | 'members' | 'settings' | 'teams' | 'players' | 'events' | 'venues'>('overview');
+  activeTab = signal<'overview' | 'members' | 'settings' | 'teams' | 'players' | 'events' | 'venues' | 'reports'>('overview');
   isSidebarOpen = signal(true);
 
   // ── Workspace Dashboard Overview Signals ─────────────────────────────────────
@@ -206,13 +249,13 @@ export class WorkspaceDetailComponent implements OnInit {
 
   selectGlobalTeam(team: Team) {
     this.activeTab.set('teams');
-    this.onViewTeamDetails(team);
+    this.selectedTeamId.set(team.id);
     this.clearGlobalSearch();
   }
 
   selectGlobalPlayer(player: Player) {
     this.activeTab.set('players');
-    this.onViewPlayerDetails(player);
+    this.selectedPlayerId.set(player.id);
     this.clearGlobalSearch();
   }
 
@@ -262,77 +305,19 @@ export class WorkspaceDetailComponent implements OnInit {
   // Image Upload Loading States
   isUploadingAvatar = signal(false);
   isUploadingWorkspaceLogo = signal(false);
-  isUploadingTeamLogo = signal(false);
+
   isUploadingEventLogo = signal(false);
 
   // ── Teams State ────────────────────────────────────────────────────────────
   teams = signal<Team[]>([]);
   isTeamModalOpen = signal(false);
-  newTeamName = signal('');
-  newTeamCode = signal('');
-  newTeamDescription = signal('');
-  newTeamLogoUrl = signal('');
-  newTeamPrimaryColor = signal('#7c3aed');
-  newTeamSecondaryColor = signal('#4f46e5');
-  isCreatingTeam = signal(false);
-  teamCreateError = signal('');
-  teamCreateSuccess = signal('');
-
-  // Bulk Import Teams State
-  isBulkModalOpen = signal(false);
-  isImportingBulk = signal(false);
-  bulkImportProgress = signal(0);
-  bulkImportTeams = signal<any[]>([]);
-  bulkImportError = signal('');
-  bulkImportSuccess = signal('');
-
-  // Editing state for Teams
   editingTeam = signal<Team | null>(null);
-  editTeamName = signal('');
-  editTeamCode = signal('');
-  editTeamDescription = signal('');
-  editTeamLogoUrl = signal('');
-  editTeamPrimaryColor = signal('');
-  editTeamSecondaryColor = signal('');
-  isUpdatingTeam = signal(false);
-  teamUpdateError = signal('');
-  teamUpdateSuccess = signal('');
 
   // ── Players State ──────────────────────────────────────────────────────────
   players = signal<Player[]>([]);
   isPlayerModalOpen = signal(false);
-  newPlayerUserId = signal('');
-  newPlayerJerseyNumber = signal('');
-  newPlayerTeamId = signal('');
-  isCreatingPlayer = signal(false);
-  playerCreateError = signal('');
-  playerCreateSuccess = signal('');
-
-  // Bulk Import Players State
-  isPlayerBulkModalOpen = signal(false);
-  isImportingPlayerBulk = signal(false);
-  playerBulkImportProgress = signal(0);
-  bulkImportPlayers = signal<any[]>([]);
-  playerBulkImportError = signal('');
-  playerBulkImportSuccess = signal('');
-
-  // Bulk Import Members State
-  isMemberBulkModalOpen = signal(false);
-  isImportingMemberBulk = signal(false);
-  memberBulkImportProgress = signal(0);
-  bulkImportMembersList = signal<any[]>([]);
-  memberBulkImportPassword = signal('');
-  memberBulkImportError = signal('');
-  memberBulkImportSuccess = signal('');
-  showBulkImportPassword = signal(false);
-
-  // Editing state for Players
   editingPlayer = signal<Player | null>(null);
-  editPlayerJerseyNumber = signal('');
-  editPlayerTeamId = signal('');
-  isUpdatingPlayer = signal(false);
-  playerUpdateError = signal('');
-  playerUpdateSuccess = signal('');
+
 
   // ── Events State ────────────────────────────────────────────────────────────
   events = signal<WorkspaceEvent[]>([]);
@@ -438,12 +423,7 @@ export class WorkspaceDetailComponent implements OnInit {
   isLineupModalOpen = signal(false);
   lineupForm = signal<{ playerId: string; isPlaying: boolean; isGoalkeeper: boolean; teamId: string; player: Player }[]>([]);
 
-  // Cricket Scoring Inputs
-  cricketBowler = signal<string>('');
-  cricketStriker = signal<string>('');
-  cricketNonStriker = signal<string>('');
-  cricketStatsTab = signal<'batting' | 'bowling'>('batting');
-  cricketWicketType = signal<string>('Bowled');
+
 
   isStageCompleted = computed(() => {
     const stage = this.selectedStage();
@@ -664,17 +644,7 @@ export class WorkspaceDetailComponent implements OnInit {
   matchCreateError = signal('');
   matchCreateSuccess = signal('');
 
-  // Badminton Live Scoring State
-  badmintonServer = signal('');
-  badmintonReceiver = signal('');
-  badmintonReason = signal('Winner');
-  badmintonDuration = signal(0);
-  badmintonTimerRunning = signal(false);
-  badmintonTimerInterval: any = null;
-  badmintonMatchType = signal("Men's Singles");
-  badmintonMatchStatus = signal("Scheduled");
-  badmintonServiceCourt = signal<'Right' | 'Left'>('Right');
-  badmintonServiceNumber = signal<number>(1);
+
 
   // ── Competition Teams State ──────────────────────────────────────────────────
   competitionTeams = signal<CompetitionTeam[]>([]);
@@ -687,24 +657,7 @@ export class WorkspaceDetailComponent implements OnInit {
   // ── Venues State ───────────────────────────────────────────────────────────
   venues = signal<Venue[]>([]);
   isVenueModalOpen = signal(false);
-  newVenueName = signal('');
-  newVenueLocation = signal('');
-  newVenueCapacity = signal<number | null>(null);
-  newVenueImageUrl = signal('');
-  isCreatingVenue = signal(false);
-  venueCreateError = signal('');
-  venueCreateSuccess = signal('');
-
-  // Editing state for Venues
   editingVenue = signal<Venue | null>(null);
-  editVenueName = signal('');
-  editVenueLocation = signal('');
-  editVenueCapacity = signal<number | null>(null);
-  editVenueImageUrl = signal('');
-  isUpdatingVenue = signal(false);
-  venueUpdateError = signal('');
-  venueUpdateSuccess = signal('');
-  isUploadingVenueImage = signal(false);
 
   newMatchVenueId = signal('');
 
@@ -720,14 +673,7 @@ export class WorkspaceDetailComponent implements OnInit {
   generateFixturesSubmitError = signal('');
   isResettingStages = signal(false);
 
-  // ── Workspace Edit State ───────────────────────────────────────────────────
-  editName = signal('');
-  editDescription = signal('');
-  editLogoUrl = signal('');
   isUserDropdownOpen = signal(false);
-  isSavingSettings = signal(false);
-  settingsError = signal('');
-  settingsSuccess = signal('');
 
   // ── Member Invite State ────────────────────────────────────────────────────
   inviteUsername = signal('');
@@ -841,9 +787,6 @@ export class WorkspaceDetailComponent implements OnInit {
     this.workspaceService.getOne(id).subscribe({
       next: (ws) => {
         this.workspace.set(ws);
-        this.editName.set(ws.name);
-        this.editDescription.set(ws.description ?? '');
-        this.editLogoUrl.set(ws.logoUrl ?? '');
         this.loadMembers(id);
         this.loadRoles(id);
         this.loadTeams(id);
@@ -975,7 +918,7 @@ export class WorkspaceDetailComponent implements OnInit {
     if (!ws || !eventId) return;
 
     this.activeTab.set('events');
-    this.workspaceService.getEvents(ws.id).subscribe({
+    this.eventService.getEvents(ws.id).subscribe({
       next: (events) => {
         this.events.set(events);
         const ev = events.find((e) => e.id === eventId);
@@ -983,7 +926,7 @@ export class WorkspaceDetailComponent implements OnInit {
         this.selectedEvent.set(ev);
 
         if (!competitionId) return;
-        this.workspaceService.getCompetitions(ws.id, eventId).subscribe({
+        this.competitionService.getCompetitions(ws.id, eventId).subscribe({
           next: (comps) => {
             this.competitions.set(comps);
             const comp = comps.find((c) => c.id === competitionId);
@@ -991,7 +934,7 @@ export class WorkspaceDetailComponent implements OnInit {
             this.selectedCompetition.set(comp);
             this.activeCompetitionTab.set('matches');
 
-            this.workspaceService.getStages(ws.id, eventId, competitionId).subscribe({
+            this.competitionService.getStages(ws.id, eventId, competitionId).subscribe({
               next: (stages) => {
                 this.stages.set(stages);
                 const stage = (stageId ? stages.find((s) => s.id === stageId) : null) || stages[0];
@@ -999,7 +942,7 @@ export class WorkspaceDetailComponent implements OnInit {
                 this.selectedStage.set(stage);
 
                 if (!matchId) return;
-                this.workspaceService.getMatches(ws.id, eventId, competitionId, stage.id).subscribe({
+                this.competitionService.getMatches(ws.id, eventId, competitionId, stage.id).subscribe({
                   next: (matches) => {
                     this.matches.set(matches);
                     const m = matches.find((match) => match.id === matchId);
@@ -1030,50 +973,6 @@ export class WorkspaceDetailComponent implements OnInit {
     this.workspaceService.getRoles(workspaceId).subscribe({
       next: (roles) => this.roles.set(roles),
       error: (err) => console.error('Failed to load roles', err),
-    });
-  }
-
-  async deleteWorkspace() {
-    const ws = this.workspace();
-    if (!ws) return;
-    const confirmed = await this.uiService.confirm({
-      title: 'Delete Workspace',
-      message: `Are you sure you want to delete "${ws.name}"? This cannot be undone.`,
-      confirmText: 'Delete',
-      type: 'danger',
-    });
-    if (!confirmed) return;
-    this.workspaceService.remove(ws.id).subscribe({
-      next: () => {
-        this.uiService.success(`Workspace "${ws.name}" deleted successfully.`);
-        this.router.navigate(['/workspaces']);
-      },
-      error: (err) => this.uiService.error(err.error?.message ?? 'Failed to delete workspace.'),
-    });
-  }
-
-  onSaveSettings() {
-    const name = this.editName().trim();
-    const description = this.editDescription().trim();
-    const ws = this.workspace();
-    if (!ws || !name) return;
-
-    this.isSavingSettings.set(true);
-    this.settingsError.set('');
-    this.settingsSuccess.set('');
-
-    const logoUrl = this.editLogoUrl().trim();
-
-    this.workspaceService.update(ws.id, { name, description, logoUrl: logoUrl || null }).subscribe({
-      next: (updatedWs) => {
-        this.isSavingSettings.set(false);
-        this.workspace.set(updatedWs);
-        this.settingsSuccess.set('Workspace settings updated successfully!');
-      },
-      error: (err) => {
-        this.isSavingSettings.set(false);
-        this.settingsError.set(err.error?.message ?? 'Failed to update workspace settings.');
-      }
     });
   }
 
@@ -1259,7 +1158,7 @@ export class WorkspaceDetailComponent implements OnInit {
   // ── Venues CRUD ────────────────────────────────────────────────────────────
 
   loadVenues(workspaceId: string) {
-    this.workspaceService.getVenues(workspaceId).subscribe({
+    this.venueService.getVenues(workspaceId).subscribe({
       next: (venues) => this.venues.set(venues),
       error: (err) => console.error('Failed to load venues', err),
     });
@@ -1267,293 +1166,27 @@ export class WorkspaceDetailComponent implements OnInit {
 
   onAddVenue() {
     this.editingVenue.set(null);
-    this.newVenueName.set('');
-    this.newVenueLocation.set('');
-    this.newVenueCapacity.set(null);
-    this.newVenueImageUrl.set('');
-    this.venueCreateError.set('');
-    this.venueCreateSuccess.set('');
     this.isVenueModalOpen.set(true);
-
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          this.initMap(position.coords.latitude, position.coords.longitude);
-        },
-        () => {
-          this.initMap();
-        }
-      );
-    } else {
-      this.initMap();
-    }
-  }
-
-  onCreateVenue() {
-    const name = this.newVenueName().trim();
-    const location = this.newVenueLocation().trim();
-    const capacity = this.newVenueCapacity();
-    const imageUrl = this.newVenueImageUrl().trim();
-    const ws = this.workspace();
-    if (!ws || !name) return;
-
-    this.isCreatingVenue.set(true);
-    this.venueCreateError.set('');
-    this.venueCreateSuccess.set('');
-
-    const payload: any = { name };
-    if (location) payload.location = location;
-    if (capacity !== null && capacity !== undefined) payload.capacity = capacity;
-    if (imageUrl) payload.imageUrl = imageUrl;
-
-    this.workspaceService.createVenue(ws.id, payload).subscribe({
-      next: (venue) => {
-        this.isCreatingVenue.set(false);
-        this.venueCreateSuccess.set(`Venue "${venue.name}" registered successfully!`);
-        this.newVenueName.set('');
-        this.newVenueLocation.set('');
-        this.newVenueCapacity.set(null);
-        this.newVenueImageUrl.set('');
-        this.venues.update(prev => [...prev, venue]);
-        setTimeout(() => this.closeVenueModal(), 1000);
-      },
-      error: (err) => {
-        this.isCreatingVenue.set(false);
-        this.venueCreateError.set(err.error?.message ?? 'Failed to create venue.');
-      }
-    });
   }
 
   onEditVenue(venue: Venue) {
     this.editingVenue.set(venue);
-    this.editVenueName.set(venue.name);
-    this.editVenueLocation.set(venue.location ?? '');
-    this.editVenueCapacity.set(venue.capacity);
-    this.editVenueImageUrl.set(venue.imageUrl ?? '');
-    this.venueUpdateError.set('');
-    this.venueUpdateSuccess.set('');
     this.isVenueModalOpen.set(true);
-
-    const coordsMatch = venue.location?.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
-    if (coordsMatch) {
-      const lat = parseFloat(coordsMatch[1]);
-      const lng = parseFloat(coordsMatch[2]);
-      this.initMap(lat, lng);
-    } else if (venue.location) {
-      this.geocodeAndCenterMap(venue.location);
-    } else {
-      this.initMap();
-    }
-  }
-
-  onCancelEditVenue() {
-    this.closeVenueModal();
   }
 
   closeVenueModal() {
     this.isVenueModalOpen.set(false);
     this.editingVenue.set(null);
-    this.venueCreateError.set('');
-    this.venueCreateSuccess.set('');
-    this.venueUpdateError.set('');
-    this.venueUpdateSuccess.set('');
-    this.newVenueImageUrl.set('');
-    this.editVenueImageUrl.set('');
-    if (this.map) {
-      try {
-        this.map.remove();
-      } catch (e) {
-        console.error(e);
-      }
-      this.map = null;
-      this.marker = null;
+  }
+
+  onVenueSaved(savedVenue: Venue) {
+    const isEdit = this.venues().some(v => v.id === savedVenue.id);
+    if (isEdit) {
+      this.venues.update(prev => prev.map(v => v.id === savedVenue.id ? savedVenue : v));
+      this.matches.update(prevMatches => prevMatches.map(m => m.venueId === savedVenue.id ? { ...m, venue: savedVenue } : m));
+    } else {
+      this.venues.update(prev => [...prev, savedVenue]);
     }
-  }
-
-  initMap(latitude?: number, longitude?: number) {
-    if (this.map) {
-      try {
-        this.map.remove();
-      } catch (e) {
-        console.error(e);
-      }
-      this.map = null;
-      this.marker = null;
-    }
-
-    const lat = latitude ?? 51.505;
-    const lng = longitude ?? -0.09;
-    const zoom = latitude && longitude ? 15 : 13;
-
-    const mapEl = document.getElementById('venue-map');
-    if (!mapEl) {
-      setTimeout(() => this.initMap(latitude, longitude), 100);
-      return;
-    }
-
-    try {
-      this.map = L.map('venue-map').setView([lat, lng], zoom);
-
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(this.map);
-
-      // Fix default Leaflet marker icon paths
-      const DefaultIcon = L.icon({
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-      });
-
-      this.marker = L.marker([lat, lng], { draggable: true, icon: DefaultIcon }).addTo(this.map);
-
-      const updateCoords = (newLat: number, newLng: number) => {
-        this.reverseGeocode(newLat, newLng);
-      };
-
-      this.marker.on('dragend', (event: any) => {
-        const markerPos = event.target.getLatLng();
-        updateCoords(markerPos.lat, markerPos.lng);
-      });
-
-      this.map.on('click', (event: any) => {
-        const clickedPos = event.latlng;
-        this.marker.setLatLng(clickedPos);
-        updateCoords(clickedPos.lat, clickedPos.lng);
-      });
-    } catch (e) {
-      console.error('Error initializing map:', e);
-    }
-  }
-
-  reverseGeocode(lat: number, lng: number) {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
-    fetch(url, {
-      headers: {
-        'Accept-Language': 'en'
-      }
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.display_name) {
-          const address = data.display_name;
-          if (this.editingVenue()) {
-            this.editVenueLocation.set(address);
-          } else {
-            this.newVenueLocation.set(address);
-          }
-        } else {
-          const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-          if (this.editingVenue()) {
-            this.editVenueLocation.set(coords);
-          } else {
-            this.newVenueLocation.set(coords);
-          }
-        }
-      })
-      .catch(err => {
-        console.error('Reverse geocoding failed:', err);
-        const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-        if (this.editingVenue()) {
-          this.editVenueLocation.set(coords);
-        } else {
-          this.newVenueLocation.set(coords);
-        }
-      });
-  }
-
-  geocodeAndCenterMap(query: string) {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
-    fetch(url, {
-      headers: {
-        'Accept-Language': 'en'
-      }
-    })
-      .then(res => res.json())
-      .then(results => {
-        if (results && results.length > 0) {
-          const lat = parseFloat(results[0].lat);
-          const lng = parseFloat(results[0].lon);
-          this.initMap(lat, lng);
-        } else {
-          this.initMap();
-        }
-      })
-      .catch(err => {
-        console.error('Geocoding failed:', err);
-        this.initMap();
-      });
-  }
-
-  searchMapLocation(query: string) {
-    if (!query.trim()) return;
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
-    fetch(url, {
-      headers: {
-        'Accept-Language': 'en'
-      }
-    })
-      .then(res => res.json())
-      .then(results => {
-        if (results && results.length > 0) {
-          const lat = parseFloat(results[0].lat);
-          const lng = parseFloat(results[0].lon);
-          
-          if (this.map && this.marker) {
-            this.map.setView([lat, lng], 15);
-            this.marker.setLatLng([lat, lng]);
-            if (this.editingVenue()) {
-              this.editVenueLocation.set(results[0].display_name);
-            } else {
-              this.newVenueLocation.set(results[0].display_name);
-            }
-          } else {
-            this.initMap(lat, lng);
-          }
-        } else {
-          this.uiService.error('Location not found. Please try a different search.');
-        }
-      })
-      .catch(err => {
-        console.error('Geocoding search failed:', err);
-        this.uiService.error('Failed to search location.');
-      });
-  }
-
-  onUpdateVenue() {
-    const name = this.editVenueName().trim();
-    const location = this.editVenueLocation().trim();
-    const capacity = this.editVenueCapacity();
-    const imageUrl = this.editVenueImageUrl().trim();
-    const ws = this.workspace();
-    const venue = this.editingVenue();
-    if (!ws || !venue || !name) return;
-
-    this.isUpdatingVenue.set(true);
-    this.venueUpdateError.set('');
-    this.venueUpdateSuccess.set('');
-
-    const payload: any = { name };
-    payload.location = location || null;
-    payload.capacity = capacity !== null && capacity !== undefined ? capacity : null;
-    payload.imageUrl = imageUrl || null;
-
-    this.workspaceService.updateVenue(ws.id, venue.id, payload).subscribe({
-      next: (updated) => {
-        this.isUpdatingVenue.set(false);
-        this.venueUpdateSuccess.set(`Venue updated successfully!`);
-        this.venues.update(prev => prev.map(v => v.id === venue.id ? updated : v));
-        this.matches.update(prevMatches => prevMatches.map(m => m.venueId === venue.id ? { ...m, venue: updated } : m));
-        setTimeout(() => this.closeVenueModal(), 1000);
-      },
-      error: (err) => {
-        this.isUpdatingVenue.set(false);
-        this.venueUpdateError.set(err.error?.message ?? 'Failed to update venue.');
-      }
-    });
   }
 
   async onDeleteVenue(venue: Venue) {
@@ -1567,7 +1200,7 @@ export class WorkspaceDetailComponent implements OnInit {
     });
     if (!confirmed) return;
 
-    this.workspaceService.removeVenue(ws.id, venue.id).subscribe({
+    this.venueService.removeVenue(ws.id, venue.id).subscribe({
       next: () => {
         this.venues.update(prev => prev.filter(v => v.id !== venue.id));
         this.matches.update(prevMatches => prevMatches.map(m => m.venueId === venue.id ? { ...m, venueId: null, venue: null } : m));
@@ -1580,342 +1213,48 @@ export class WorkspaceDetailComponent implements OnInit {
   // ── Teams CRUD ─────────────────────────────────────────────────────────────
 
   loadTeams(workspaceId: string) {
-    this.workspaceService.getTeams(workspaceId).subscribe({
+    this.teamService.getTeams(workspaceId).subscribe({
       next: (teams) => this.teams.set(teams),
       error: (err) => console.error('Failed to load teams', err),
     });
   }
 
-  onViewTeamDetails(team: Team) {
-    const ws = this.workspace();
-    if (!ws) return;
-    this.isLoadingTeamStats.set(true);
-    this.workspaceService.getTeamStats(ws.id, team.id).subscribe({
-      next: (stats) => {
-        this.selectedTeamForDetails.set(stats);
-        this.activeTeamDetailTab.set('overview');
-        this.isLoadingTeamStats.set(false);
-      },
-      error: (err) => {
-        this.isLoadingTeamStats.set(false);
-        this.uiService.error('Failed to load team statistics.');
-      }
-    });
-  }
-
-  onBackToTeams() {
-    this.selectedTeamForDetails.set(null);
-  }
-
   onAddTeam() {
     this.editingTeam.set(null);
-    this.newTeamName.set('');
-    this.newTeamCode.set('');
-    this.newTeamDescription.set('');
-    this.newTeamLogoUrl.set('');
-    this.newTeamPrimaryColor.set('#7c3aed');
-    this.newTeamSecondaryColor.set('#4f46e5');
-    this.teamCreateError.set('');
-    this.teamCreateSuccess.set('');
     this.isTeamModalOpen.set(true);
-  }
-
-  onCreateTeam() {
-    const name = this.newTeamName().trim();
-    const code = this.newTeamCode().trim().toUpperCase();
-    const description = this.newTeamDescription().trim();
-    const logoUrl = this.newTeamLogoUrl().trim();
-    const primaryColor = this.newTeamPrimaryColor().trim();
-    const secondaryColor = this.newTeamSecondaryColor().trim();
-    const ws = this.workspace();
-    if (!ws || !name || !code) return;
-
-    this.isCreatingTeam.set(true);
-    this.teamCreateError.set('');
-    this.teamCreateSuccess.set('');
-
-    this.workspaceService.createTeam(ws.id, name, code, description || undefined, logoUrl || undefined, primaryColor || undefined, secondaryColor || undefined).subscribe({
-      next: (team) => {
-        this.isCreatingTeam.set(false);
-        this.teamCreateSuccess.set(`Team "${team.name}" registered successfully!`);
-        this.newTeamName.set('');
-        this.newTeamCode.set('');
-        this.newTeamDescription.set('');
-        this.newTeamLogoUrl.set('');
-        this.newTeamPrimaryColor.set('#7c3aed');
-        this.newTeamSecondaryColor.set('#4f46e5');
-        this.teams.update(prev => [...prev, team]);
-        setTimeout(() => this.closeTeamModal(), 1000);
-      },
-      error: (err) => {
-        this.isCreatingTeam.set(false);
-        this.teamCreateError.set(err.error?.message ?? 'Failed to create team.');
-      }
-    });
   }
 
   onEditTeam(team: Team) {
     this.editingTeam.set(team);
-    this.editTeamName.set(team.name);
-    this.editTeamCode.set(team.code ?? '');
-    this.editTeamDescription.set(team.description ?? '');
-    this.editTeamLogoUrl.set(team.logoUrl ?? '');
-    this.editTeamPrimaryColor.set(team.primaryColor ?? '#7c3aed');
-    this.editTeamSecondaryColor.set(team.secondaryColor ?? '#4f46e5');
-    this.teamUpdateError.set('');
-    this.teamUpdateSuccess.set('');
     this.isTeamModalOpen.set(true);
-  }
-
-  onCancelEditTeam() {
-    this.closeTeamModal();
   }
 
   closeTeamModal() {
     this.isTeamModalOpen.set(false);
     this.editingTeam.set(null);
-    this.teamCreateError.set('');
-    this.teamCreateSuccess.set('');
-    this.teamUpdateError.set('');
-    this.teamUpdateSuccess.set('');
   }
 
-  onUpdateTeam() {
-    const name = this.editTeamName().trim();
-    const code = this.editTeamCode().trim().toUpperCase();
-    const description = this.editTeamDescription().trim();
-    const logoUrl = this.editTeamLogoUrl().trim();
-    const primaryColor = this.editTeamPrimaryColor().trim();
-    const secondaryColor = this.editTeamSecondaryColor().trim();
-    const ws = this.workspace();
-    const team = this.editingTeam();
-    if (!ws || !team || !name || !code) return;
-
-    this.isUpdatingTeam.set(true);
-    this.teamUpdateError.set('');
-    this.teamUpdateSuccess.set('');
-
-    this.workspaceService.updateTeam(ws.id, team.id, name, code, description || undefined, logoUrl || undefined, primaryColor || undefined, secondaryColor || undefined).subscribe({
-      next: (updated) => {
-        this.isUpdatingTeam.set(false);
-        this.teamUpdateSuccess.set(`Team updated successfully!`);
-        this.teams.update(prev => prev.map(t => t.id === team.id ? updated : t));
-        setTimeout(() => this.closeTeamModal(), 1000);
-      },
-      error: (err) => {
-        this.isUpdatingTeam.set(false);
-        this.teamUpdateError.set(err.error?.message ?? 'Failed to update team.');
-      }
-    });
-  }
-
-  openBulkModal() {
-    this.bulkImportTeams.set([]);
-    this.bulkImportError.set('');
-    this.bulkImportSuccess.set('');
-    this.bulkImportProgress.set(0);
-    this.isImportingBulk.set(false);
-    this.isBulkModalOpen.set(true);
-  }
-
-  closeBulkModal() {
-    this.isBulkModalOpen.set(false);
-    this.bulkImportTeams.set([]);
-    this.bulkImportError.set('');
-    this.bulkImportSuccess.set('');
-    this.bulkImportProgress.set(0);
-    this.isImportingBulk.set(false);
-  }
-
-  async downloadTemplate() {
-    const XLSX = await import('xlsx-js-style') as any;
-    
-    // Create the structure with cell objects that have styles
-    const ws: any = {
-      '!ref': 'A1:D3',
-      
-      // Row 1: Field values (bold)
-      'A1': { v: 'Name', t: 's', s: { font: { bold: true } } },
-      'B1': { v: 'Code', t: 's', s: { font: { bold: true } } },
-      'C1': { v: 'Description', t: 's', s: { font: { bold: true } } },
-      'D1': { v: 'LogoUrl', t: 's', s: { font: { bold: true } } },
-      
-      // Row 2: Required or Optional (dark grey color: #4B525D)
-      'A2': { v: '#Required', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-      'B2': { v: '#Required', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-      'C2': { v: '#Optional', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-      'D2': { v: '#Optional', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-      
-      // Row 3: eg. (italic)
-      'A3': { v: 'eg. Warriors FC', t: 's', s: { font: { italic: true } } },
-      'B3': { v: 'eg. WAR', t: 's', s: { font: { italic: true } } },
-      'C3': { v: 'eg. A passionate local football club.', t: 's', s: { font: { italic: true } } },
-      'D3': { v: 'eg. https://example.com/logo.png', t: 's', s: { font: { italic: true } } }
-    };
-
-    // Auto-fit or define column widths to prevent truncation
-    ws['!cols'] = [
-      { wch: 22 }, // Column A width (Name)
-      { wch: 15 }, // Column B width (Code)
-      { wch: 42 }, // Column C width (Description)
-      { wch: 42 }  // Column D width (LogoUrl)
-    ];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Teams Template');
-    XLSX.writeFile(wb, 'teams_import_template.xlsx');
-  }
-
-  onExcelUpload(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (!input.files || input.files.length === 0) return;
-    const file = input.files[0];
-    const reader = new FileReader();
-    reader.onload = async (e: any) => {
-      try {
-        const XLSX = await import('xlsx');
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
-        
-        // Map and validate rows, filtering out instructions and examples
-        const parsedTeams = json.map((row: any) => {
-          const nameKey = Object.keys(row).find(k => k.toLowerCase() === 'name') || 'Name';
-          const codeKey = Object.keys(row).find(k => k.toLowerCase() === 'code') || 'Code';
-          const descKey = Object.keys(row).find(k => k.toLowerCase() === 'description') || 'Description';
-          const logoKey = Object.keys(row).find(k => k.toLowerCase() === 'logourl' || k.toLowerCase() === 'logo') || 'LogoUrl';
-          
-          const name = (row[nameKey] || '').toString().trim();
-          const code = (row[codeKey] || '').toString().trim();
-          const description = (row[descKey] || '').toString().trim();
-          const logoUrl = (row[logoKey] || '').toString().trim();
-
-          let status = 'pending';
-          let error = '';
-
-          if (!name) {
-            status = 'failed';
-            error = 'Team Name is missing';
-          } else {
-            const nameExists = this.teams().some(t => t.name.toLowerCase() === name.toLowerCase());
-            const codeExists = code && this.teams().some(t => t.code && t.code.toUpperCase() === code.toUpperCase());
-
-            if (nameExists) {
-              status = 'exist';
-              error = 'Team Name already registered';
-            } else if (codeExists) {
-              status = 'exist';
-              error = 'Team Code already registered';
-            }
-          }
-
-          return {
-            name,
-            code,
-            description,
-            logoUrl,
-            status,
-            error
-          };
-        }).filter(t => {
-          if (!t.name) return false;
-          
-          // Exclude template metadata/example rows
-          const lowerName = t.name.toLowerCase();
-          if (lowerName === '#required' || lowerName === 'required') return false;
-          if (lowerName.startsWith('eg.')) return false;
-          if (lowerName.startsWith('eg ')) return false;
-          
-          return true;
-        });
-        
-        this.bulkImportTeams.set(parsedTeams);
-        this.bulkImportError.set('');
-        if (parsedTeams.length === 0) {
-          this.bulkImportError.set('No valid teams found in the spreadsheet. Make sure you have a "Name" column.');
+  onTeamSaved(savedTeam: Team) {
+    const isEdit = this.teams().some(t => t.id === savedTeam.id);
+    if (isEdit) {
+      this.teams.update(prev => prev.map(t => t.id === savedTeam.id ? savedTeam : t));
+      this.matches.update(prevMatches => prevMatches.map(m => {
+        let updated = { ...m };
+        if (m.homeTeamId === savedTeam.id) {
+          updated.homeTeam = savedTeam;
         }
-      } catch (err) {
-        console.error('Failed to parse file', err);
-        this.bulkImportError.set('Failed to parse spreadsheet. Please ensure it is a valid format.');
-      }
-    };
-    reader.readAsArrayBuffer(file);
-    input.value = '';
+        if (m.awayTeamId === savedTeam.id) {
+          updated.awayTeam = savedTeam;
+        }
+        return updated;
+      }));
+    } else {
+      this.teams.update(prev => [...prev, savedTeam]);
+    }
   }
 
-  async onConfirmBulkImport() {
-    const ws = this.workspace();
-    const teamsToImport = [...this.bulkImportTeams()];
-    if (!ws || teamsToImport.length === 0) return;
-
-    this.isImportingBulk.set(true);
-    this.bulkImportProgress.set(0);
-    this.bulkImportError.set('');
-    this.bulkImportSuccess.set('');
-
-    let successCount = 0;
-    let failCount = 0;
-    let existCount = 0;
-
-    for (let i = 0; i < teamsToImport.length; i++) {
-      const item = teamsToImport[i];
-
-      if (item.status === 'failed') {
-        failCount++;
-        this.bulkImportProgress.set(Math.round(((i + 1) / teamsToImport.length) * 100));
-        continue;
-      }
-      if (item.status === 'exist') {
-        existCount++;
-        this.bulkImportProgress.set(Math.round(((i + 1) / teamsToImport.length) * 100));
-        continue;
-      }
-
-      try {
-        await new Promise<void>((resolve) => {
-          const finalCode = item.code || item.name.substring(0, 3).toUpperCase() + Math.floor(100 + Math.random() * 900);
-          this.workspaceService.createTeam(ws.id, item.name, finalCode, item.description || undefined, item.logoUrl || undefined).subscribe({
-            next: (team) => {
-              this.teams.update(prev => [...prev, team]);
-              item.status = 'success';
-              item.error = '';
-              successCount++;
-              this.bulkImportTeams.set([...teamsToImport]);
-              resolve();
-            },
-            error: (err) => {
-              const errMsg = err.error?.message ?? 'Unknown error';
-              if (errMsg.toLowerCase().includes('already registered') || errMsg.toLowerCase().includes('unique') || err.status === 409) {
-                item.status = 'exist';
-                item.error = 'Team Code/Name already registered';
-                existCount++;
-              } else {
-                item.status = 'failed';
-                item.error = errMsg;
-                failCount++;
-              }
-              this.bulkImportTeams.set([...teamsToImport]);
-              resolve();
-            }
-          });
-        });
-      } catch (err) {
-        item.status = 'failed';
-        item.error = 'Import failed';
-        failCount++;
-        this.bulkImportTeams.set([...teamsToImport]);
-      }
-      this.bulkImportProgress.set(Math.round(((i + 1) / teamsToImport.length) * 100));
-    }
-
-    this.isImportingBulk.set(false);
-    if (failCount === 0 && existCount === 0) {
-      this.bulkImportSuccess.set(`Successfully imported all ${successCount} teams!`);
-    } else {
-      this.bulkImportSuccess.set(`Import finished: ${successCount} successful, ${existCount} already existed, ${failCount} failed.`);
-    }
+  onTeamsImported(importedList: Team[]) {
+    this.teams.update(prev => [...prev, ...importedList]);
   }
 
   async onDeleteTeam(team: Team) {
@@ -1929,9 +1268,21 @@ export class WorkspaceDetailComponent implements OnInit {
     });
     if (!confirmed) return;
 
-    this.workspaceService.removeTeam(ws.id, team.id).subscribe({
+    this.teamService.removeTeam(ws.id, team.id).subscribe({
       next: () => {
         this.teams.update(prev => prev.filter(t => t.id !== team.id));
+        this.matches.update(prevMatches => prevMatches.map(m => {
+          let updated = { ...m };
+          if (m.homeTeamId === team.id) {
+            updated.homeTeamId = null;
+            updated.homeTeam = null;
+          }
+          if (m.awayTeamId === team.id) {
+            updated.awayTeamId = null;
+            updated.awayTeam = null;
+          }
+          return updated;
+        }));
         this.uiService.success(`Team "${team.name}" deleted successfully.`);
       },
       error: (err) => {
@@ -1943,40 +1294,19 @@ export class WorkspaceDetailComponent implements OnInit {
   // ── Players CRUD ───────────────────────────────────────────────────────────
 
   loadPlayers(workspaceId: string) {
-    this.workspaceService.getPlayers(workspaceId).subscribe({
+    this.playerService.getPlayers(workspaceId).subscribe({
       next: (players) => this.players.set(players),
       error: (err) => console.error('Failed to load players', err),
     });
   }
 
-  onViewPlayerDetails(player: Player) {
-    const ws = this.workspace();
-    if (!ws) return;
-    this.isLoadingPlayerStats.set(true);
-    this.workspaceService.getPlayerStats(ws.id, player.id).subscribe({
-      next: (stats) => {
-        this.selectedPlayerForDetails.set(stats);
-        this.activePlayerDetailTab.set('overview');
-        this.isLoadingPlayerStats.set(false);
-      },
-      error: (err) => {
-        this.isLoadingPlayerStats.set(false);
-        this.uiService.error('Failed to load player statistics.');
-      }
-    });
-  }
-
-  onBackToPlayers() {
-    this.selectedPlayerForDetails.set(null);
-  }
-
   onAddPlayer() {
     this.editingPlayer.set(null);
-    this.newPlayerUserId.set('');
-    this.newPlayerJerseyNumber.set('');
-    this.newPlayerTeamId.set('');
-    this.playerCreateError.set('');
-    this.playerCreateSuccess.set('');
+    this.isPlayerModalOpen.set(true);
+  }
+
+  onEditPlayer(player: Player) {
+    this.editingPlayer.set(player);
     this.isPlayerModalOpen.set(true);
   }
 
@@ -1985,475 +1315,31 @@ export class WorkspaceDetailComponent implements OnInit {
     this.editingPlayer.set(null);
   }
 
-  openPlayerBulkModal() {
-    this.bulkImportPlayers.set([]);
-    this.playerBulkImportProgress.set(0);
-    this.playerBulkImportError.set('');
-    this.playerBulkImportSuccess.set('');
-    this.isPlayerBulkModalOpen.set(true);
-  }
-
-  closePlayerBulkModal() {
-    this.isPlayerBulkModalOpen.set(false);
-  }
-
-  onCreatePlayer() {
-    const userId = this.newPlayerUserId();
-    const jerseyNumber = this.newPlayerJerseyNumber().trim();
-    const teamId = this.newPlayerTeamId();
-    const ws = this.workspace();
-    if (!ws || !userId || !teamId) return;
-
-    this.isCreatingPlayer.set(true);
-    this.playerCreateError.set('');
-    this.playerCreateSuccess.set('');
-
-    const payload = {
-      userId,
-      teamId,
-      ...(jerseyNumber && { jerseyNumber }),
-    };
-
-    this.workspaceService.createPlayer(ws.id, payload).subscribe({
-      next: (player) => {
-        this.isCreatingPlayer.set(false);
-        this.playerCreateSuccess.set(`Player "${player.user.username}" registered successfully!`);
-        this.players.update(prev => [...prev, player]);
-        setTimeout(() => this.closePlayerModal(), 1500);
-      },
-      error: (err) => {
-        this.isCreatingPlayer.set(false);
-        this.playerCreateError.set(err.error?.message ?? 'Failed to register player.');
-      }
-    });
-  }
-
-  onEditPlayer(player: Player) {
-    this.editingPlayer.set(player);
-    this.editPlayerJerseyNumber.set(player.jerseyNumber ?? '');
-    this.editPlayerTeamId.set(player.teamId);
-    this.playerUpdateError.set('');
-    this.playerUpdateSuccess.set('');
-    this.isPlayerModalOpen.set(true);
-  }
-
-  onCancelEditPlayer() {
-    this.closePlayerModal();
-  }
-
-  onUpdatePlayer() {
-    const jerseyNumber = this.editPlayerJerseyNumber().trim();
-    const teamId = this.editPlayerTeamId();
-    const ws = this.workspace();
-    const player = this.editingPlayer();
-    if (!ws || !player || !teamId) return;
-
-    this.isUpdatingPlayer.set(true);
-    this.playerUpdateError.set('');
-    this.playerUpdateSuccess.set('');
-
-    const payload = {
-      teamId,
-      jerseyNumber: jerseyNumber || undefined,
-    };
-
-    this.workspaceService.updatePlayer(ws.id, player.id, payload).subscribe({
-      next: (updated) => {
-        this.isUpdatingPlayer.set(false);
-        this.playerUpdateSuccess.set(`Player updated successfully!`);
-        this.players.update(prev => prev.map(p => p.id === player.id ? updated : p));
-        setTimeout(() => this.closePlayerModal(), 1500);
-      },
-      error: (err) => {
-        this.isUpdatingPlayer.set(false);
-        this.playerUpdateError.set(err.error?.message ?? 'Failed to update player.');
-      }
-    });
-  }
-
-  openMemberBulkModal() {
-    this.bulkImportMembersList.set([]);
-    this.memberBulkImportProgress.set(0);
-    this.memberBulkImportPassword.set('');
-    this.memberBulkImportError.set('');
-    this.memberBulkImportSuccess.set('');
-    this.showBulkImportPassword.set(false);
-    this.isMemberBulkModalOpen.set(true);
-  }
-
-  closeMemberBulkModal() {
-    this.isMemberBulkModalOpen.set(false);
-  }
-
-  async downloadMemberTemplate() {
-    try {
-      const XLSX = await import('xlsx-js-style') as any;
-      const ws: any = {
-        '!ref': 'A1:B3',
-        'A1': { v: 'Username', t: 's', s: { font: { bold: true } } },
-        'B1': { v: 'Role', t: 's', s: { font: { bold: true } } },
-        'A2': { v: '#Required', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-        'B2': { v: '#Optional (defaults to viewer)', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-        'A3': { v: 'eg. john_doe', t: 's', s: { font: { italic: true } } },
-        'B3': { v: 'eg. referee', t: 's', s: { font: { italic: true } } }
-      };
-      ws['!cols'] = [
-        { wch: 32 },
-        { wch: 25 }
-      ];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Members Template');
-      XLSX.writeFile(wb, 'members_import_template.xlsx');
-    } catch (err) {
-      console.error('Failed to generate template', err);
-    }
-  }
-
-  onMemberExcelUpload(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (!input.files || input.files.length === 0) return;
-    const file = input.files[0];
-    const reader = new FileReader();
-    reader.onload = async (e: any) => {
-      try {
-        const XLSX = await import('xlsx');
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
-
-        const parsedMembers = json.map((row: any) => {
-          const usernameKey = Object.keys(row).find(k => k.toLowerCase() === 'username') || 'Username';
-          const roleKey = Object.keys(row).find(k => k.toLowerCase() === 'role') || 'Role';
-
-          const username = (row[usernameKey] || '').toString().trim();
-          const role = (row[roleKey] || '').toString().trim();
-
-          let status = 'pending';
-          let error = '';
-
-          if (!username) {
-            status = 'failed';
-            error = 'Username is missing';
-          } else {
-            const lowerUser = username.toLowerCase();
-            if (lowerUser.startsWith('#required') || lowerUser === 'required') {
-              return null;
-            }
-            if (lowerUser.startsWith('eg.')) {
-              return null;
-            }
-            const alreadyExists = this.members().some(m => m.user.username.toLowerCase() === lowerUser);
-            if (alreadyExists) {
-              status = 'exist';
-              error = 'Already a member';
-            }
-          }
-
-          return {
-            username,
-            role: role || undefined,
-            status,
-            error
-          };
-        }).filter(Boolean);
-
-        this.bulkImportMembersList.set(parsedMembers);
-        this.memberBulkImportError.set('');
-        if (parsedMembers.length === 0) {
-          this.memberBulkImportError.set('No valid members found in the spreadsheet. Make sure you have a "Username" column.');
-        }
-      } catch (err) {
-        console.error('Failed to parse file', err);
-        this.memberBulkImportError.set('Failed to parse spreadsheet. Please ensure it is a valid format.');
-      }
-    };
-    reader.readAsArrayBuffer(file);
-    input.value = '';
-  }
-
-  onConfirmMemberBulkImport() {
-    const ws = this.workspace();
-    const membersToImport = [...this.bulkImportMembersList()];
-    const password = this.memberBulkImportPassword();
-
-    if (!ws || membersToImport.length === 0) return;
-    if (!password) {
-      this.memberBulkImportError.set('Common password is required for registering new accounts.');
-      return;
-    }
-    if (password.length < 6) {
-      this.memberBulkImportError.set('Password must be at least 6 characters long.');
-      return;
-    }
-    if (!/^(?=.*[A-Z])(?=.*\d).+$/.test(password)) {
-      this.memberBulkImportError.set('Password must contain at least one uppercase letter and one number.');
-      return;
-    }
-
-    this.isImportingMemberBulk.set(true);
-    this.memberBulkImportProgress.set(0);
-    this.memberBulkImportError.set('');
-    this.memberBulkImportSuccess.set('');
-
-    const payload = {
-      password,
-      members: membersToImport.map(m => ({
-        username: m.username,
-        role: m.role
-      }))
-    };
-
-    this.workspaceService.bulkImportMembers(ws.id, payload).subscribe({
-      next: (res) => {
-        this.isImportingMemberBulk.set(false);
-        this.memberBulkImportProgress.set(100);
-
-        let successCount = 0;
-        let failCount = 0;
-
-        membersToImport.forEach(item => {
-          const successItem = res.success.find((s: any) => s.username.toLowerCase() === item.username.toLowerCase());
-          const failedItem = res.failed.find((f: any) => f.username.toLowerCase() === item.username.toLowerCase());
-
-          if (successItem) {
-            item.status = 'success';
-            item.error = '';
-            successCount++;
-          } else if (failedItem) {
-            item.status = 'failed';
-            item.error = failedItem.error;
-            failCount++;
-          }
-        });
-
-        this.bulkImportMembersList.set([...membersToImport]);
-
-        if (failCount === 0) {
-          this.memberBulkImportSuccess.set(`Successfully imported all ${successCount} members!`);
-        } else {
-          this.memberBulkImportSuccess.set(`Import finished: ${successCount} successful, ${failCount} failed.`);
-        }
-
-        this.loadMembers(ws.id);
-      },
-      error: (err) => {
-        this.isImportingMemberBulk.set(false);
-        this.memberBulkImportError.set(err.error?.message ?? 'Bulk import failed.');
-      }
-    });
-  }
-
-  async downloadPlayerTemplate() {
-    try {
-      const XLSX = await import('xlsx-js-style') as any;
-      const ws: any = {
-        '!ref': 'A1:C3',
-        'A1': { v: 'Username', t: 's', s: { font: { bold: true } } },
-        'B1': { v: 'TeamCode', t: 's', s: { font: { bold: true } } },
-        'C1': { v: 'JerseyNumber', t: 's', s: { font: { bold: true } } },
-        'A2': { v: '#Required (must exist on system)', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-        'B2': { v: '#Required', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-        'C2': { v: '#Optional', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
-        'A3': { v: 'eg. john_doe', t: 's', s: { font: { italic: true } } },
-        'B3': { v: 'eg. WAR', t: 's', s: { font: { italic: true } } },
-        'C3': { v: 'eg. 10', t: 's', s: { font: { italic: true } } }
-      };
-      ws['!cols'] = [
-        { wch: 32 },
-        { wch: 15 },
-        { wch: 15 }
-      ];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Players Template');
-      XLSX.writeFile(wb, 'players_import_template.xlsx');
-    } catch (err) {
-      console.error('Failed to generate template', err);
-    }
-  }
-
-  onPlayerExcelUpload(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (!input.files || input.files.length === 0) return;
-    const file = input.files[0];
-    const reader = new FileReader();
-    reader.onload = async (e: any) => {
-      try {
-        const XLSX = await import('xlsx');
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
-
-        const parsedPlayers = json.map((row: any) => {
-          const usernameKey = Object.keys(row).find(k => k.toLowerCase() === 'username') || 'Username';
-          const teamCodeKey = Object.keys(row).find(k => k.toLowerCase() === 'teamcode') || 'TeamCode';
-          const jerseyKey = Object.keys(row).find(k => k.toLowerCase() === 'jerseynumber' || k.toLowerCase() === 'jersey') || 'JerseyNumber';
-
-          const username = (row[usernameKey] || '').toString().trim();
-          const teamCode = (row[teamCodeKey] || '').toString().trim();
-          const jerseyNumber = (row[jerseyKey] || '').toString().trim();
-
-          const member = this.members().find(m => m.user.username.toLowerCase() === username.toLowerCase());
-          const team = this.teams().find(t => t.code && t.code.toUpperCase() === teamCode.toUpperCase());
-
-          let status = 'pending';
-          let error = '';
-
-          if (!username) {
-            status = 'failed';
-            error = 'Username is missing';
-          } else if (!member) {
-            status = 'failed';
-            error = 'User not found in workspace';
-          } else if (!teamCode) {
-            status = 'failed';
-            error = 'Team Code is missing';
-          } else if (!team) {
-            status = 'failed';
-            error = 'Team Code not found';
-          } else {
-            const alreadyExists = this.players().some(p => 
-              p.user.username.toLowerCase() === username.toLowerCase() && 
-              p.teamId === team.id
-            );
-            if (alreadyExists) {
-              status = 'exist';
-              error = 'Already registered in this team';
-            }
-          }
-
-          return {
-            username,
-            teamCode,
-            jerseyNumber,
-            status,
-            error
-          };
-        }).filter(p => {
-          if (!p.username) return false;
-          const lowerUser = p.username.toLowerCase();
-          if (lowerUser.startsWith('#required') || lowerUser === 'required') return false;
-          if (lowerUser.startsWith('eg.')) return false;
-          if (lowerUser.startsWith('eg ')) return false;
-          return true;
-        });
-
-        this.bulkImportPlayers.set(parsedPlayers);
-        this.playerBulkImportError.set('');
-        if (parsedPlayers.length === 0) {
-          this.playerBulkImportError.set('No valid players found in the spreadsheet. Make sure you have a "Username" column.');
-        }
-      } catch (err) {
-        console.error('Failed to parse file', err);
-        this.playerBulkImportError.set('Failed to parse spreadsheet. Please ensure it is a valid format.');
-      }
-    };
-    reader.readAsArrayBuffer(file);
-    input.value = '';
-  }
-
-  async onConfirmPlayerBulkImport() {
-    const ws = this.workspace();
-    const playersToImport = [...this.bulkImportPlayers()];
-    if (!ws || playersToImport.length === 0) return;
-
-    this.isImportingPlayerBulk.set(true);
-    this.playerBulkImportProgress.set(0);
-    this.playerBulkImportError.set('');
-    this.playerBulkImportSuccess.set('');
-
-    let successCount = 0;
-    let failCount = 0;
-    let existCount = 0;
-
-    for (let i = 0; i < playersToImport.length; i++) {
-      const item = playersToImport[i];
-
-      if (item.status === 'failed') {
-        failCount++;
-        this.playerBulkImportProgress.set(Math.round(((i + 1) / playersToImport.length) * 100));
-        continue;
-      }
-      if (item.status === 'exist') {
-        existCount++;
-        this.playerBulkImportProgress.set(Math.round(((i + 1) / playersToImport.length) * 100));
-        continue;
-      }
-
-      const member = this.members().find(m => m.user.username.toLowerCase() === item.username.toLowerCase());
-      const team = this.teams().find(t => t.code && t.code.toUpperCase() === item.teamCode.toUpperCase());
-
-      if (!member) {
-        item.status = 'failed';
-        item.error = 'User not found in workspace';
-        failCount++;
-        this.bulkImportPlayers.set([...playersToImport]);
-        this.playerBulkImportProgress.set(Math.round(((i + 1) / playersToImport.length) * 100));
-        continue;
-      }
-      if (!team) {
-        item.status = 'failed';
-        item.error = 'Team Code not found';
-        failCount++;
-        this.bulkImportPlayers.set([...playersToImport]);
-        this.playerBulkImportProgress.set(Math.round(((i + 1) / playersToImport.length) * 100));
-        continue;
-      }
-
-      try {
-        await new Promise<void>((resolve) => {
-          const payload = {
-            userId: member.userId,
-            teamId: team.id,
-            ...(item.jerseyNumber && { jerseyNumber: item.jerseyNumber }),
-          };
-
-          this.workspaceService.createPlayer(ws.id, payload).subscribe({
-            next: (player) => {
-              if (!this.players().some(p => p.id === player.id)) {
-                this.players.update(prev => [...prev, player]);
-              }
-              item.status = 'success';
-              item.error = '';
-              successCount++;
-              this.bulkImportPlayers.set([...playersToImport]);
-              resolve();
-            },
-            error: (err) => {
-              const errMsg = err.error?.message ?? 'Unknown error';
-              if (errMsg.toLowerCase().includes('already registered') || err.status === 409) {
-                item.status = 'exist';
-                item.error = 'Already registered in this team';
-                existCount++;
-              } else {
-                item.status = 'failed';
-                item.error = errMsg;
-                failCount++;
-              }
-              this.bulkImportPlayers.set([...playersToImport]);
-              resolve();
-            }
-          });
-        });
-      } catch (err) {
-        item.status = 'failed';
-        item.error = 'Registration failed';
-        failCount++;
-        this.bulkImportPlayers.set([...playersToImport]);
-      }
-      this.playerBulkImportProgress.set(Math.round(((i + 1) / playersToImport.length) * 100));
-    }
-
-    this.isImportingPlayerBulk.set(false);
-    if (failCount === 0 && existCount === 0) {
-      this.playerBulkImportSuccess.set(`Successfully imported all ${successCount} players!`);
+  onPlayerSaved(player: Player) {
+    const exists = this.players().some(p => p.id === player.id);
+    if (exists) {
+      this.players.update(prev => prev.map(p => p.id === player.id ? player : p));
     } else {
-      this.playerBulkImportSuccess.set(`Import finished: ${successCount} successful, ${existCount} already existed, ${failCount} failed.`);
+      this.players.update(prev => [...prev, player]);
     }
   }
+
+  onPlayersImported(importedList: Player[]) {
+    if (importedList && importedList.length > 0) {
+      this.players.update(prev => {
+        const list = [...prev];
+        importedList.forEach(p => {
+          if (!list.some(x => x.id === p.id)) {
+            list.push(p);
+          }
+        });
+        return list;
+      });
+    }
+  }
+
+
+
 
   async onDeletePlayer(player: Player) {
     const ws = this.workspace();
@@ -2466,7 +1352,7 @@ export class WorkspaceDetailComponent implements OnInit {
     });
     if (!confirmed) return;
 
-    this.workspaceService.removePlayer(ws.id, player.id).subscribe({
+    this.playerService.removePlayer(ws.id, player.id).subscribe({
       next: () => {
         this.players.update(prev => prev.filter(p => p.id !== player.id));
         this.uiService.success(`Player "${player.user.username}" deleted successfully.`);
@@ -2477,28 +1363,10 @@ export class WorkspaceDetailComponent implements OnInit {
     });
   }
 
-  // ── Avatars ────────────────────────────────────────────────────────────────
-
-  avatarColor(name: string): string {
-    const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6'];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return colors[Math.abs(hash) % colors.length];
-  }
-
-  initials(name: string): string {
-    if (!name) return '';
-    const parts = name.split(' ');
-    if (parts.length > 1) {
-      return parts.slice(0, 2).map(w => w[0]).join('').toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-  }
-
   // ── Events CRUD ────────────────────────────────────────────────────────────
 
   loadEvents(workspaceId: string) {
-    this.workspaceService.getEvents(workspaceId).subscribe({
+    this.eventService.getEvents(workspaceId).subscribe({
       next: (events) => {
         this.events.set(events);
         this.loadAllCompetitions(workspaceId, events);
@@ -2510,7 +1378,7 @@ export class WorkspaceDetailComponent implements OnInit {
   loadAllCompetitions(workspaceId: string, events: WorkspaceEvent[]) {
     this.allCompetitions.set([]);
     for (const event of events) {
-      this.workspaceService.getCompetitions(workspaceId, event.id).subscribe({
+      this.competitionService.getCompetitions(workspaceId, event.id).subscribe({
         next: (comps) => {
           this.allCompetitions.update(prev => {
             const ids = new Set(prev.map(c => c.id));
@@ -2607,7 +1475,7 @@ export class WorkspaceDetailComponent implements OnInit {
       teamIds: this.selectedEventTeamIds(),
     };
 
-    this.workspaceService.createEvent(ws.id, payload).subscribe({
+    this.eventService.createEvent(ws.id, payload).subscribe({
       next: (event) => {
         this.isCreatingEvent.set(false);
         this.eventCreateSuccess.set(`Event "${event.name}" created successfully!`);
@@ -2663,7 +1531,7 @@ export class WorkspaceDetailComponent implements OnInit {
       teamIds: this.selectedEventTeamIds(),
     };
 
-    this.workspaceService.updateEvent(ws.id, event.id, payload).subscribe({
+    this.eventService.updateEvent(ws.id, event.id, payload).subscribe({
       next: (updated) => {
         this.isUpdatingEvent.set(false);
         this.eventUpdateSuccess.set(`Event updated successfully!`);
@@ -2695,7 +1563,7 @@ export class WorkspaceDetailComponent implements OnInit {
     });
     if (!confirmed) return;
 
-    this.workspaceService.removeEvent(ws.id, event.id).subscribe({
+    this.eventService.removeEvent(ws.id, event.id).subscribe({
       next: () => {
         this.events.update(prev => prev.filter(e => e.id !== event.id));
         this.uiService.success(`Event "${event.name}" deleted successfully.`);
@@ -2734,7 +1602,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const ws = this.workspace();
     if (!ws) return;
     this.isLoadingCompetitions.set(true);
-    this.workspaceService.getCompetitions(ws.id, eventId).subscribe({
+    this.competitionService.getCompetitions(ws.id, eventId).subscribe({
       next: (comps) => {
         this.competitions.set(comps);
         this.isLoadingCompetitions.set(false);
@@ -2749,7 +1617,7 @@ export class WorkspaceDetailComponent implements OnInit {
   loadEventStandings(eventId: string) {
     const ws = this.workspace();
     if (!ws) return;
-    this.workspaceService.getEventStandings(ws.id, eventId).subscribe({
+    this.eventService.getEventStandings(ws.id, eventId).subscribe({
       next: (data) => {
         this.eventStandings.set(data);
       },
@@ -2825,7 +1693,7 @@ export class WorkspaceDetailComponent implements OnInit {
       pointsConfig: pointsConfig.length > 0 ? pointsConfig : null,
     };
 
-    this.workspaceService.createCompetition(ws.id, event.id, payload).subscribe({
+    this.competitionService.createCompetition(ws.id, event.id, payload).subscribe({
       next: (comp) => {
         this.isCreatingCompetition.set(false);
         this.competitionCreateSuccess.set(`Competition "${comp.name}" created successfully!`);
@@ -2876,7 +1744,7 @@ export class WorkspaceDetailComponent implements OnInit {
       pointsConfig: pointsConfig.length > 0 ? pointsConfig : null,
     };
 
-    this.workspaceService.updateCompetition(ws.id, event.id, comp.id, payload).subscribe({
+    this.competitionService.updateCompetition(ws.id, event.id, comp.id, payload).subscribe({
       next: (updated) => {
         this.isUpdatingCompetition.set(false);
         this.competitionUpdateSuccess.set(`Competition updated successfully!`);
@@ -2903,7 +1771,7 @@ export class WorkspaceDetailComponent implements OnInit {
     });
     if (!confirmed) return;
 
-    this.workspaceService.removeCompetition(ws.id, event.id, comp.id).subscribe({
+    this.competitionService.removeCompetition(ws.id, event.id, comp.id).subscribe({
       next: () => {
         this.competitions.update(prev => prev.filter(c => c.id !== comp.id));
         this.allCompetitions.update(prev => prev.filter(c => c.id !== comp.id));
@@ -3087,7 +1955,7 @@ export class WorkspaceDetailComponent implements OnInit {
     if (!comp || !ws || !event) return;
 
     this.isLoadingStats.set(true);
-    this.workspaceService.getCompetitionStats(ws.id, event.id, comp.id).subscribe({
+    this.competitionService.getCompetitionStats(ws.id, event.id, comp.id).subscribe({
       next: (stats) => {
         this.competitionStats.set(stats);
         this.isLoadingStats.set(false);
@@ -3104,7 +1972,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const event = this.selectedEvent();
     if (!ws || !event) return;
     this.isLoadingStages.set(true);
-    this.workspaceService.getStages(ws.id, event.id, competitionId).subscribe({
+    this.competitionService.getStages(ws.id, event.id, competitionId).subscribe({
       next: (stages) => {
         this.stages.set(stages);
         this.isLoadingStages.set(false);
@@ -3124,7 +1992,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const event = this.selectedEvent();
     if (!ws || !event) return;
     this.isLoadingCompetitionTeams.set(true);
-    this.workspaceService.getCompetitionTeams(ws.id, event.id, competitionId).subscribe({
+    this.competitionService.getCompetitionTeams(ws.id, event.id, competitionId).subscribe({
       next: (ct) => {
         this.competitionTeams.set(ct);
         this.isLoadingCompetitionTeams.set(false);
@@ -3145,7 +2013,7 @@ export class WorkspaceDetailComponent implements OnInit {
     this.isAddingTeam.set(true);
     this.addTeamError.set('');
     this.addTeamSuccess.set('');
-    this.workspaceService.addTeamToCompetition(ws.id, event.id, comp.id, teamId).subscribe({
+    this.competitionService.addTeamToCompetition(ws.id, event.id, comp.id, teamId).subscribe({
       next: (entry) => {
         this.isAddingTeam.set(false);
         this.competitionTeams.update(prev => [...prev, entry]);
@@ -3172,7 +2040,7 @@ export class WorkspaceDetailComponent implements OnInit {
       type: 'danger',
     });
     if (!confirmed) return;
-    this.workspaceService.removeTeamFromCompetition(ws.id, event.id, comp.id, entry.teamId).subscribe({
+    this.competitionService.removeTeamFromCompetition(ws.id, event.id, comp.id, entry.teamId).subscribe({
       next: () => {
         this.competitionTeams.update(prev => prev.filter(t => t.id !== entry.id));
         this.uiService.success(`Removed "${entry.team.name}" from competition.`);
@@ -3214,7 +2082,7 @@ export class WorkspaceDetailComponent implements OnInit {
     this.generateFixturesError.set('');
     this.generateFixturesSuccess.set('');
 
-    this.workspaceService.generateFixtures(ws.id, event.id, comp.id).subscribe({
+    this.competitionService.generateFixtures(ws.id, event.id, comp.id).subscribe({
       next: (result) => {
         this.isGeneratingFixtures.set(false);
         this.generateFixturesSuccess.set(
@@ -3267,7 +2135,7 @@ export class WorkspaceDetailComponent implements OnInit {
       config,
     };
 
-    this.workspaceService.createStage(ws.id, event.id, comp.id, payload).subscribe({
+    this.competitionService.createStage(ws.id, event.id, comp.id, payload).subscribe({
       next: (stage) => {
         this.isCreatingStage.set(false);
         this.stageCreateSuccess.set(`Stage "${stage.name}" created successfully!`);
@@ -3345,7 +2213,7 @@ export class WorkspaceDetailComponent implements OnInit {
       config,
     };
 
-    this.workspaceService.updateStage(ws.id, event.id, comp.id, stage.id, payload).subscribe({
+    this.competitionService.updateStage(ws.id, event.id, comp.id, stage.id, payload).subscribe({
       next: (updated) => {
         this.isUpdatingStage.set(false);
         this.stageUpdateSuccess.set(`Stage updated successfully!`);
@@ -3372,7 +2240,7 @@ export class WorkspaceDetailComponent implements OnInit {
     });
     if (!confirmed) return;
 
-    this.workspaceService.removeStage(ws.id, event.id, comp.id, stage.id).subscribe({
+    this.competitionService.removeStage(ws.id, event.id, comp.id, stage.id).subscribe({
       next: () => {
         this.stages.update(prev => prev.filter(s => s.id !== stage.id));
         this.uiService.success(`Stage "${stage.name}" deleted successfully.`);
@@ -3384,7 +2252,6 @@ export class WorkspaceDetailComponent implements OnInit {
   }
 
   // ─── Matches Operations ────────────────────────────────────────────────────
-  footballTimerInterval: any = null;
 
   onSelectStage(stage: CompetitionStage | null) {
     this.selectedStage.set(stage);
@@ -3400,7 +2267,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const comp = this.selectedCompetition();
     if (!ws || !event || !comp) return;
 
-    this.workspaceService.getMatches(ws.id, event.id, comp.id, stage.id).subscribe({
+    this.competitionService.getMatches(ws.id, event.id, comp.id, stage.id).subscribe({
       next: (data) => {
         this.matches.set(data);
       },
@@ -3441,7 +2308,7 @@ export class WorkspaceDetailComponent implements OnInit {
     this.matchCreateError.set('');
     this.matchCreateSuccess.set('');
 
-    this.workspaceService.createMatch(ws.id, event.id, comp.id, stage.id, {
+    this.competitionService.createMatch(ws.id, event.id, comp.id, stage.id, {
       homeTeamId: homeId,
       awayTeamId: awayId,
       venueId: this.newMatchVenueId() || null,
@@ -3479,7 +2346,7 @@ export class WorkspaceDetailComponent implements OnInit {
     });
     if (!confirmed) return;
 
-    this.workspaceService.removeMatch(ws.id, event.id, comp.id, stage.id, match.id).subscribe({
+    this.competitionService.removeMatch(ws.id, event.id, comp.id, stage.id, match.id).subscribe({
       next: () => {
         this.matches.update(prev => prev.filter(m => m.id !== match.id));
         if (this.selectedMatch()?.id === match.id) {
@@ -3502,66 +2369,12 @@ export class WorkspaceDetailComponent implements OnInit {
     }
 
     this.selectedMatch.set(match);
-    this.stopBadmintonTimer();
-    this.badmintonDuration.set(0);
     this.matchLineup.set([]);
     
     if (match) {
       this.socketService.subscribeMatch(match.id);
       this.currentSubscribedMatchId = match.id;
       this.loadMatchLineup(match.id);
-      const sportCode = this.selectedCompetition()?.sport?.code;
-      if (sportCode === 'football' && match.status === 'live') {
-        this.startFootballTimer();
-      } else {
-        this.stopFootballTimer();
-      }
-
-      if (sportCode === 'badminton') {
-        this.badmintonMatchType.set(match.config?.matchType || "Men's Singles");
-        this.badmintonMatchStatus.set(match.liveData?.matchStatus || "Scheduled");
-        this.autoSelectBadmintonPlayers(match);
-      }
-    } else {
-      this.stopFootballTimer();
-    }
-  }
-
-  autoSelectBadmintonPlayers(match: Match) {
-    const live = match.liveData || {};
-    
-    if (live.currentServer) {
-      this.badmintonServer.set(live.currentServer);
-    } else {
-      const homePlayers = this.getPlayersForTeam(match.homeTeamId);
-      if (homePlayers.length > 0) {
-        this.badmintonServer.set(homePlayers[0].user.username);
-      } else {
-        this.badmintonServer.set('');
-      }
-    }
-
-    if (live.currentReceiver) {
-      this.badmintonReceiver.set(live.currentReceiver);
-    } else {
-      const awayPlayers = this.getPlayersForTeam(match.awayTeamId);
-      if (awayPlayers.length > 0) {
-        this.badmintonReceiver.set(awayPlayers[0].user.username);
-      } else {
-        this.badmintonReceiver.set('');
-      }
-    }
-
-    if (live.currentServiceCourt) {
-      this.badmintonServiceCourt.set(live.currentServiceCourt);
-    } else {
-      this.badmintonServiceCourt.set('Right');
-    }
-
-    if (live.serviceNumber) {
-      this.badmintonServiceNumber.set(live.serviceNumber);
-    } else {
-      this.badmintonServiceNumber.set(1);
     }
   }
 
@@ -3612,7 +2425,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const stage = this.selectedStage();
     if (!ws || !event || !comp || !stage) return;
 
-    this.workspaceService.getMatchLineup(ws.id, event.id, comp.id, stage.id, matchId).subscribe({
+    this.competitionService.getMatchLineup(ws.id, event.id, comp.id, stage.id, matchId).subscribe({
       next: (lineup) => this.matchLineup.set(lineup),
       error: (err) => console.error('Failed to load match lineup', err)
     });
@@ -3694,7 +2507,7 @@ export class WorkspaceDetailComponent implements OnInit {
       teamId: item.teamId
     }));
 
-    this.workspaceService.saveMatchLineup(ws.id, event.id, comp.id, stage.id, match.id, payload).subscribe({
+    this.competitionService.saveMatchLineup(ws.id, event.id, comp.id, stage.id, match.id, payload).subscribe({
       next: (updatedLineup) => {
         this.matchLineup.set(updatedLineup);
         this.isLineupModalOpen.set(false);
@@ -3870,14 +2683,6 @@ export class WorkspaceDetailComponent implements OnInit {
     return Math.min(10.0, Math.max(5.0, Math.round(rating * 10) / 10));
   }
 
-  /** Returns a Tailwind-compatible color string for a player rating badge. */
-  getPlayerRatingColor(rating: number | null): string {
-    if (rating === null || rating === undefined) return 'text-slate-500 bg-slate-800/60 border-slate-700/40';
-    if (rating >= 9.0) return 'text-emerald-300 bg-emerald-500/20 border-emerald-500/30';
-    if (rating >= 7.5) return 'text-violet-300 bg-violet-500/20 border-violet-500/30';
-    if (rating >= 6.5) return 'text-amber-300 bg-amber-500/20 border-amber-500/30';
-    return 'text-rose-300 bg-rose-500/20 border-rose-500/30';
-  }
 
 
   getHomePlayersInForm(): any[] {
@@ -3938,2030 +2743,19 @@ export class WorkspaceDetailComponent implements OnInit {
     return teamPlayers;
   }
 
-  // ─── Football Live Actions ─────────────────────────────────────────────────
-  startFootballTimer() {
-    if (this.footballTimerInterval) return;
-    this.footballTimerInterval = setInterval(() => {
-      const match = this.selectedMatch();
-      if (match && match.status === 'live' && match.liveData?.timerRunning) {
-        const live = { ...match.liveData };
-        const halfDurationMinutes = live.halfDurationMinutes || 45;
-        const halfSecs = halfDurationMinutes * 60;
-        
-        if (live.currentHalf === 1) {
-          if ((live.elapsedSeconds ?? 0) >= halfSecs) {
-            live.timerRunning = false;
-            live.elapsedSeconds = halfSecs;
-            this.stopFootballTimer();
-            this.saveFootballLiveData(live);
-            return;
-          }
-        } else if (live.currentHalf === 2) {
-          if ((live.elapsedSeconds ?? 0) >= halfSecs * 2) {
-            live.timerRunning = false;
-            live.elapsedSeconds = halfSecs * 2;
-            this.stopFootballTimer();
-            this.saveFootballLiveData(live);
-            return;
-          }
-        } else if (live.currentHalf === 3) {
-          const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
-          const extra1Limit = halfSecs * 2 + extraHalfMinutes * 60;
-          if ((live.elapsedSeconds ?? 0) >= extra1Limit) {
-            live.timerRunning = false;
-            live.elapsedSeconds = extra1Limit;
-            this.stopFootballTimer();
-            this.saveFootballLiveData(live);
-            return;
-          }
-        } else if (live.currentHalf === 4) {
-          const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
-          const extra2Limit = halfSecs * 2 + (extraHalfMinutes * 2) * 60;
-          if ((live.elapsedSeconds ?? 0) >= extra2Limit) {
-            live.timerRunning = false;
-            live.elapsedSeconds = extra2Limit;
-            this.stopFootballTimer();
-            this.saveFootballLiveData(live);
-            return;
-          }
-        }
-        
-        live.elapsedSeconds = (live.elapsedSeconds ?? 0) + 1;
-        this.selectedMatch.update(m => m ? { ...m, liveData: live } : null);
-      }
-    }, 1000);
+
+  // ─── Live Consoles Handlers ────────────────────────────────────────────────
+  onMatchUpdated(updated: any) {
+    this.selectedMatch.set(updated);
+    this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
   }
 
-  stopFootballTimer() {
-    if (this.footballTimerInterval) {
-      clearInterval(this.footballTimerInterval);
-      this.footballTimerInterval = null;
-    }
-  }
-
-  hasLineupForMatch(match: Match | null): boolean {
-    if (!match) return false;
-    const lineup = this.matchLineup();
-    const homeHas = lineup.some(le => le.teamId === match.homeTeamId && le.isPlaying);
-    const awayHas = lineup.some(le => le.teamId === match.awayTeamId && le.isPlaying);
-    return homeHas && awayHas;
-  }
-
-  onToggleFootballTimer() {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
+  onMatchCompleted() {
     const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    if (match.status !== 'live' && !this.hasLineupForMatch(match)) {
-      this.openLineupModal();
-      return;
+    if (event) {
+      this.loadCompetitions(event.id);
+      this.loadEventStandings(event.id);
     }
-
-    const live = { ...match.liveData };
-    live.timerRunning = !live.timerRunning;
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live,
-      status: 'live',
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-        if (live.timerRunning) this.startFootballTimer();
-        else this.stopFootballTimer();
-      },
-      error: (err) => {
-        const msg = err.error?.message || '';
-        if (msg.toLowerCase().includes('lineup')) {
-          this.openLineupModal();
-        } else {
-          this.uiService.error(msg || 'Failed to update match status.');
-        }
-      }
-    });
-  }
-
-  onStartFootballMatch(halfDurationMinutes: number, enableExtraTime: boolean = false, enablePenaltyShootout: boolean = false, extraTimeHalfDurationMinutes: number = 15) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    if (!this.hasLineupForMatch(match)) {
-      this.openLineupModal();
-      return;
-    }
-
-    const live = {
-      started: true,
-      halfDurationMinutes,
-      enableExtraTime,
-      enablePenaltyShootout,
-      extraTimeHalfDurationMinutes,
-      currentHalf: 1,
-      elapsedSeconds: 0,
-      timerRunning: true,
-      events: []
-    };
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live,
-      status: 'live',
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-        this.startFootballTimer();
-      },
-      error: (err) => {
-        const msg = err.error?.message || '';
-        if (msg.toLowerCase().includes('lineup')) {
-          this.openLineupModal();
-        } else {
-          this.uiService.error(msg || 'Failed to start football match.');
-        }
-      }
-    });
-  }
-
-  onStartSecondHalf() {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    const halfDurationMinutes = live.halfDurationMinutes || 45;
-    live.currentHalf = 2;
-    live.elapsedSeconds = halfDurationMinutes * 60;
-    live.timerRunning = true;
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live,
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-        this.startFootballTimer();
-      }
-    });
-  }
-
-  saveFootballLiveData(live: any) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live,
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  formatFootballTime(seconds: number | undefined | null): string {
-    if (seconds == null) return '00:00';
-    const mm = Math.floor(seconds / 60);
-    const ss = seconds % 60;
-    const mmStr = mm < 10 ? '0' + mm : '' + mm;
-    const ssStr = ss < 10 ? '0' + ss : '' + ss;
-    return `${mmStr}:${ssStr}`;
-  }
-
-  getFootballPeriodStatus(match: Match | null): string {
-    if (!match || !match.liveData?.started) return 'Not Started';
-    const live = match.liveData;
-    const halfSecs = (live.halfDurationMinutes || 45) * 60;
-    if (live.currentHalf === 1) {
-      if ((live.elapsedSeconds ?? 0) >= halfSecs) return 'Half Time';
-      return '1st Half';
-    } else if (live.currentHalf === 2) {
-      if ((live.elapsedSeconds ?? 0) >= halfSecs * 2) {
-        if (live.enableExtraTime && match.homeScore === match.awayScore) {
-          return 'Extra Time Pending';
-        }
-        return 'Full Time';
-      }
-      return '2nd Half';
-    } else if (live.currentHalf === 3) {
-      const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
-      const extra1Limit = halfSecs * 2 + extraHalfMinutes * 60;
-      if ((live.elapsedSeconds ?? 0) >= extra1Limit) return 'Extra Half Time';
-      return '1st Extra Half';
-    } else if (live.currentHalf === 4) {
-      const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
-      const extra2Limit = halfSecs * 2 + (extraHalfMinutes * 2) * 60;
-      if ((live.elapsedSeconds ?? 0) >= extra2Limit) {
-        if (live.enablePenaltyShootout && match.homeScore === match.awayScore) {
-          return 'Penalty Shootout Pending';
-        }
-        return 'Extra Full Time';
-      }
-      return '2nd Extra Half';
-    } else if (live.currentHalf === 5) {
-      return 'Penalty Shootout';
-    }
-    return '';
-  }
-
-  isFootballHalfTime(match: Match | null): boolean {
-    if (!match || !match.liveData?.started) return false;
-    const live = match.liveData;
-    const halfSecs = (live.halfDurationMinutes || 45) * 60;
-    return live.currentHalf === 1 && (live.elapsedSeconds ?? 0) >= halfSecs;
-  }
-
-  isFootballFullTime(match: Match | null): boolean {
-    if (!match || !match.liveData?.started) return false;
-    const live = match.liveData;
-    const halfSecs = (live.halfDurationMinutes || 45) * 60;
-    return live.currentHalf === 2 && (live.elapsedSeconds ?? 0) >= halfSecs * 2;
-  }
-
-  isFootballExtra1Pending(match: Match | null): boolean {
-    if (!match || !match.liveData?.started) return false;
-    const live = match.liveData;
-    const halfSecs = (live.halfDurationMinutes || 45) * 60;
-    return live.currentHalf === 2 && (live.elapsedSeconds ?? 0) >= halfSecs * 2 && live.enableExtraTime && match.homeScore === match.awayScore;
-  }
-
-  isFootballExtra1Time(match: Match | null): boolean {
-    if (!match || !match.liveData?.started) return false;
-    const live = match.liveData;
-    const halfSecs = (live.halfDurationMinutes || 45) * 60;
-    const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
-    const extra1Limit = halfSecs * 2 + extraHalfMinutes * 60;
-    return live.currentHalf === 3 && (live.elapsedSeconds ?? 0) >= extra1Limit;
-  }
-
-  isFootballExtra2Time(match: Match | null): boolean {
-    if (!match || !match.liveData?.started) return false;
-    const live = match.liveData;
-    const halfSecs = (live.halfDurationMinutes || 45) * 60;
-    const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
-    const extra2Limit = halfSecs * 2 + (extraHalfMinutes * 2) * 60;
-    return live.currentHalf === 4 && (live.elapsedSeconds ?? 0) >= extra2Limit;
-  }
-
-  isFootballShootoutPending(match: Match | null): boolean {
-    if (!match || !match.liveData?.started) return false;
-    const live = match.liveData;
-    const halfSecs = (live.halfDurationMinutes || 45) * 60;
-    const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
-    const extra2Limit = halfSecs * 2 + (extraHalfMinutes * 2) * 60;
-    return live.currentHalf === 4 && (live.elapsedSeconds ?? 0) >= extra2Limit && live.enablePenaltyShootout && match.homeScore === match.awayScore;
-  }
-
-  onRecordFootballGoal(options: {
-    teamId: string;
-    goalType: string;
-    scorerId: string;
-    scorerCustomName?: string;
-    assistId?: string;
-    assistCustomName?: string;
-  }) {
-    const { teamId, goalType, scorerId, scorerCustomName, assistId, assistCustomName } = options;
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    const currentMin = Math.floor((live.elapsedSeconds ?? 0) / 60) + 1;
-
-    if (!live.events) live.events = [];
-    live.events.push({
-      type: 'goal',
-      goalType: goalType || 'regular',
-      teamId,
-      playerUserId: (scorerId && scorerId !== 'unregistered') ? scorerId : undefined,
-      playerName: (scorerId === 'unregistered') ? scorerCustomName : undefined,
-      assistPlayerUserId: (assistId && assistId !== 'unregistered') ? assistId : undefined,
-      assistPlayerName: (assistId === 'unregistered') ? assistCustomName : undefined,
-      minute: currentMin,
-    });
-
-    const isHome = teamId === match.homeTeamId;
-    let newHomeScore = match.homeScore;
-    let newAwayScore = match.awayScore;
-
-    if (goalType === 'own_goal') {
-      if (isHome) {
-        newAwayScore += 1;
-      } else {
-        newHomeScore += 1;
-      }
-    } else {
-      if (isHome) {
-        newHomeScore += 1;
-      } else {
-        newAwayScore += 1;
-      }
-    }
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      homeScore: newHomeScore,
-      awayScore: newAwayScore,
-      liveData: live,
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  onRecordFootballCard(teamId: string, playerId: string, cardType: 'yellow' | 'red') {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    const currentMin = Math.floor((live.elapsedSeconds ?? 0) / 60) + 1;
-
-    if (!live.events) live.events = [];
-    
-    let finalCardType: 'yellow' | 'red' | 'second_yellow' = cardType;
-    if (cardType === 'yellow') {
-      const yellowCount = live.events.filter(
-        (e: any) => e.type === 'card' && e.playerUserId === playerId && e.cardType === 'yellow'
-      ).length;
-      if (yellowCount >= 1) {
-        finalCardType = 'second_yellow';
-      }
-    }
-
-    live.events.push({
-      type: 'card',
-      teamId,
-      playerUserId: playerId,
-      cardType: finalCardType,
-      minute: currentMin,
-    });
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live,
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  onRecordFootballPenalty(teamId: string, kickerId: string, outcome: 'scored' | 'missed' | 'saved' | 'hit_post') {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    const currentMin = Math.floor((live.elapsedSeconds ?? 0) / 60) + 1;
-
-    if (!live.events) live.events = [];
-    
-    // Log the penalty attempt
-    live.events.push({
-      type: 'penalty',
-      teamId,
-      playerUserId: kickerId,
-      outcome,
-      minute: currentMin,
-    });
-
-    let newHomeScore = match.homeScore;
-    let newAwayScore = match.awayScore;
-
-    if (outcome === 'scored') {
-      // Also log as a goal event so it increments score and displays in goals list
-      live.events.push({
-        type: 'goal',
-        goalType: 'penalty',
-        teamId,
-        playerUserId: kickerId,
-        minute: currentMin,
-      });
-
-      if (teamId === match.homeTeamId) {
-        newHomeScore += 1;
-      } else {
-        newAwayScore += 1;
-      }
-    }
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      homeScore: newHomeScore,
-      awayScore: newAwayScore,
-      liveData: live,
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  onRecordFootballSubstitution(teamId: string, playerOutId: string, playerInId: string, reason: string) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    const currentMin = Math.floor((live.elapsedSeconds ?? 0) / 60) + 1;
-
-    if (!live.events) live.events = [];
-    live.events.push({
-      type: 'substitution',
-      teamId,
-      playerOutId,
-      playerInId,
-      reason,
-      minute: currentMin
-    });
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  onRecordFootballOffside(teamId: string, playerId: string) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    const currentMin = Math.floor((live.elapsedSeconds ?? 0) / 60) + 1;
-
-    if (!live.events) live.events = [];
-    live.events.push({
-      type: 'offside',
-      teamId,
-      playerUserId: playerId,
-      minute: currentMin
-    });
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  onRecordFootballFoul(teamId: string, committedById: string, againstId: string, foulType: string) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    const currentMin = Math.floor((live.elapsedSeconds ?? 0) / 60) + 1;
-
-    if (!live.events) live.events = [];
-    live.events.push({
-      type: 'foul',
-      teamId,
-      playerUserId: committedById,
-      opponentPlayerUserId: againstId,
-      foulType,
-      minute: currentMin
-    });
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  onRecordFootballFreeKick(teamId: string, takenById: string, freeKickType: 'direct' | 'indirect', result: string) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    const currentMin = Math.floor((live.elapsedSeconds ?? 0) / 60) + 1;
-
-    if (!live.events) live.events = [];
-    live.events.push({
-      type: 'free_kick',
-      teamId,
-      playerUserId: takenById,
-      freeKickType,
-      result,
-      minute: currentMin
-    });
-
-    let newHomeScore = match.homeScore;
-    let newAwayScore = match.awayScore;
-
-    if (result === 'scored') {
-      live.events.push({
-        type: 'goal',
-        goalType: 'free_kick',
-        teamId,
-        playerUserId: takenById,
-        minute: currentMin
-      });
-
-      if (teamId === match.homeTeamId) {
-        newHomeScore += 1;
-      } else {
-        newAwayScore += 1;
-      }
-    }
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      homeScore: newHomeScore,
-      awayScore: newAwayScore,
-      liveData: live
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  onRecordFootballCornerKick(teamId: string, takenById: string, side: 'left' | 'right') {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    const currentMin = Math.floor((live.elapsedSeconds ?? 0) / 60) + 1;
-
-    if (!live.events) live.events = [];
-    live.events.push({
-      type: 'corner_kick',
-      teamId,
-      playerUserId: takenById,
-      side,
-      minute: currentMin
-    });
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  onRecordFootballThrowIn(teamId: string, playerId: string) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    const currentMin = Math.floor((live.elapsedSeconds ?? 0) / 60) + 1;
-
-    if (!live.events) live.events = [];
-    live.events.push({
-      type: 'throw_in',
-      teamId,
-      playerUserId: playerId,
-      minute: currentMin
-    });
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  onRecordFootballGoalKick(teamId: string, goalkeeperId: string) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    const currentMin = Math.floor((live.elapsedSeconds ?? 0) / 60) + 1;
-
-    if (!live.events) live.events = [];
-    live.events.push({
-      type: 'goal_kick',
-      teamId,
-      playerUserId: goalkeeperId,
-      minute: currentMin
-    });
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  onRecordFootballInjury(teamId: string, playerUserId: string, severity: string, substituted: boolean) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    const currentMin = Math.floor((live.elapsedSeconds ?? 0) / 60) + 1;
-
-    if (!live.events) live.events = [];
-    live.events.push({
-      type: 'injury',
-      teamId,
-      playerUserId,
-      severity,
-      substituted,
-      minute: currentMin
-    });
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  onStartFirstExtraHalf() {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    const halfDurationMinutes = live.halfDurationMinutes || 45;
-    live.currentHalf = 3;
-    live.elapsedSeconds = halfDurationMinutes * 2 * 60;
-    live.timerRunning = true;
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live,
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-        this.startFootballTimer();
-      }
-    });
-  }
-
-  onStartSecondExtraHalf() {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    const halfDurationMinutes = live.halfDurationMinutes || 45;
-    const extraHalfMinutes = live.extraTimeHalfDurationMinutes || 15;
-    live.currentHalf = 4;
-    live.elapsedSeconds = halfDurationMinutes * 2 * 60 + extraHalfMinutes * 60;
-    live.timerRunning = true;
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live,
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-        this.startFootballTimer();
-      }
-    });
-  }
-
-  onStartPenaltyShootout() {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    live.currentHalf = 5;
-    live.timerRunning = false;
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live,
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  onRecordFootballShootoutPenalty(teamId: string, playerUserId: string, outcome: 'scored' | 'missed' | 'saved' | 'hit_post') {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    if (!live.events) live.events = [];
-
-    const shootoutEvents = live.events.filter((e: any) => e.type === 'shootout_penalty');
-    const order = shootoutEvents.length + 1;
-
-    live.events.push({
-      type: 'shootout_penalty',
-      teamId,
-      playerUserId,
-      outcome,
-      order,
-      minute: 120
-    });
-
-    if (!live.shootoutHomeScore) live.shootoutHomeScore = 0;
-    if (!live.shootoutAwayScore) live.shootoutAwayScore = 0;
-
-    if (outcome === 'scored') {
-      if (teamId === match.homeTeamId) {
-        live.shootoutHomeScore += 1;
-      } else {
-        live.shootoutAwayScore += 1;
-      }
-    }
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  onEndMatchWithResult(result: string) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = match.liveData ? { ...match.liveData } : {};
-    live.result = result;
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      status: 'completed',
-      liveData: live,
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-        this.stopFootballTimer();
-        this.loadCompetitions(event.id);
-        this.loadEventStandings(event.id);
-      }
-    });
-  }
-
-  // ─── Cricket Live Actions ──────────────────────────────────────────────────
-  onRecordCricketToss(tossWinnerId: string, tossChoice: 'bat' | 'bowl', overs: number) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    if (!this.hasLineupForMatch(match)) {
-      this.openLineupModal();
-      return;
-    }
-
-    const live = match.liveData ? { ...match.liveData } : {};
-    live.tossWinnerId = tossWinnerId;
-    live.tossChoice = tossChoice;
-
-    // Initialize inningsData based on choice
-    const battingTeamId = tossChoice === 'bat' ? tossWinnerId : (tossWinnerId === match.homeTeamId ? match.awayTeamId : match.homeTeamId);
-    const bowlingTeamId = battingTeamId === match.homeTeamId ? match.awayTeamId : match.homeTeamId;
-
-    live.inningsData = [
-      {
-        inningsNumber: 1,
-        battingTeamId,
-        bowlingTeamId,
-        runs: 0,
-        wickets: 0,
-        overs: 0,
-        balls: 0,
-        batsmanStats: {},
-        bowlerStats: {},
-        extraRuns: 0,
-        completed: false,
-        ballsHistory: []
-      }
-    ];
-    live.currentInnings = 1;
-
-    // Update match config.overs
-    const updatedConfig = { ...match.config, overs };
-    match.config = updatedConfig;
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live,
-      status: 'live',
-      config: updatedConfig
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      },
-      error: (err) => {
-        const msg = err.error?.message || '';
-        if (msg.toLowerCase().includes('lineup')) {
-          this.openLineupModal();
-        } else {
-          this.uiService.error(msg || 'Failed to start cricket match.');
-        }
-      }
-    });
-  }
-
-  getCricketBallNumber(ballsHistory: any[] | undefined): string {
-    if (!ballsHistory || ballsHistory.length === 0) {
-      return "1.1";
-    }
-    let validBallsCount = 0;
-    for (const ball of ballsHistory) {
-      if (ball.ballType !== 'wide' && ball.ballType !== 'no-ball') {
-        validBallsCount++;
-      }
-    }
-    const over = Math.floor(validBallsCount / 6);
-    const ballInOver = (validBallsCount % 6) + 1;
-    return `${over + 1}.${ballInOver}`;
-  }
-
-  isFreeHitActive(innings: any): boolean {
-    if (!innings || !innings.ballsHistory || innings.ballsHistory.length === 0) {
-      return false;
-    }
-    const lastBall = innings.ballsHistory[innings.ballsHistory.length - 1];
-    return lastBall.ballType === 'no-ball';
-  }
-
-  getObjectKeys(obj: any): string[] {
-    return obj ? Object.keys(obj) : [];
-  }
-
-  getCricketMatchResult(match: any): string {
-    if (!match || !match.liveData || !match.liveData.inningsData || match.liveData.inningsData.length === 0) {
-      return 'Match in progress';
-    }
-    const inningsData = match.liveData.inningsData;
-    const inn1 = inningsData[0];
-    const inn2 = inningsData[1];
-    
-    const team1Name = inn1.battingTeamId === match.homeTeamId ? match.homeTeam?.name : match.awayTeam?.name;
-    const team2Name = inn2 ? (inn2.battingTeamId === match.homeTeamId ? match.homeTeam?.name : match.awayTeam?.name) : 'Opponent';
-
-    if (!inn2) {
-      return `${team1Name} scored ${inn1.runs}/${inn1.wickets}. 2nd innings not started.`;
-    }
-
-    if (inn2.runs > inn1.runs) {
-      const wicketsLeft = 10 - inn2.wickets;
-      return `${team2Name} won by ${wicketsLeft} wicket${wicketsLeft > 1 ? 's' : ''}`;
-    }
-
-    if (inn2.completed || inn2.overs >= (match.config?.overs ?? 20) || inn2.wickets >= 10) {
-      if (inn1.runs > inn2.runs) {
-        const runDiff = inn1.runs - inn2.runs;
-        return `${team1Name} won by ${runDiff} run${runDiff > 1 ? 's' : ''}`;
-      } else if (inn1.runs === inn2.runs) {
-        return `Match Tied`;
-      }
-    }
-
-    return 'Match in progress';
-  }
-
-  getPowerplayStatus(innings: any, targetOvers: number): string {
-    if (!innings) return '';
-    const currentOver = innings.overs + 1; // 1-indexed over number
-    if (targetOvers <= 20) {
-      // T20 rules
-      if (currentOver <= 6) {
-        return 'Powerplay (Max 2 fielders outside)';
-      }
-      return 'Normal Play (Max 5 fielders outside)';
-    } else {
-      // ODI rules
-      if (currentOver <= 10) {
-        return 'Powerplay 1 (Max 2 outside)';
-      } else if (currentOver <= 40) {
-        return 'Powerplay 2 (Max 4 outside)';
-      } else {
-        return 'Powerplay 3 (Max 5 outside)';
-      }
-    }
-  }
-
-  onRecordCricketBall(runs: number, extraRuns: number, wicket: boolean, ballType: string, wicketType?: string) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    if (!this.cricketBowler() || !this.cricketStriker() || !this.cricketNonStriker()) {
-      this.uiService.error('Please select Bowler, Striker, and Non-Striker before recording a ball.');
-      return;
-    }
-
-    const live = { ...match.liveData };
-    const inningsIndex = (live.currentInnings ?? 1) - 1;
-    if (!live.inningsData || !live.inningsData[inningsIndex]) return;
-
-    const innings = { ...live.inningsData[inningsIndex] };
-
-    // Update Runs
-    innings.runs += runs + extraRuns;
-    innings.extraRuns = (innings.extraRuns ?? 0) + extraRuns;
-
-    // Update wickets (Retired Hurt does not increment the team's wickets down)
-    if (wicket) {
-      if (wicketType !== 'Retired Hurt') {
-        innings.wickets += 1;
-      }
-      this.cricketStriker.set('');
-    }
-
-    // Update valid balls/overs count
-    if (ballType !== 'wide' && ballType !== 'no-ball') {
-      innings.balls += 1;
-      if (innings.balls >= 6) {
-        innings.overs += 1;
-        innings.balls = 0;
-      }
-    }
-
-    // Record ball to history
-    if (!innings.ballsHistory) {
-      innings.ballsHistory = [];
-    }
-    const ballNumber = this.getCricketBallNumber(innings.ballsHistory);
-    innings.ballsHistory.push({
-      ballNumber,
-      bowler: this.cricketBowler() || 'Unknown Bowler',
-      striker: this.cricketStriker() || 'Unknown Batter',
-      nonStriker: this.cricketNonStriker() || 'Unknown Batter',
-      runs,
-      extras: extraRuns,
-      wicket,
-      ballType,
-      wicketType,
-      timestamp: new Date().toISOString()
-    });
-
-    // Update batsman stats
-    const striker = this.cricketStriker() || 'Unknown Batter';
-    if (!innings.batsmanStats) innings.batsmanStats = {};
-    if (!innings.batsmanStats[striker]) {
-      innings.batsmanStats[striker] = { runs: 0, balls: 0, fours: 0, sixes: 0 };
-    }
-    if (ballType !== 'wide') {
-      innings.batsmanStats[striker].balls += 1;
-      innings.batsmanStats[striker].runs += runs;
-      if (runs === 4) innings.batsmanStats[striker].fours += 1;
-      if (runs === 6) innings.batsmanStats[striker].sixes += 1;
-    }
-
-    // Update bowler stats
-    const bowler = this.cricketBowler() || 'Unknown Bowler';
-    if (!innings.bowlerStats) innings.bowlerStats = {};
-    if (!innings.bowlerStats[bowler]) {
-      innings.bowlerStats[bowler] = { overs: 0, balls: 0, runsConceded: 0, wickets: 0, extraRuns: 0, maidens: 0, currentOverRuns: 0 };
-    }
-    // Byes & Leg Byes are NOT conceded by the bowler
-    const bowlerRunsConceded = (ballType === 'bye' || ballType === 'leg-bye') ? runs : (runs + extraRuns);
-    innings.bowlerStats[bowler].runsConceded += bowlerRunsConceded;
-    innings.bowlerStats[bowler].currentOverRuns = (innings.bowlerStats[bowler].currentOverRuns || 0) + bowlerRunsConceded;
-
-    const bowlerExtraRuns = (ballType === 'bye' || ballType === 'leg-bye') ? 0 : extraRuns;
-    innings.bowlerStats[bowler].extraRuns += bowlerExtraRuns;
-    if (wicket) {
-      // Bowler gets wickets for all types except Run Out and Retired Hurt
-      const bowlerGetsWicket = wicketType !== 'Run Out' && wicketType !== 'Retired Hurt';
-      if (bowlerGetsWicket) {
-        innings.bowlerStats[bowler].wickets += 1;
-
-        // Hat-trick check: filter history for this bowler's deliveries
-        const bowlerDeliveries = innings.ballsHistory.filter((b: any) => b.bowler === bowler);
-        if (bowlerDeliveries.length >= 3) {
-          const last3 = bowlerDeliveries.slice(-3);
-          const isHatTrick = last3.every((b: any) => {
-            return b.wicket && b.wicketType !== 'Run Out' && b.wicketType !== 'Retired Hurt';
-          });
-          if (isHatTrick) {
-            this.uiService.success(`HAT-TRICK! ${bowler} has taken 3 wickets in 3 consecutive deliveries!`);
-          }
-        }
-      }
-    }
-    if (ballType !== 'wide' && ballType !== 'no-ball') {
-      innings.bowlerStats[bowler].balls += 1;
-      if (innings.bowlerStats[bowler].balls >= 6) {
-        innings.bowlerStats[bowler].overs += 1;
-        innings.bowlerStats[bowler].balls = 0;
-
-        // Over completed: Check for maiden
-        if (innings.bowlerStats[bowler].currentOverRuns === 0) {
-          innings.bowlerStats[bowler].maidens = (innings.bowlerStats[bowler].maidens || 0) + 1;
-        }
-        innings.bowlerStats[bowler].currentOverRuns = 0; // Reset for next over
-      }
-    }
-
-    // Strike rotation logic
-    let runsForStrikeChange = runs;
-    if (ballType === 'bye' || ballType === 'leg-bye') {
-      runsForStrikeChange = extraRuns;
-    }
-    const shouldRotateStrike = (runsForStrikeChange % 2 !== 0);
-
-    let currentStriker = this.cricketStriker();
-    let currentNonStriker = this.cricketNonStriker();
-
-    if (wicket) {
-      this.cricketStriker.set('');
-    } else {
-      if (shouldRotateStrike) {
-        const temp = currentStriker;
-        currentStriker = currentNonStriker;
-        currentNonStriker = temp;
-      }
-      const overCompleted = (ballType !== 'wide' && ballType !== 'no-ball' && innings.balls === 0);
-      if (overCompleted) {
-        const temp = currentStriker;
-        currentStriker = currentNonStriker;
-        currentNonStriker = temp;
-      }
-      this.cricketStriker.set(currentStriker);
-      this.cricketNonStriker.set(currentNonStriker);
-    }
-
-    live.inningsData[inningsIndex] = innings;
-
-    // Update main scores
-    const homeInnings = live.inningsData.find((i: any) => i.battingTeamId === match.homeTeamId);
-    const homeScore = homeInnings ? homeInnings.runs : 0;
-    const awayInnings = live.inningsData.find((i: any) => i.battingTeamId === match.awayTeamId);
-    const awayScore = awayInnings ? awayInnings.runs : 0;
-
-    // Check if innings completed (e.g. 10 wickets down, or overs reached, or target chased in 2nd innings)
-    const targetOvers = match.config.overs ?? 20;
-    const firstInnings = live.inningsData[0];
-    const targetChased = (live.currentInnings === 2 && firstInnings && innings.runs > firstInnings.runs);
-
-    if (innings.wickets >= 10 || innings.overs >= targetOvers || targetChased) {
-      innings.completed = true;
-      if (live.currentInnings === 1) {
-        // Switch innings
-        live.currentInnings = 2;
-        live.inningsData.push({
-          inningsNumber: 2,
-          battingTeamId: innings.bowlingTeamId,
-          bowlingTeamId: innings.battingTeamId,
-          runs: 0,
-          wickets: 0,
-          overs: 0,
-          balls: 0,
-          batsmanStats: {},
-          bowlerStats: {},
-          extraRuns: 0,
-          completed: false,
-          ballsHistory: []
-        });
-        // Clear selectors since teams swapped
-        this.cricketStriker.set('');
-        this.cricketNonStriker.set('');
-        this.cricketBowler.set('');
-      } else {
-        // Match completed
-        match.status = 'completed';
-        this.cricketStriker.set('');
-        this.cricketNonStriker.set('');
-        this.cricketBowler.set('');
-      }
-    }
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      homeScore,
-      awayScore,
-      status: match.status,
-      liveData: live,
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  onRecordCricketWicket() {
-    let type = this.cricketWicketType();
-    const match = this.selectedMatch();
-    const currentInningsNum = match?.liveData?.currentInnings ?? 1;
-    const innings = match?.liveData?.inningsData?.[currentInningsNum - 1];
-    if (this.isFreeHitActive(innings)) {
-      if (type !== 'Run Out' && type !== 'Retired Hurt') {
-        type = 'Run Out';
-      }
-    }
-    this.onRecordCricketBall(0, 0, true, 'wicket', type);
-  }
-
-  onUndoCricketBall() {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = { ...match.liveData };
-    const inningsIndex = (live.currentInnings ?? 1) - 1;
-    if (!live.inningsData || !live.inningsData[inningsIndex]) return;
-
-    const innings = { ...live.inningsData[inningsIndex] };
-    if (!innings.ballsHistory || innings.ballsHistory.length === 0) return;
-
-    // Pop the last ball
-    innings.ballsHistory.pop();
-
-    // Re-calculate statistics for the innings from the remaining history
-    innings.runs = 0;
-    innings.wickets = 0;
-    innings.balls = 0;
-    innings.overs = 0;
-    innings.extraRuns = 0;
-    innings.batsmanStats = {};
-    innings.bowlerStats = {};
-
-    const history = [...innings.ballsHistory];
-    innings.ballsHistory = [];
-
-    // Replay all previous balls
-    for (const ball of history) {
-      innings.runs += ball.runs + ball.extras;
-      innings.extraRuns += ball.extras;
-      if (ball.wicket && ball.wicketType !== 'Retired Hurt') {
-        innings.wickets += 1;
-      }
-      if (ball.ballType !== 'wide' && ball.ballType !== 'no-ball') {
-        innings.balls += 1;
-        if (innings.balls >= 6) {
-          innings.overs += 1;
-          innings.balls = 0;
-        }
-      }
-
-      // Re-populate batsman stats
-      const bName = ball.striker;
-      if (!innings.batsmanStats[bName]) {
-        innings.batsmanStats[bName] = { runs: 0, balls: 0, fours: 0, sixes: 0 };
-      }
-      if (ball.ballType !== 'wide') {
-        innings.batsmanStats[bName].balls += 1;
-        innings.batsmanStats[bName].runs += ball.runs;
-        if (ball.runs === 4) innings.batsmanStats[bName].fours += 1;
-        if (ball.runs === 6) innings.batsmanStats[bName].sixes += 1;
-      }
-
-      // Re-populate bowler stats
-      const bwName = ball.bowler;
-      if (!innings.bowlerStats[bwName]) {
-        innings.bowlerStats[bwName] = { overs: 0, balls: 0, runsConceded: 0, wickets: 0, extraRuns: 0, maidens: 0, currentOverRuns: 0 };
-      }
-      const bowlerRunsConceded = (ball.ballType === 'bye' || ball.ballType === 'leg-bye') ? ball.runs : (ball.runs + ball.extras);
-      innings.bowlerStats[bwName].runsConceded += bowlerRunsConceded;
-      innings.bowlerStats[bwName].currentOverRuns = (innings.bowlerStats[bwName].currentOverRuns || 0) + bowlerRunsConceded;
-
-      const bowlerExtraRuns = (ball.ballType === 'bye' || ball.ballType === 'leg-bye') ? 0 : ball.extras;
-      innings.bowlerStats[bwName].extraRuns += bowlerExtraRuns;
-      if (ball.wicket) {
-        const bowlerGetsWicket = ball.wicketType !== 'Run Out' && ball.wicketType !== 'Retired Hurt';
-        if (bowlerGetsWicket) {
-          innings.bowlerStats[bwName].wickets += 1;
-        }
-      }
-      if (ball.ballType !== 'wide' && ball.ballType !== 'no-ball') {
-        innings.bowlerStats[bwName].balls += 1;
-        if (innings.bowlerStats[bwName].balls >= 6) {
-          innings.bowlerStats[bwName].overs += 1;
-          innings.bowlerStats[bwName].balls = 0;
-
-          // Over completed: Check for maiden
-          if (innings.bowlerStats[bwName].currentOverRuns === 0) {
-            innings.bowlerStats[bwName].maidens = (innings.bowlerStats[bwName].maidens || 0) + 1;
-          }
-          innings.bowlerStats[bwName].currentOverRuns = 0; // Reset for next over
-        }
-      }
-      
-      innings.ballsHistory.push(ball);
-    }
-
-    live.inningsData[inningsIndex] = innings;
-
-    // Update main scores
-    const homeInnings = live.inningsData.find((i: any) => i.battingTeamId === match.homeTeamId);
-    const homeScore = homeInnings ? homeInnings.runs : 0;
-    const awayInnings = live.inningsData.find((i: any) => i.battingTeamId === match.awayTeamId);
-    const awayScore = awayInnings ? awayInnings.runs : 0;
-
-    // Reset status if match was completed but we undo
-    if (match.status === 'completed') {
-      match.status = 'live';
-    }
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      homeScore,
-      awayScore,
-      status: match.status,
-      liveData: live,
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-      }
-    });
-  }
-
-  onSwitchCricketStrikers() {
-    const s = this.cricketStriker();
-    const ns = this.cricketNonStriker();
-    this.cricketStriker.set(ns);
-    this.cricketNonStriker.set(s);
-  }
-
-  // ─── Badminton Live Actions ────────────────────────────────────────────────
-  onUpdateBadmintonMatchType(matchType: string) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const config = { ...match.config, matchType };
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      config
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-        this.badmintonMatchType.set(matchType);
-        this.uiService.success(`Match type updated to ${matchType}`);
-      }
-    });
-  }
-
-  onUpdateBadmintonStatus(matchStatus: string) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = match.liveData ? { ...match.liveData } : {};
-    live.matchStatus = matchStatus;
-
-    let dbStatus = match.status;
-    if (matchStatus === 'Scheduled') {
-      dbStatus = 'scheduled';
-    } else if (['Finished', 'Walkover', 'Retired', 'Abandoned'].includes(matchStatus)) {
-      dbStatus = 'completed';
-    } else {
-      dbStatus = 'live';
-    }
-
-    if (dbStatus === 'live' && !this.hasLineupForMatch(match)) {
-      this.openLineupModal();
-      return;
-    }
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      status: dbStatus,
-      liveData: live
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-        this.badmintonMatchStatus.set(matchStatus);
-        this.uiService.success(`Match status updated to ${matchStatus}`);
-      },
-      error: (err) => {
-        const msg = err.error?.message || '';
-        if (msg.toLowerCase().includes('lineup')) {
-          this.openLineupModal();
-        } else {
-          this.uiService.error(msg || 'Failed to update match status.');
-        }
-      }
-    });
-  }
-
-  startBadmintonTimer() {
-    if (this.badmintonTimerInterval) return;
-    this.badmintonTimerRunning.set(true);
-    this.badmintonTimerInterval = setInterval(() => {
-      this.badmintonDuration.update(d => d + 1);
-    }, 1000);
-  }
-
-  stopBadmintonTimer() {
-    if (this.badmintonTimerInterval) {
-      clearInterval(this.badmintonTimerInterval);
-      this.badmintonTimerInterval = null;
-    }
-    this.badmintonTimerRunning.set(false);
-  }
-
-  toggleBadmintonTimer() {
-    if (this.badmintonTimerRunning()) {
-      this.stopBadmintonTimer();
-    } else {
-      this.startBadmintonTimer();
-    }
-  }
-
-  onServerChange(serverName: string) {
-    this.badmintonServer.set(serverName);
-    const match = this.selectedMatch();
-    if (match) {
-      const court = this.getAutoServiceCourt(match, serverName);
-      this.badmintonServiceCourt.set(court);
-      
-      const homePlayers = this.getPlayersForTeam(match.homeTeamId);
-      const isHomeServer = homePlayers.some(p => p.user.username === serverName);
-      
-      const serverTeamPlayers = isHomeServer ? homePlayers : this.getPlayersForTeam(match.awayTeamId);
-      const receiverTeamPlayers = isHomeServer ? this.getPlayersForTeam(match.awayTeamId) : homePlayers;
-      
-      const currentReceiver = this.badmintonReceiver();
-      const isReceiverInvalid = !currentReceiver || serverTeamPlayers.some(p => p.user.username === currentReceiver);
-      
-      if (isReceiverInvalid && receiverTeamPlayers.length > 0) {
-        this.badmintonReceiver.set(receiverTeamPlayers[0].user.username);
-      }
-    }
-  }
-
-  onRecordBadmintonRally(winnerSide: 'home' | 'away') {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = match.liveData ? { ...match.liveData } : {};
-    if (!live.setsScore) {
-      live.setsScore = [{ home: 0, away: 0 }];
-      live.currentSet = 1;
-      live.homeSetsWon = 0;
-      live.awaySetsWon = 0;
-      live.rallies = [];
-    }
-    if (!live.rallies) {
-      live.rallies = [];
-    }
-
-    const currentSetNum = live.currentSet ?? 1;
-    const setIndex = currentSetNum - 1;
-    if (!live.setsScore[setIndex]) {
-      live.setsScore[setIndex] = { home: 0, away: 0 };
-    }
-
-    const setScore = { ...live.setsScore[setIndex] };
-    if (winnerSide === 'home') {
-      setScore.home += 1;
-    } else {
-      setScore.away += 1;
-    }
-    live.setsScore[setIndex] = setScore;
-
-    // Record the rally event
-    const server = this.badmintonServer() || 'Unknown';
-    const receiver = this.badmintonReceiver() || 'Unknown';
-    const reason = this.badmintonReason() || 'Winner';
-    const duration = this.badmintonDuration();
-    const serviceCourt = this.badmintonServiceCourt();
-    const serviceNumber = this.badmintonServiceNumber();
-
-    live.rallies.push({
-      set: currentSetNum,
-      server,
-      receiver,
-      serviceCourt,
-      serviceNumber,
-      winner: winnerSide === 'home' ? (match.homeTeam?.name || 'Home') : (match.awayTeam?.name || 'Away'),
-      winnerSide,
-      reason,
-      duration,
-      scoreAfter: { home: setScore.home, away: setScore.away }
-    });
-
-    // Check if set is won (typically first to 21 points, must lead by 2, or max 30)
-    const homeScore = setScore.home;
-    const awayScore = setScore.away;
-    const setsToWin = match.config.setsToWin ?? 2;
-    let setWon = false;
-    let setWinner: 'home' | 'away' | null = null;
-
-    if ((homeScore >= 21 && homeScore - awayScore >= 2) || homeScore === 30) {
-      setWon = true;
-      setWinner = 'home';
-    } else if ((awayScore >= 21 && awayScore - homeScore >= 2) || awayScore === 30) {
-      setWon = true;
-      setWinner = 'away';
-    }
-
-    let dbStatus = match.status;
-
-    if (setWon) {
-      if (setWinner === 'home') {
-        live.homeSetsWon += 1;
-      } else {
-        live.awaySetsWon += 1;
-      }
-
-      if (live.homeSetsWon >= setsToWin || live.awaySetsWon >= setsToWin) {
-        dbStatus = 'completed';
-        live.matchStatus = 'Finished';
-      } else {
-        live.currentSet += 1;
-        live.setsScore.push({ home: 0, away: 0 });
-        live.matchStatus = live.currentSet === 2 ? 'SecondGame' : 'ThirdGame';
-      }
-    } else {
-      dbStatus = 'live';
-      live.matchStatus = currentSetNum === 1 ? 'FirstGame' : currentSetNum === 2 ? 'SecondGame' : 'ThirdGame';
-    }
-
-    // Stop timer and reset
-    this.stopBadmintonTimer();
-    this.badmintonDuration.set(0);
-
-    // Rotate players after the point
-    const isDoubles = (match.config?.matchType || "").toLowerCase().includes('doubles');
-    this.rotateBadmintonPlayers(live, winnerSide, isDoubles);
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      homeScore: live.homeSetsWon,
-      awayScore: live.awaySetsWon,
-      status: dbStatus,
-      liveData: live,
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-        this.badmintonMatchStatus.set(live.matchStatus);
-        
-        if (updated.liveData) {
-          this.badmintonServer.set(updated.liveData.currentServer || '');
-          this.badmintonReceiver.set(updated.liveData.currentReceiver || '');
-          this.badmintonServiceCourt.set(updated.liveData.currentServiceCourt || 'Right');
-          this.badmintonServiceNumber.set(updated.liveData.serviceNumber || 1);
-        }
-      }
-    });
-  }
-
-  onRecordBadmintonLet(letReason: string) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = match.liveData ? { ...match.liveData } : {};
-    if (!live.setsScore) {
-      live.setsScore = [{ home: 0, away: 0 }];
-      live.currentSet = 1;
-      live.homeSetsWon = 0;
-      live.awaySetsWon = 0;
-      live.rallies = [];
-    }
-    if (!live.rallies) {
-      live.rallies = [];
-    }
-
-    const currentSetNum = live.currentSet ?? 1;
-    const setIndex = currentSetNum - 1;
-    if (!live.setsScore[setIndex]) {
-      live.setsScore[setIndex] = { home: 0, away: 0 };
-    }
-    const setScore = live.setsScore[setIndex];
-
-    live.rallies.push({
-      set: currentSetNum,
-      server: this.badmintonServer() || 'Unknown',
-      receiver: this.badmintonReceiver() || 'Unknown',
-      serviceCourt: this.badmintonServiceCourt(),
-      serviceNumber: this.badmintonServiceNumber(),
-      winner: 'None',
-      winnerSide: 'none',
-      reason: letReason,
-      duration: this.badmintonDuration(),
-      scoreAfter: { home: setScore.home, away: setScore.away }
-    });
-
-    // Stop timer and reset duration
-    this.stopBadmintonTimer();
-    this.badmintonDuration.set(0);
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live,
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-        this.uiService.success(`Let recorded: ${letReason}`);
-      }
-    });
-  }
-
-  // Helper to handle BWF positioning rules on rally record
-  rotateBadmintonPlayers(live: any, winnerSide: 'home' | 'away', isDoubles: boolean) {
-    const match = this.selectedMatch();
-    if (!match) return;
-
-    // Current server side before this rally
-    const prevServer = live.currentServer || this.badmintonServer();
-    const homePlayers = this.getPlayersForTeam(match.homeTeamId);
-    const isHomeServer = homePlayers.some(p => p.user.username === prevServer);
-    const prevServingSide: 'home' | 'away' = isHomeServer ? 'home' : 'away';
-
-    // Get current positioning
-    let homeRight = live.homeRightPlayer || (homePlayers[0]?.user?.username ?? '');
-    let homeLeft = live.homeLeftPlayer || (homePlayers[1]?.user?.username ?? '');
-    const awayPlayers = this.getPlayersForTeam(match.awayTeamId);
-    let awayRight = live.awayRightPlayer || (awayPlayers[0]?.user?.username ?? '');
-    let awayLeft = live.awayLeftPlayer || (awayPlayers[1]?.user?.username ?? '');
-
-    // Current set score AFTER point is added
-    const currentSetNum = live.currentSet ?? 1;
-    const setScore = live.setsScore[currentSetNum - 1] || { home: 0, away: 0 };
-
-    if (winnerSide === prevServingSide) {
-      // Serving side wins the point -> Server swaps courts with partner (rotates)
-      if (winnerSide === 'home') {
-        if (isDoubles) {
-          const temp = homeRight;
-          homeRight = homeLeft;
-          homeLeft = temp;
-        }
-        live.currentServer = prevServer; // Server stays the same
-      } else {
-        if (isDoubles) {
-          const temp = awayRight;
-          awayRight = awayLeft;
-          awayLeft = temp;
-        }
-        live.currentServer = prevServer; // Server stays the same
-      }
-      live.serviceNumber = (live.serviceNumber || 1) + 1;
-    } else {
-      // Receiving side wins the point -> Service possession changes. No position changes!
-      // New server is determined by the new score of the receiving side (which is winnerSide)
-      const newServingSideScore = winnerSide === 'home' ? setScore.home : setScore.away;
-      if (newServingSideScore % 2 === 0) {
-        // Even score -> serve from Right court
-        live.currentServer = winnerSide === 'home' ? homeRight : awayRight;
-      } else {
-        // Odd score -> serve from Left court
-        live.currentServer = winnerSide === 'home' ? homeLeft : awayLeft;
-      }
-      live.serviceNumber = 1; // Reset service number
-    }
-
-    // Receiver is always determined by the new server side's score
-    const newServerScore = winnerSide === 'home' ? setScore.home : setScore.away;
-    if (newServerScore % 2 === 0) {
-      // Even score -> serve to Right court. Receiver is whoever is in the opponent's Right court
-      live.currentReceiver = winnerSide === 'home' ? awayRight : homeRight;
-      live.currentServiceCourt = 'Right';
-    } else {
-      // Odd score -> serve to Left court. Receiver is whoever is in the opponent's Left court
-      live.currentReceiver = winnerSide === 'home' ? awayLeft : homeLeft;
-      live.currentServiceCourt = 'Left';
-    }
-
-    // Save positions back to live
-    live.homeRightPlayer = homeRight;
-    live.homeLeftPlayer = homeLeft;
-    live.awayRightPlayer = awayRight;
-    live.awayLeftPlayer = awayLeft;
-  }
-
-  // Helper to determine the correct service court based on the serving side's score
-  getAutoServiceCourt(match: Match | null, serverName: string): 'Right' | 'Left' {
-    if (!match || !serverName) return 'Right';
-    
-    // Determine which team the server belongs to
-    const homePlayers = this.getPlayersForTeam(match.homeTeamId);
-    const isHome = homePlayers.some(p => p.user.username === serverName);
-    
-    // If not found in home list, check away list
-    const awayPlayers = this.getPlayersForTeam(match.awayTeamId);
-    const isAway = awayPlayers.some(p => p.user.username === serverName);
-
-    // Default to Home if not found (or custom name)
-    const servingSide: 'home' | 'away' = isAway && !isHome ? 'away' : 'home';
-
-    const currentSetNum = match.liveData?.currentSet ?? 1;
-    const setScore = match.liveData?.setsScore?.[currentSetNum - 1] || { home: 0, away: 0 };
-    const score = servingSide === 'home' ? setScore.home : setScore.away;
-
-    return score % 2 === 0 ? 'Right' : 'Left';
-  }
-
-  onRecordBadmintonPoint(side: 'home' | 'away', change: number) {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = match.liveData ? { ...match.liveData } : {};
-    if (!live.setsScore) {
-      live.setsScore = [{ home: 0, away: 0 }];
-      live.currentSet = 1;
-      live.homeSetsWon = 0;
-      live.awaySetsWon = 0;
-      live.rallies = [];
-    }
-
-    const currentSetNum = live.currentSet ?? 1;
-    const setIndex = currentSetNum - 1;
-    if (!live.setsScore[setIndex]) {
-      live.setsScore[setIndex] = { home: 0, away: 0 };
-    }
-
-    const setScore = { ...live.setsScore[setIndex] };
-    if (side === 'home') {
-      setScore.home = Math.max(0, setScore.home + change);
-    } else {
-      setScore.away = Math.max(0, setScore.away + change);
-    }
-    live.setsScore[setIndex] = setScore;
-
-    // Check if set is won
-    const homeScore = setScore.home;
-    const awayScore = setScore.away;
-    const setsToWin = match.config.setsToWin ?? 2;
-    let setWon = false;
-    let setWinner: 'home' | 'away' | null = null;
-
-    if ((homeScore >= 21 && homeScore - awayScore >= 2) || homeScore === 30) {
-      setWon = true;
-      setWinner = 'home';
-    } else if ((awayScore >= 21 && awayScore - homeScore >= 2) || awayScore === 30) {
-      setWon = true;
-      setWinner = 'away';
-    }
-
-    let dbStatus = match.status;
-
-    if (setWon) {
-      if (setWinner === 'home') {
-        live.homeSetsWon += 1;
-      } else {
-        live.awaySetsWon += 1;
-      }
-
-      if (live.homeSetsWon >= setsToWin || live.awaySetsWon >= setsToWin) {
-        dbStatus = 'completed';
-        live.matchStatus = 'Finished';
-      } else {
-        live.currentSet += 1;
-        live.setsScore.push({ home: 0, away: 0 });
-        live.matchStatus = live.currentSet === 2 ? 'SecondGame' : 'ThirdGame';
-      }
-    } else {
-      dbStatus = 'live';
-      live.matchStatus = currentSetNum === 1 ? 'FirstGame' : currentSetNum === 2 ? 'SecondGame' : 'ThirdGame';
-    }
-
-    // Recalculate service details based on the new score
-    this.recalculateLiveServiceDetails(match, live);
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      homeScore: live.homeSetsWon,
-      awayScore: live.awaySetsWon,
-      status: dbStatus,
-      liveData: live,
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-        this.badmintonMatchStatus.set(live.matchStatus);
-
-        if (updated.liveData) {
-          this.badmintonServer.set(updated.liveData.currentServer || '');
-          this.badmintonReceiver.set(updated.liveData.currentReceiver || '');
-          this.badmintonServiceCourt.set(updated.liveData.currentServiceCourt || 'Right');
-          this.badmintonServiceNumber.set(updated.liveData.serviceNumber || 1);
-        }
-      }
-    });
-  }
-
-  onSwapHomePositions() {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = match.liveData ? { ...match.liveData } : {};
-    const homePlayers = this.getPlayersForTeam(match.homeTeamId);
-    const homeRight = live.homeRightPlayer || (homePlayers[0]?.user?.username ?? '');
-    const homeLeft = live.homeLeftPlayer || (homePlayers[1]?.user?.username ?? '');
-
-    live.homeRightPlayer = homeLeft;
-    live.homeLeftPlayer = homeRight;
-
-    this.recalculateLiveServiceDetails(match, live);
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-        this.uiService.success('Home team positions swapped');
-      }
-    });
-  }
-
-  onSwapAwayPositions() {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = match.liveData ? { ...match.liveData } : {};
-    const awayPlayers = this.getPlayersForTeam(match.awayTeamId);
-    const awayRight = live.awayRightPlayer || (awayPlayers[0]?.user?.username ?? '');
-    const awayLeft = live.awayLeftPlayer || (awayPlayers[1]?.user?.username ?? '');
-
-    live.awayRightPlayer = awayLeft;
-    live.awayLeftPlayer = awayRight;
-
-    this.recalculateLiveServiceDetails(match, live);
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      liveData: live
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-        this.uiService.success('Away team positions swapped');
-      }
-    });
-  }
-
-  recalculateLiveServiceDetails(match: Match, live: any) {
-    const serverName = this.badmintonServer();
-    if (!serverName) return;
-
-    const homeRight = live.homeRightPlayer || '';
-    const homeLeft = live.homeLeftPlayer || '';
-    const awayRight = live.awayRightPlayer || '';
-    const awayLeft = live.awayLeftPlayer || '';
-
-    const homePlayers = this.getPlayersForTeam(match.homeTeamId);
-    const isHomeServer = homePlayers.some(p => p.user.username === serverName);
-
-    const currentSetNum = live.currentSet ?? 1;
-    const setScore = live.setsScore?.[currentSetNum - 1] || { home: 0, away: 0 };
-    const score = isHomeServer ? setScore.home : setScore.away;
-
-    if (score % 2 === 0) {
-      live.currentServiceCourt = 'Right';
-      live.currentReceiver = isHomeServer ? awayRight : homeRight;
-    } else {
-      live.currentServiceCourt = 'Left';
-      live.currentReceiver = isHomeServer ? awayLeft : homeLeft;
-    }
-
-    this.badmintonReceiver.set(live.currentReceiver || '');
-    this.badmintonServiceCourt.set(live.currentServiceCourt || 'Right');
-  }
-
-  onUndoBadmintonRally() {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    const live = match.liveData ? { ...match.liveData } : {};
-    if (!live.rallies || live.rallies.length === 0) return;
-
-    // Remove last rally
-    live.rallies.pop();
-
-    // Reset back to baseline
-    live.currentSet = 1;
-    live.setsScore = [{ home: 0, away: 0 }];
-    live.homeSetsWon = 0;
-    live.awaySetsWon = 0;
-    live.matchStatus = 'FirstGame';
-    
-    // Reset player positions to initial rosters
-    const homePlayers = this.getPlayersForTeam(match.homeTeamId);
-    const awayPlayers = this.getPlayersForTeam(match.awayTeamId);
-    live.homeRightPlayer = homePlayers[0]?.user?.username ?? '';
-    live.homeLeftPlayer = homePlayers[1]?.user?.username ?? '';
-    live.awayRightPlayer = awayPlayers[0]?.user?.username ?? '';
-    live.awayLeftPlayer = awayPlayers[1]?.user?.username ?? '';
-    live.currentServer = live.homeRightPlayer;
-    live.currentReceiver = live.awayRightPlayer;
-    live.currentServiceCourt = 'Right';
-    live.serviceNumber = 1;
-
-    const setsToWin = match.config.setsToWin ?? 2;
-    const isDoubles = (match.config?.matchType || "").toLowerCase().includes('doubles');
-
-    // Replay remaining rallies
-    for (const rally of live.rallies) {
-      if (rally.winnerSide === 'none') {
-        // Let event - no score/rotation change
-        continue;
-      }
-
-      const sIdx = live.currentSet - 1;
-      if (!live.setsScore[sIdx]) {
-        live.setsScore[sIdx] = { home: 0, away: 0 };
-      }
-
-      if (rally.winnerSide === 'home') {
-        live.setsScore[sIdx].home += 1;
-      } else {
-        live.setsScore[sIdx].away += 1;
-      }
-
-      // Rotate players after this point
-      this.rotateBadmintonPlayers(live, rally.winnerSide, isDoubles);
-
-      const hScore = live.setsScore[sIdx].home;
-      const aScore = live.setsScore[sIdx].away;
-
-      let setWon = false;
-      if ((hScore >= 21 && hScore - aScore >= 2) || hScore === 30) {
-        setWon = true;
-        live.homeSetsWon += 1;
-      } else if ((aScore >= 21 && aScore - hScore >= 2) || aScore === 30) {
-        setWon = true;
-        live.awaySetsWon += 1;
-      }
-
-      if (setWon) {
-        if (live.homeSetsWon < setsToWin && live.awaySetsWon < setsToWin) {
-          live.currentSet += 1;
-          live.setsScore.push({ home: 0, away: 0 });
-        }
-      }
-    }
-
-    if (live.homeSetsWon >= setsToWin || live.awaySetsWon >= setsToWin) {
-      live.matchStatus = 'Finished';
-    } else {
-      live.matchStatus = live.currentSet === 1 ? 'FirstGame' : live.currentSet === 2 ? 'SecondGame' : 'ThirdGame';
-    }
-
-    let dbStatus = 'live';
-    if (live.matchStatus === 'Scheduled') {
-      dbStatus = 'scheduled';
-    } else if (['Finished', 'Walkover', 'Retired', 'Abandoned'].includes(live.matchStatus)) {
-      dbStatus = 'completed';
-    }
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      homeScore: live.homeSetsWon,
-      awayScore: live.awaySetsWon,
-      status: dbStatus,
-      liveData: live,
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-        this.badmintonMatchStatus.set(live.matchStatus);
-        
-        if (updated.liveData) {
-          this.badmintonServer.set(updated.liveData.currentServer || '');
-          this.badmintonReceiver.set(updated.liveData.currentReceiver || '');
-          this.badmintonServiceCourt.set(updated.liveData.currentServiceCourt || 'Right');
-          this.badmintonServiceNumber.set(updated.liveData.serviceNumber || 1);
-        }
-      }
-    });
-  }
-
-  onEndMatch() {
-    const match = this.selectedMatch();
-    const ws = this.workspace();
-    const event = this.selectedEvent();
-    const comp = this.selectedCompetition();
-    const stage = this.selectedStage();
-    if (!match || !ws || !event || !comp || !stage) return;
-
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
-      status: 'completed',
-    }).subscribe({
-      next: (updated) => {
-        this.selectedMatch.set(updated);
-        this.matches.update(prev => prev.map(m => m.id === updated.id ? updated : m));
-        this.stopFootballTimer();
-        this.loadCompetitions(event.id);
-        this.loadEventStandings(event.id);
-      }
-    });
   }
 
   onAvatarUpload(event: any) {
@@ -5991,47 +2785,6 @@ export class WorkspaceDetailComponent implements OnInit {
     });
   }
 
-  onWorkspaceLogoUpload(event: any) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    this.isUploadingWorkspaceLogo.set(true);
-    this.workspaceService.uploadImage(file, 'workspace').subscribe({
-      next: (res) => {
-        this.isUploadingWorkspaceLogo.set(false);
-        this.editLogoUrl.set(res.url);
-        this.uiService.success('Workspace logo uploaded successfully.');
-      },
-      error: (err) => {
-        this.isUploadingWorkspaceLogo.set(false);
-        console.error(err);
-        this.uiService.error('Workspace logo upload failed.');
-      }
-    });
-  }
-
-  onTeamLogoUpload(event: any, isEdit: boolean) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    this.isUploadingTeamLogo.set(true);
-    this.workspaceService.uploadImage(file, 'team').subscribe({
-      next: (res) => {
-        this.isUploadingTeamLogo.set(false);
-        if (isEdit) {
-          this.editTeamLogoUrl.set(res.url);
-        } else {
-          this.newTeamLogoUrl.set(res.url);
-        }
-        this.uiService.success('Team logo uploaded successfully.');
-      },
-      error: (err) => {
-        this.isUploadingTeamLogo.set(false);
-        console.error(err);
-        this.uiService.error('Team logo upload failed.');
-      }
-    });
-  }
 
   onEventLogoUpload(event: any, isEdit: boolean) {
     const file = event.target.files?.[0];
@@ -6052,29 +2805,6 @@ export class WorkspaceDetailComponent implements OnInit {
         this.isUploadingEventLogo.set(false);
         console.error(err);
         this.uiService.error('Event logo upload failed.');
-      }
-    });
-  }
-
-  onVenueImageUpload(event: any, isEdit: boolean) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    this.isUploadingVenueImage.set(true);
-    this.workspaceService.uploadImage(file, 'venue').subscribe({
-      next: (res) => {
-        this.isUploadingVenueImage.set(false);
-        if (isEdit) {
-          this.editVenueImageUrl.set(res.url);
-        } else {
-          this.newVenueImageUrl.set(res.url);
-        }
-        this.uiService.success('Venue image uploaded successfully.');
-      },
-      error: (err) => {
-        this.isUploadingVenueImage.set(false);
-        console.error(err);
-        this.uiService.error('Venue image upload failed.');
       }
     });
   }
@@ -6171,7 +2901,7 @@ export class WorkspaceDetailComponent implements OnInit {
 
     try {
       // Refresh competition teams local state
-      const refreshedTeams = await firstValueFrom(this.workspaceService.getCompetitionTeams(ws.id, event.id, comp.id));
+      const refreshedTeams = await firstValueFrom(this.competitionService.getCompetitionTeams(ws.id, event.id, comp.id));
       this.competitionTeams.set(refreshedTeams);
 
       // 2. Setup stage (create or update)
@@ -6224,17 +2954,17 @@ export class WorkspaceDetailComponent implements OnInit {
 
       if (existingStages.length > 0) {
         await firstValueFrom(
-          this.workspaceService.updateStage(ws.id, event.id, comp.id, existingStages[0].id, stagePayload)
+          this.competitionService.updateStage(ws.id, event.id, comp.id, existingStages[0].id, stagePayload)
         );
       } else {
         await firstValueFrom(
-          this.workspaceService.createStage(ws.id, event.id, comp.id, stagePayload)
+          this.competitionService.createStage(ws.id, event.id, comp.id, stagePayload)
         );
       }
 
       // 3. Generate fixtures
       const result = await firstValueFrom(
-        this.workspaceService.generateFixtures(ws.id, event.id, comp.id)
+        this.competitionService.generateFixtures(ws.id, event.id, comp.id)
       );
 
       this.uiService.success(`Fixtures generated successfully! Created ${result.matchesCreated} matches.`);
@@ -6268,7 +2998,7 @@ export class WorkspaceDetailComponent implements OnInit {
     this.isResettingStages.set(true);
     try {
       await firstValueFrom(
-        this.workspaceService.resetStagesAndFixtures(ws.id, event.id, comp.id)
+        this.competitionService.resetStagesAndFixtures(ws.id, event.id, comp.id)
       );
 
       this.uiService.success('Stages and fixtures have been cleared successfully.');

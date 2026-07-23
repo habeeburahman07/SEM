@@ -1,11 +1,20 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength, MinLength, IsDateString, IsIn, IsArray, IsUUID } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+  IsDateString,
+  IsIn,
+  IsArray,
+  IsUUID,
+} from 'class-validator';
 
-export class CreateEventDto {
-  @IsNotEmpty()
+export class UpdateEventDto {
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(150)
-  name: string;
+  name?: string;
 
   @IsOptional()
   @IsString()

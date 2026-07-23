@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
@@ -7,6 +8,13 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 import { UploadModule } from './upload/upload.module';
+import { VenuesModule } from './venues/venues.module';
+import { TeamsModule } from './teams/teams.module';
+import { PlayersModule } from './players/players.module';
+import { EventsModule } from './events/events.module';
+import { CompetitionsModule } from './competitions/competitions.module';
+import { ReliabilityModule } from './reliability/reliability.module';
+import { AllExceptionsFilter } from './common/all-exceptions.filter';
 
 @Module({
   imports: [
@@ -32,8 +40,18 @@ import { UploadModule } from './upload/upload.module';
     AuthModule,
     WorkspacesModule,
     UploadModule,
+    VenuesModule,
+    TeamsModule,
+    PlayersModule,
+    EventsModule,
+    CompetitionsModule,
+    ReliabilityModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Register as a global filter via DI so ErrorLoggerService is injected
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
+  ],
 })
 export class AppModule {}

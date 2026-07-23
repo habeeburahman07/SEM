@@ -5,11 +5,12 @@ import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
 import { WorkspaceService } from '../../services/workspace.service';
 import { UiService } from '../../services/ui.service';
+import { AvatarComponent } from '../../shared/components/avatar/avatar';
 
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule, FormsModule, DatePipe, RouterLink],
+  imports: [CommonModule, FormsModule, DatePipe, RouterLink, AvatarComponent],
   templateUrl: './profile.html',
   styleUrl: './profile.css'
 })
@@ -66,11 +67,6 @@ export class ProfileComponent implements OnInit {
         this.uiService.error('Failed to load profile details.');
       }
     });
-  }
-
-  initials(name: string): string {
-    if (!name) return 'U';
-    return name.slice(0, 2).toUpperCase();
   }
 
   onAvatarSelected(event: any) {

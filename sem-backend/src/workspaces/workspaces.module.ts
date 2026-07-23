@@ -25,6 +25,13 @@ import { SystemSettingsController } from './system-settings.controller';
 import { UsersModule } from '../users/users.module';
 import { EventsGateway } from './events.gateway';
 
+// Extracted Domain Services
+import { NotificationsService } from './notifications/notifications.service';
+import { AuditLogsService } from './audit-logs/audit-logs.service';
+import { SystemConfigService } from './system-config/system-config.service';
+import { RolesPermissionsService } from './roles-permissions/roles-permissions.service';
+import { WorkspaceMembersService } from './members/members.service';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -51,7 +58,10 @@ import { EventsGateway } from './events.gateway';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET', 'super-secret-key-12345'),
+        secret: configService.get<string>(
+          'JWT_SECRET',
+          'super-secret-key-12345',
+        ),
         signOptions: {
           expiresIn: configService.get<any>('JWT_EXPIRATION', '24h'),
         },
@@ -59,7 +69,23 @@ import { EventsGateway } from './events.gateway';
     }),
   ],
   controllers: [WorkspacesController, SystemSettingsController],
-  providers: [WorkspacesService, EventsGateway],
-  exports: [WorkspacesService, EventsGateway],
+  providers: [
+    WorkspacesService,
+    EventsGateway,
+    NotificationsService,
+    AuditLogsService,
+    SystemConfigService,
+    RolesPermissionsService,
+    WorkspaceMembersService,
+  ],
+  exports: [
+    WorkspacesService,
+    EventsGateway,
+    NotificationsService,
+    AuditLogsService,
+    SystemConfigService,
+    RolesPermissionsService,
+    WorkspaceMembersService,
+  ],
 })
 export class WorkspacesModule {}

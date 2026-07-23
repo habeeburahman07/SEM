@@ -7,11 +7,16 @@ import { AuthService } from '../../services/auth.service';
 import { UiService } from '../../services/ui.service';
 import { SocketService } from '../../services/socket.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { AvatarComponent } from '../../shared/components/avatar/avatar';
+import { ButtonComponent } from '../../shared/components/button/button';
+import { ModalComponent } from '../../shared/components/modal/modal';
+import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state';
+import { InitialsPipe } from '../../shared/pipes/initials.pipe';
 
 @Component({
   selector: 'app-workspaces',
   standalone: true,
-  imports: [RouterLink, DatePipe, FormsModule],
+  imports: [RouterLink, DatePipe, FormsModule, AvatarComponent, ButtonComponent, ModalComponent, EmptyStateComponent, InitialsPipe],
   templateUrl: './workspaces.html',
   styleUrl: './workspaces.css',
 })
@@ -102,26 +107,6 @@ export class WorkspacesComponent implements OnInit {
         this.uiService.error('Failed to upload avatar image.');
       }
     });
-  }
-
-  initials(name: string): string {
-    if (!name) return '';
-    const parts = name.split(' ');
-    if (parts.length > 1) {
-      return parts.slice(0, 2).map(w => w[0]).join('').toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-  }
-
-  avatarColor(name: string): string {
-    if (!name) return '#6366f1';
-    const colors = [
-      '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b',
-      '#10b981', '#3b82f6', '#ef4444', '#14b8a6',
-    ];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return colors[Math.abs(hash) % colors.length];
   }
 
   // Workspace creation modal signals & logic
