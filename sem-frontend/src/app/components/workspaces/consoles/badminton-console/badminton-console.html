@@ -14,20 +14,7 @@
                     <div class="min-w-0">
                       <h3 class="text-lg font-black text-white uppercase tracking-wide truncate">{{ match().homeTeam?.name || 'Home' }}</h3>
                     </div>
-                    <!-- Home Team Logo -->
-                    <div
-                      class="w-10 h-10 rounded-xl overflow-hidden bg-slate-950 border border-white/10 flex items-center justify-center flex-shrink-0"
-                      [style.background]="match().homeTeam?.logoUrl ? 'transparent' : (match().homeTeam ? avatarColor(match().homeTeam?.name || '') : 'transparent')">
-                      @if (match().homeTeam; as homeTeam) {
-                      @if (homeTeam.logoUrl) {
-                      <img [src]="homeTeam.logoUrl" alt="Logo" class="w-full h-full object-cover" />
-                      } @else {
-                      <span class="text-xs font-bold text-white">{{ initials(homeTeam.name) }}</span>
-                      }
-                      } @else {
-                      <span class="text-xs font-bold text-slate-500">HM</span>
-                      }
-                    </div>
+                    <app-avatar [name]="match().homeTeam ? match().homeTeam!.name : 'HM'" [logoUrl]="match().homeTeam?.logoUrl" customClass="w-10 h-10 rounded-xl flex-shrink-0" textClass="text-xs font-bold text-white" />
                   </div>
 
                   <!-- Live Score Card -->
@@ -45,20 +32,7 @@
 
                   <!-- Away Team name -->
                   <div class="flex-1 flex items-center justify-start gap-3 text-left">
-                    <!-- Away Team Logo -->
-                    <div
-                      class="w-10 h-10 rounded-xl overflow-hidden bg-slate-950 border border-white/10 flex items-center justify-center flex-shrink-0"
-                      [style.background]="match().awayTeam?.logoUrl ? 'transparent' : (match().awayTeam ? avatarColor(match().awayTeam?.name || '') : 'transparent')">
-                      @if (match().awayTeam; as awayTeam) {
-                      @if (awayTeam.logoUrl) {
-                      <img [src]="awayTeam.logoUrl" alt="Logo" class="w-full h-full object-cover" />
-                      } @else {
-                      <span class="text-xs font-bold text-white">{{ initials(awayTeam.name) }}</span>
-                      }
-                      } @else {
-                      <span class="text-xs font-bold text-slate-500">AW</span>
-                      }
-                    </div>
+                    <app-avatar [name]="match().awayTeam ? match().awayTeam!.name : 'AW'" [logoUrl]="match().awayTeam?.logoUrl" customClass="w-10 h-10 rounded-xl flex-shrink-0" textClass="text-xs font-bold text-white" />
                     <div class="min-w-0">
                       <h3 class="text-lg font-black text-white uppercase tracking-wide truncate">{{ match().awayTeam?.name || 'Away' }}</h3>
                     </div>
@@ -453,17 +427,9 @@
                 </div>
 
                 <div class="grid grid-cols-2 gap-4 text-left">
-                  <!-- Home Team Lineup -->
                   <div class="flex flex-col gap-3">
                     <h4 class="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-                      @if (match().homeTeam?.logoUrl) {
-                      <img [src]="match().homeTeam?.logoUrl" class="w-4 h-4 rounded object-cover" />
-                      } @else {
-                      <div class="w-4 h-4 rounded flex items-center justify-center text-white text-[6px] font-black"
-                        [style.background]="avatarColor(match().homeTeam?.name || '')">
-                        {{ initials(match().homeTeam?.name || '') }}
-                      </div>
-                      }
+                      <app-avatar [name]="match().homeTeam?.name || 'HM'" [logoUrl]="match().homeTeam?.logoUrl" customClass="w-4 h-4 rounded flex-shrink-0" textClass="text-[6px] font-black text-white" />
                       {{ match().homeTeam?.code || 'Home' }}
                     </h4>
                     
@@ -503,7 +469,7 @@
                             @if (mp.rating !== null && mp.rating !== undefined) {
                             <!-- Rating badge -->
                             <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded border"
-                              [ngClass]="getPlayerRatingColor(mp.rating)"
+                              [ngClass]="mp.rating | ratingColor"
                               title="Match rating">
                               {{ (+mp.rating).toFixed(1) }}
                             </span>
@@ -527,17 +493,9 @@
                     </div>
                   </div>
 
-                  <!-- Away Team Lineup -->
                   <div class="flex flex-col gap-3">
                     <h4 class="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-                      @if (match().awayTeam?.logoUrl) {
-                      <img [src]="match().awayTeam?.logoUrl" class="w-4 h-4 rounded object-cover" />
-                      } @else {
-                      <div class="w-4 h-4 rounded flex items-center justify-center text-white text-[6px] font-black"
-                        [style.background]="avatarColor(match().awayTeam?.name || '')">
-                        {{ initials(match().awayTeam?.name || '') }}
-                      </div>
-                      }
+                      <app-avatar [name]="match().awayTeam?.name || 'AW'" [logoUrl]="match().awayTeam?.logoUrl" customClass="w-4 h-4 rounded flex-shrink-0" textClass="text-[6px] font-black text-white" />
                       {{ match().awayTeam?.code || 'Away' }}
                     </h4>
 
@@ -577,7 +535,7 @@
                             @if (mp.rating !== null && mp.rating !== undefined) {
                             <!-- Rating badge -->
                             <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded border"
-                              [ngClass]="getPlayerRatingColor(mp.rating)"
+                              [ngClass]="mp.rating | ratingColor"
                               title="Match rating">
                               {{ (+mp.rating).toFixed(1) }}
                             </span>

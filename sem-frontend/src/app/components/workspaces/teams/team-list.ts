@@ -3,11 +3,20 @@ import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TeamService } from '../../../services/team.service';
 import { Team } from '../../../services/workspace.service';
+import { AvatarComponent } from '../../../shared/components/avatar/avatar';
+import { ButtonComponent } from '../../../shared/components/button/button';
+import { BadgeComponent } from '../../../shared/components/badge/badge';
+import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state';
+import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner';
+import { SearchInputComponent } from '../../../shared/components/search-input/search-input';
+import { StatCardComponent } from '../../../shared/components/stat-card/stat-card';
+import { TabBarComponent } from '../../../shared/components/tab-bar/tab-bar';
+import { TabItem } from '../../../shared/components/tab-bar/tab-bar';
 
 @Component({
   selector: 'app-team-list',
   standalone: true,
-  imports: [DatePipe, FormsModule],
+  imports: [DatePipe, FormsModule, AvatarComponent, ButtonComponent, BadgeComponent, EmptyStateComponent, LoadingSpinnerComponent, SearchInputComponent, StatCardComponent, TabBarComponent],
   templateUrl: './team-list.html',
 })
 export class TeamListComponent {
@@ -27,6 +36,15 @@ export class TeamListComponent {
 
   selectedTeamForDetails = signal<any | null>(null);
   activeTeamDetailTab = signal<'overview' | 'competitions' | 'squad'>('overview');
+  teamDetailTabs = computed<TabItem[]>(() => {
+    const details = this.selectedTeamForDetails();
+    const squadCount = details?.squad?.length ?? 0;
+    return [
+      { id: 'overview', label: 'All-Time Stats' },
+      { id: 'competitions', label: 'Competition History' },
+      { id: 'squad', label: 'Squad', badge: squadCount }
+    ];
+  });
   isLoadingTeamStats = signal(false);
 
   // Bulk Import
@@ -77,22 +95,6 @@ export class TeamListComponent {
 
   onBackToTeams() {
     this.selectedTeamId.set(null);
-  }
-
-  avatarColor(name: string): string {
-    const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6'];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return colors[Math.abs(hash) % colors.length];
-  }
-
-  initials(name: string): string {
-    if (!name) return '';
-    const parts = name.split(' ');
-    if (parts.length > 1) {
-      return parts.slice(0, 2).map(w => w[0]).join('').toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
   }
 
   // Bulk import actions

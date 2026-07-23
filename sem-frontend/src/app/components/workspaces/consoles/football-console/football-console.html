@@ -36,19 +36,7 @@
                       </div>
                     </div>
                     <!-- Home Team Logo -->
-                    <div
-                      class="w-10 h-10 rounded-xl overflow-hidden bg-slate-950 border border-white/10 flex items-center justify-center flex-shrink-0"
-                      [style.background]="match().homeTeam?.logoUrl ? 'transparent' : (match().homeTeam ? avatarColor(match().homeTeam?.name || '') : 'transparent')">
-                      @if (match().homeTeam; as homeTeam) {
-                      @if (homeTeam.logoUrl) {
-                      <img [src]="homeTeam.logoUrl" alt="Logo" class="w-full h-full object-cover" />
-                      } @else {
-                      <span class="text-xs font-bold text-white">{{ initials(homeTeam.name) }}</span>
-                      }
-                      } @else {
-                      <span class="text-xs font-bold text-slate-500">HM</span>
-                      }
-                    </div>
+                    <app-avatar [name]="match().homeTeam ? match().homeTeam!.name : 'HM'" [logoUrl]="match().homeTeam?.logoUrl" customClass="w-10 h-10 rounded-xl flex-shrink-0" textClass="text-xs font-bold text-white" />
                   </div>
 
                   <!-- Live Score Card -->
@@ -81,19 +69,7 @@
                   <!-- Away Team name -->
                   <div class="flex-1 flex items-center justify-start gap-3 text-left">
                     <!-- Away Team Logo -->
-                    <div
-                      class="w-10 h-10 rounded-xl overflow-hidden bg-slate-950 border border-white/10 flex items-center justify-center flex-shrink-0"
-                      [style.background]="match().awayTeam?.logoUrl ? 'transparent' : (match().awayTeam ? avatarColor(match().awayTeam?.name || '') : 'transparent')">
-                      @if (match().awayTeam; as awayTeam) {
-                      @if (awayTeam.logoUrl) {
-                      <img [src]="awayTeam.logoUrl" alt="Logo" class="w-full h-full object-cover" />
-                      } @else {
-                      <span class="text-xs font-bold text-white">{{ initials(awayTeam.name) }}</span>
-                      }
-                      } @else {
-                      <span class="text-xs font-bold text-slate-500">AW</span>
-                      }
-                    </div>
+                    <app-avatar [name]="match().awayTeam ? match().awayTeam!.name : 'AW'" [logoUrl]="match().awayTeam?.logoUrl" customClass="w-10 h-10 rounded-xl flex-shrink-0" textClass="text-xs font-bold text-white" />
                     <div class="min-w-0">
                       <h3 class="text-lg font-black text-white uppercase tracking-wide truncate">{{ match().awayTeam?.name || 'Away' }}</h3>
                       <div class="text-[10px] text-slate-400 mt-1 flex flex-col items-start">

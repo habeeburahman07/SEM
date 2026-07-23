@@ -14,11 +14,12 @@ import {
 } from '../../services/workspace.service';
 import { AuthService } from '../../services/auth.service';
 import { UiService } from '../../services/ui.service';
+import { AvatarComponent } from '../../shared/components/avatar/avatar';
 
 @Component({
   selector: 'app-system-settings',
   standalone: true,
-  imports: [FormsModule, RouterLink, DatePipe],
+  imports: [FormsModule, RouterLink, DatePipe, AvatarComponent],
   templateUrl: './system-settings.html',
   styleUrl: './system-settings.css',
 })
@@ -146,25 +147,6 @@ export class SystemSettingsComponent implements OnInit {
     });
   }
 
-  initials(name: string): string {
-    if (!name) return '';
-    const parts = name.split(' ');
-    if (parts.length > 1) {
-      return parts.slice(0, 2).map(w => w[0]).join('').toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-  }
-
-  avatarColor(name: string): string {
-    if (!name) return '#6366f1';
-    const colors = [
-      '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b',
-      '#10b981', '#3b82f6', '#ef4444', '#14b8a6',
-    ];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return colors[Math.abs(hash) % colors.length];
-  }
 
   ngOnInit() {
     this.loadWorkspaces();

@@ -22,6 +22,13 @@ import { CompetitionService } from '../../services/competition.service';
 import { FootballConsoleComponent } from './consoles/football-console/football-console';
 import { CricketConsoleComponent } from './consoles/cricket-console/cricket-console';
 import { BadmintonConsoleComponent } from './consoles/badminton-console/badminton-console';
+import { AvatarComponent } from '../../shared/components/avatar/avatar';
+import { InitialsPipe } from '../../shared/pipes/initials.pipe';
+import { SidebarComponent } from './layout/sidebar/sidebar';
+import { TopbarComponent } from './layout/topbar/topbar';
+import { WorkspaceDashboardComponent } from './dashboard/dashboard';
+import { WorkspaceMembersComponent } from './members/members';
+import { WorkspaceSettingsComponent } from './settings/settings';
 
 declare const L: any;
 
@@ -42,6 +49,13 @@ declare const L: any;
     FootballConsoleComponent,
     CricketConsoleComponent,
     BadmintonConsoleComponent,
+    AvatarComponent,
+    InitialsPipe,
+    SidebarComponent,
+    TopbarComponent,
+    WorkspaceDashboardComponent,
+    WorkspaceMembersComponent,
+    WorkspaceSettingsComponent,
   ],
   templateUrl: './workspace-detail.html',
   styleUrl: './workspace-detail.css',
@@ -667,14 +681,7 @@ export class WorkspaceDetailComponent implements OnInit {
   generateFixturesSubmitError = signal('');
   isResettingStages = signal(false);
 
-  // ── Workspace Edit State ───────────────────────────────────────────────────
-  editName = signal('');
-  editDescription = signal('');
-  editLogoUrl = signal('');
   isUserDropdownOpen = signal(false);
-  isSavingSettings = signal(false);
-  settingsError = signal('');
-  settingsSuccess = signal('');
 
   // ── Member Invite State ────────────────────────────────────────────────────
   inviteUsername = signal('');
@@ -788,9 +795,6 @@ export class WorkspaceDetailComponent implements OnInit {
     this.workspaceService.getOne(id).subscribe({
       next: (ws) => {
         this.workspace.set(ws);
-        this.editName.set(ws.name);
-        this.editDescription.set(ws.description ?? '');
-        this.editLogoUrl.set(ws.logoUrl ?? '');
         this.loadMembers(id);
         this.loadRoles(id);
         this.loadTeams(id);
@@ -977,50 +981,6 @@ export class WorkspaceDetailComponent implements OnInit {
     this.workspaceService.getRoles(workspaceId).subscribe({
       next: (roles) => this.roles.set(roles),
       error: (err) => console.error('Failed to load roles', err),
-    });
-  }
-
-  async deleteWorkspace() {
-    const ws = this.workspace();
-    if (!ws) return;
-    const confirmed = await this.uiService.confirm({
-      title: 'Delete Workspace',
-      message: `Are you sure you want to delete "${ws.name}"? This cannot be undone.`,
-      confirmText: 'Delete',
-      type: 'danger',
-    });
-    if (!confirmed) return;
-    this.workspaceService.remove(ws.id).subscribe({
-      next: () => {
-        this.uiService.success(`Workspace "${ws.name}" deleted successfully.`);
-        this.router.navigate(['/workspaces']);
-      },
-      error: (err) => this.uiService.error(err.error?.message ?? 'Failed to delete workspace.'),
-    });
-  }
-
-  onSaveSettings() {
-    const name = this.editName().trim();
-    const description = this.editDescription().trim();
-    const ws = this.workspace();
-    if (!ws || !name) return;
-
-    this.isSavingSettings.set(true);
-    this.settingsError.set('');
-    this.settingsSuccess.set('');
-
-    const logoUrl = this.editLogoUrl().trim();
-
-    this.workspaceService.update(ws.id, { name, description, logoUrl: logoUrl || null }).subscribe({
-      next: (updatedWs) => {
-        this.isSavingSettings.set(false);
-        this.workspace.set(updatedWs);
-        this.settingsSuccess.set('Workspace settings updated successfully!');
-      },
-      error: (err) => {
-        this.isSavingSettings.set(false);
-        this.settingsError.set(err.error?.message ?? 'Failed to update workspace settings.');
-      }
     });
   }
 
@@ -1582,24 +1542,6 @@ export class WorkspaceDetailComponent implements OnInit {
         this.uiService.error(err.error?.message ?? 'Failed to delete player.');
       }
     });
-  }
-
-  // ── Avatars ────────────────────────────────────────────────────────────────
-
-  avatarColor(name: string): string {
-    const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6'];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return colors[Math.abs(hash) % colors.length];
-  }
-
-  initials(name: string): string {
-    if (!name) return '';
-    const parts = name.split(' ');
-    if (parts.length > 1) {
-      return parts.slice(0, 2).map(w => w[0]).join('').toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
   }
 
   // ── Events CRUD ────────────────────────────────────────────────────────────
@@ -2922,14 +2864,6 @@ export class WorkspaceDetailComponent implements OnInit {
     return Math.min(10.0, Math.max(5.0, Math.round(rating * 10) / 10));
   }
 
-  /** Returns a Tailwind-compatible color string for a player rating badge. */
-  getPlayerRatingColor(rating: number | null): string {
-    if (rating === null || rating === undefined) return 'text-slate-500 bg-slate-800/60 border-slate-700/40';
-    if (rating >= 9.0) return 'text-emerald-300 bg-emerald-500/20 border-emerald-500/30';
-    if (rating >= 7.5) return 'text-violet-300 bg-violet-500/20 border-violet-500/30';
-    if (rating >= 6.5) return 'text-amber-300 bg-amber-500/20 border-amber-500/30';
-    return 'text-rose-300 bg-rose-500/20 border-rose-500/30';
-  }
 
 
   getHomePlayersInForm(): any[] {
@@ -3028,25 +2962,6 @@ export class WorkspaceDetailComponent implements OnInit {
         this.isUploadingAvatar.set(false);
         console.error(err);
         this.uiService.error('Image upload failed.');
-      }
-    });
-  }
-
-  onWorkspaceLogoUpload(event: any) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    this.isUploadingWorkspaceLogo.set(true);
-    this.workspaceService.uploadImage(file, 'workspace').subscribe({
-      next: (res) => {
-        this.isUploadingWorkspaceLogo.set(false);
-        this.editLogoUrl.set(res.url);
-        this.uiService.success('Workspace logo uploaded successfully.');
-      },
-      error: (err) => {
-        this.isUploadingWorkspaceLogo.set(false);
-        console.error(err);
-        this.uiService.error('Workspace logo upload failed.');
       }
     });
   }

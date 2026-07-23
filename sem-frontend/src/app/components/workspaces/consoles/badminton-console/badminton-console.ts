@@ -4,11 +4,13 @@ import { FormsModule } from '@angular/forms';
 import { Match, Player, Team, MatchPlayer, CompetitionStage } from '../../../../services/workspace.service';
 import { CompetitionService } from '../../../../services/competition.service';
 import { UiService } from '../../../../services/ui.service';
+import { AvatarComponent } from '../../../../shared/components/avatar/avatar';
+import { RatingColorPipe } from '../../../../shared/pipes/rating-color.pipe';
 
 @Component({
   selector: 'app-badminton-console',
   standalone: true,
-  imports: [NgClass, FormsModule],
+  imports: [NgClass, FormsModule, AvatarComponent, RatingColorPipe],
   templateUrl: './badminton-console.html',
 })
 export class BadmintonConsoleComponent implements OnDestroy {
@@ -727,27 +729,4 @@ export class BadmintonConsoleComponent implements OnDestroy {
     });
   }
 
-  getPlayerRatingColor(rating: number | null): string {
-    if (rating === null || rating === undefined) return 'text-slate-500 bg-slate-800/60 border-slate-700/40';
-    if (rating >= 9.0) return 'text-emerald-300 bg-emerald-500/20 border-emerald-500/30';
-    if (rating >= 7.5) return 'text-violet-300 bg-violet-500/20 border-violet-500/30';
-    if (rating >= 6.5) return 'text-amber-300 bg-amber-500/20 border-amber-500/30';
-    return 'text-rose-300 bg-rose-500/20 border-rose-500/30';
-  }
-
-  avatarColor(name: string): string {
-    const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6'];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return colors[Math.abs(hash) % colors.length];
-  }
-
-  initials(name: string): string {
-    if (!name) return '';
-    const parts = name.split(' ');
-    if (parts.length > 1) {
-      return parts.slice(0, 2).map(w => w[0]).join('').toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-  }
 }

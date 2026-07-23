@@ -2,11 +2,19 @@ import { Component, input, output, signal, computed, effect, inject, model } fro
 import { FormsModule } from '@angular/forms';
 import { PlayerService } from '../../../services/player.service';
 import { Player, Team, WorkspaceMember } from '../../../services/workspace.service';
+import { AvatarComponent } from '../../../shared/components/avatar/avatar';
+import { ButtonComponent } from '../../../shared/components/button/button';
+import { BadgeComponent } from '../../../shared/components/badge/badge';
+import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state';
+import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner';
+import { SearchInputComponent } from '../../../shared/components/search-input/search-input';
+import { StatCardComponent } from '../../../shared/components/stat-card/stat-card';
+import { RatingColorPipe } from '../../../shared/pipes/rating-color.pipe';
 
 @Component({
   selector: 'app-player-list',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, AvatarComponent, ButtonComponent, BadgeComponent, EmptyStateComponent, LoadingSpinnerComponent, SearchInputComponent, StatCardComponent, RatingColorPipe],
   templateUrl: './player-list.html',
 })
 export class PlayerListComponent {
@@ -77,22 +85,6 @@ export class PlayerListComponent {
 
   onBackToPlayers() {
     this.selectedPlayerId.set(null);
-  }
-
-  avatarColor(name: string): string {
-    const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6'];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return colors[Math.abs(hash) % colors.length];
-  }
-
-  initials(name: string): string {
-    if (!name) return '';
-    const parts = name.split(' ');
-    if (parts.length > 1) {
-      return parts.slice(0, 2).map(w => w[0]).join('').toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
   }
 
   // Bulk import actions

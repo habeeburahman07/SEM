@@ -9,14 +9,7 @@
             class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-white/10 hover:border-white/20 rounded-xl transition-all cursor-pointer">
             <i class="fi fi-rr-arrow-small-left text-xl"></i>
           </button>
-          @if (teamDetails.team.logoUrl) {
-          <img [src]="teamDetails.team.logoUrl" alt="Logo" class="w-16 h-16 rounded-2xl object-cover border border-white/10" />
-          } @else {
-          <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-base font-extrabold shadow-inner"
-            [style.background]="avatarColor(teamDetails.team.name)">
-            {{ initials(teamDetails.team.name) }}
-          </div>
-          }
+          <app-avatar [name]="teamDetails.team.name" [logoUrl]="teamDetails.team.logoUrl" customClass="w-16 h-16 rounded-2xl border border-white/10 shadow-inner" textClass="text-base font-extrabold text-white" />
           <div>
             <div class="flex items-center gap-2">
               <h2 class="text-xl font-bold text-white">{{ teamDetails.team.name }}</h2>
@@ -41,32 +34,7 @@
       </div>
 
       <!-- Tab selection within Team Details -->
-      <div class="flex border-b border-white/5">
-        <button (click)="activeTeamDetailTab.set('overview')"
-          [class.text-violet-400]="activeTeamDetailTab() === 'overview'"
-          [class.border-violet-500]="activeTeamDetailTab() === 'overview'"
-          [class.border-transparent]="activeTeamDetailTab() !== 'overview'"
-          [class.text-slate-400]="activeTeamDetailTab() !== 'overview'"
-          class="px-4 py-2.5 text-xs font-bold border-b-2 hover:text-white transition-all cursor-pointer">
-          All-Time Stats
-        </button>
-        <button (click)="activeTeamDetailTab.set('competitions')"
-          [class.text-violet-400]="activeTeamDetailTab() === 'competitions'"
-          [class.border-violet-500]="activeTeamDetailTab() === 'competitions'"
-          [class.border-transparent]="activeTeamDetailTab() !== 'competitions'"
-          [class.text-slate-400]="activeTeamDetailTab() !== 'competitions'"
-          class="px-4 py-2.5 text-xs font-bold border-b-2 hover:text-white transition-all cursor-pointer">
-          Competition History
-        </button>
-        <button (click)="activeTeamDetailTab.set('squad')"
-          [class.text-violet-400]="activeTeamDetailTab() === 'squad'"
-          [class.border-violet-500]="activeTeamDetailTab() === 'squad'"
-          [class.border-transparent]="activeTeamDetailTab() !== 'squad'"
-          [class.text-slate-400]="activeTeamDetailTab() !== 'squad'"
-          class="px-4 py-2.5 text-xs font-bold border-b-2 hover:text-white transition-all cursor-pointer">
-          Squad ({{ teamDetails.squad.length }})
-        </button>
-      </div>
+      <app-tab-bar [tabs]="teamDetailTabs()" [activeId]="activeTeamDetailTab()" (tabChange)="activeTeamDetailTab.set($any($event))" />
 
       <!-- TAB CONTENT: OVERVIEW (ALL-TIME STATS) -->
       @if (activeTeamDetailTab() === 'overview') {
@@ -74,38 +42,9 @@
         
         <!-- Key Stats Row -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-2xl p-5 shadow-xl flex items-center gap-4 relative overflow-hidden">
-            <div class="absolute -right-4 -bottom-4 text-white/5 text-6xl font-black">CT</div>
-            <div class="w-12 h-12 rounded-xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
-              <i class="fi fi-rr-layers text-xl"></i>
-            </div>
-            <div>
-              <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Competitions</p>
-              <p class="text-2xl font-black text-white mt-0.5">{{ teamDetails.allTime.participations }}</p>
-            </div>
-          </div>
-
-          <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-2xl p-5 shadow-xl flex items-center gap-4 relative overflow-hidden">
-            <div class="absolute -right-4 -bottom-4 text-white/5 text-6xl font-black">GP</div>
-            <div class="w-12 h-12 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-              <i class="fi fi-rr-running text-xl"></i>
-            </div>
-            <div>
-              <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Games Played</p>
-              <p class="text-2xl font-black text-white mt-0.5">{{ teamDetails.allTime.totalGames }}</p>
-            </div>
-          </div>
-
-          <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-2xl p-5 shadow-xl flex items-center gap-4 relative overflow-hidden">
-            <div class="absolute -right-4 -bottom-4 text-white/5 text-6xl font-black">VP</div>
-            <div class="w-12 h-12 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-400">
-              <i class="fi fi-rr-trophy text-xl"></i>
-            </div>
-            <div>
-              <p class="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Squad MVPs</p>
-              <p class="text-2xl font-black text-yellow-400 mt-0.5">{{ teamDetails.allTime.mvps }}</p>
-            </div>
-          </div>
+          <app-stat-card label="Competitions" [value]="teamDetails.allTime.participations" subLabel="Across all tournaments" iconClass="fi-rr-layers" theme="violet" />
+          <app-stat-card label="Games Played" [value]="teamDetails.allTime.totalGames" subLabel="All-time fixtures" iconClass="fi-rr-running" theme="blue" />
+          <app-stat-card label="Squad MVPs" [value]="teamDetails.allTime.mvps" subLabel="Individual MVP awards" iconClass="fi-rr-trophy" theme="amber" />
         </div>
 
         <!-- Sport Specific Aggregates Grid -->
@@ -175,13 +114,7 @@
               </h4>
               @if (teamDetails.bestPlayers.football; as bp) {
               <div class="flex items-center gap-3 bg-slate-950/20 p-3 rounded-xl border border-white/5 mt-1">
-                @if (bp.avatarUrl) {
-                <img [src]="bp.avatarUrl" alt="Avatar" class="w-10 h-10 rounded-full border border-white/10" />
-                } @else {
-                <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" [style.background]="avatarColor(bp.playerName)">
-                  {{ initials(bp.playerName) }}
-                </div>
-                }
+                <app-avatar [name]="bp.playerName" [logoUrl]="bp.avatarUrl" customClass="w-10 h-10 rounded-full border border-white/10" textClass="text-xs font-bold text-white" />
                 <div class="min-w-0 flex-1">
                   <p class="text-xs font-bold text-white truncate">{{ bp.playerName }}</p>
                   <p class="text-[9px] text-slate-500 truncate">{{ bp.appearances }} apps</p>
@@ -203,13 +136,7 @@
               </h4>
               @if (teamDetails.bestPlayers.cricket; as bp) {
               <div class="flex items-center gap-3 bg-slate-950/20 p-3 rounded-xl border border-white/5 mt-1">
-                @if (bp.avatarUrl) {
-                <img [src]="bp.avatarUrl" alt="Avatar" class="w-10 h-10 rounded-full border border-white/10" />
-                } @else {
-                <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" [style.background]="avatarColor(bp.playerName)">
-                  {{ initials(bp.playerName) }}
-                </div>
-                }
+                <app-avatar [name]="bp.playerName" [logoUrl]="bp.avatarUrl" customClass="w-10 h-10 rounded-full border border-white/10" textClass="text-xs font-bold text-white" />
                 <div class="min-w-0 flex-1">
                   <p class="text-xs font-bold text-white truncate">{{ bp.playerName }}</p>
                   <p class="text-[9px] text-slate-500 truncate">{{ bp.appearances }} apps</p>
@@ -231,13 +158,7 @@
               </h4>
               @if (teamDetails.bestPlayers.badminton; as bp) {
               <div class="flex items-center gap-3 bg-slate-950/20 p-3 rounded-xl border border-white/5 mt-1">
-                @if (bp.avatarUrl) {
-                <img [src]="bp.avatarUrl" alt="Avatar" class="w-10 h-10 rounded-full border border-white/10" />
-                } @else {
-                <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" [style.background]="avatarColor(bp.playerName)">
-                  {{ initials(bp.playerName) }}
-                </div>
-                }
+                <app-avatar [name]="bp.playerName" [logoUrl]="bp.avatarUrl" customClass="w-10 h-10 rounded-full border border-white/10" textClass="text-xs font-bold text-white" />
                 <div class="min-w-0 flex-1">
                   <p class="text-xs font-bold text-white truncate">{{ bp.playerName }}</p>
                   <p class="text-[9px] text-slate-500 truncate">{{ bp.appearances }} apps</p>
@@ -326,13 +247,7 @@
           <!-- Competition Best Player for Team -->
           @if (c.bestPlayer; as bp) {
           <div class="flex items-center gap-3 bg-slate-950/20 p-2.5 border border-white/5 rounded-xl mt-1 max-w-sm">
-            @if (bp.avatarUrl) {
-            <img [src]="bp.avatarUrl" alt="Avatar" class="w-8 h-8 rounded-full border border-white/10" />
-            } @else {
-            <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold" [style.background]="avatarColor(bp.playerName)">
-              {{ initials(bp.playerName) }}
-            </div>
-            }
+            <app-avatar [name]="bp.playerName" [logoUrl]="bp.avatarUrl" customClass="w-8 h-8 rounded-full border border-white/10" textClass="text-[10px] font-bold text-white" />
             <div class="min-w-0 flex-1 text-left">
               <p class="text-[11px] font-bold text-white truncate">{{ bp.playerName }}</p>
               <p class="text-[9px] text-slate-500 truncate">Competition Best ({{ bp.appearances }} apps)</p>
@@ -360,13 +275,7 @@
           @for (player of teamDetails.squad; track player.id) {
           <div class="bg-slate-900 border border-white/10 rounded-xl p-4 flex items-center justify-between gap-4">
             <div class="flex items-center gap-3 min-w-0">
-              @if (player.user.avatarUrl) {
-              <img [src]="player.user.avatarUrl" alt="Avatar" class="w-10 h-10 rounded-full border border-white/10 object-cover" />
-              } @else {
-              <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold" [style.background]="avatarColor(player.user.username || 'P')">
-                {{ initials(player.user.username || 'P') }}
-              </div>
-              }
+              <app-avatar [name]="player.user.username || 'P'" [logoUrl]="player.user.avatarUrl" customClass="w-10 h-10 rounded-full border border-white/10" textClass="text-xs font-bold text-white" />
               <div class="min-w-0">
                 <p class="text-xs font-bold text-white truncate">{{ player.user.username || 'Guest Player' }}</p>
                 <p class="text-[9px] text-slate-500">Player Profile ID</p>
@@ -395,42 +304,19 @@
         <p class="text-xs text-slate-400 mt-1">Teams belonging to this workspace that can participate in events.</p>
       </div>
       <div class="flex items-center gap-3">
-        <span class="text-xs font-semibold px-2.5 py-1 bg-slate-900 border border-white/10 text-violet-400 rounded-lg">
-          {{ teams().length }} Total
-        </span>
+        <app-badge [label]="teams().length + ' Total'" variant="violet" size="sm" />
         @if (canUpdate()) {
-        <button (click)="openBulkModal()"
-          class="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-white/10 text-white hover:text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-violet-400" fill="none" viewBox="0 0 24 24"
-            stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-          </svg>
-          Bulk Import
-        </button>
-        <button (click)="add.emit()"
-          class="flex items-center gap-1.5 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-violet-900/20 transition-all cursor-pointer">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24"
-            stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          Add Team
-        </button>
+          <app-button label="Bulk Import" iconClass="fi-rr-upload" variant="secondary" size="sm" (clicked)="openBulkModal()" />
+          <app-button label="Add Team" iconClass="fi-rr-plus" variant="primary" size="sm" (clicked)="add.emit()" />
         }
       </div>
     </div>
 
     <!-- Teams Grid -->
     @if (teams().length === 0) {
-    <div class="flex flex-col items-center justify-center py-20 text-center bg-slate-900/40 border border-white/10 rounded-2xl">
-      <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-white/10 flex items-center justify-center mb-4">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-slate-600" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
-        </svg>
-      </div>
-      <h3 class="text-sm font-bold text-white mb-1">No teams registered</h3>
-      <p class="text-xs text-slate-500 max-w-xs">Register your first team to start organizing events.</p>
-    </div>
+    <app-empty-state iconClass="fi-rr-users-alt" title="No teams registered" message="Register your first team to start organizing events.">
+      <app-button label="Register First Team" size="md" iconClass="fi-rr-plus" (clicked)="add.emit()" />
+    </app-empty-state>
     } @else {
       <!-- Search and Filter Bar -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/20 border border-white/5 p-4 rounded-2xl mb-4">
@@ -441,30 +327,11 @@
             {{ teams().length }} team{{ teams().length !== 1 ? 's' : '' }} registered
           }
         </div>
-        <div class="relative w-full sm:w-72">
-          <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-            <i class="fi fi-rr-search text-xs"></i>
-          </span>
-          <input type="text" [ngModel]="teamSearchQuery()" (ngModelChange)="teamSearchQuery.set($event)"
-            placeholder="Search teams by name or code..."
-            class="w-full bg-slate-950/40 border border-white/10 focus:border-violet-500/50 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none transition-all" />
-          @if (teamSearchQuery()) {
-          <button (click)="teamSearchQuery.set('')"
-            class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 cursor-pointer bg-transparent border-0">
-            <i class="fi fi-rr-cross text-[10px]"></i>
-          </button>
-          }
-        </div>
+        <app-search-input [value]="teamSearchQuery()" placeholder="Search teams by name or code..." (valueChange)="teamSearchQuery.set($event)" />
       </div>
 
       @if (filteredTeams().length === 0) {
-      <div class="flex flex-col items-center justify-center py-20 text-center bg-slate-900/40 border border-white/10 rounded-2xl w-full">
-        <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-white/10 flex items-center justify-center mb-4">
-          <i class="fi fi-rr-search text-slate-600 text-2xl"></i>
-        </div>
-        <h3 class="text-sm font-bold text-white mb-1">No matching teams</h3>
-        <p class="text-xs text-slate-500 max-w-xs">No teams match your search query "{{ teamSearchQuery() }}".</p>
-      </div>
+      <app-empty-state iconClass="fi-rr-search" title="No matching teams" [message]="'No teams match your search query &quot;' + teamSearchQuery() + '&quot;.'" />
       } @else {
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         @for (team of filteredTeams(); track team.id) {
@@ -482,14 +349,7 @@
 
           <div class="flex items-start gap-4">
             <!-- Team Logo / Avatar -->
-            @if (team.logoUrl) {
-            <img [src]="team.logoUrl" alt="Logo" class="w-16 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0" />
-            } @else {
-            <div class="w-16 h-16 rounded-xl flex items-center justify-center text-white text-base font-extrabold shadow-inner flex-shrink-0"
-              [style.background]="avatarColor(team.name)">
-              {{ initials(team.name) }}
-            </div>
-            }
+            <app-avatar [name]="team.name" [logoUrl]="team.logoUrl" customClass="w-16 h-16 rounded-xl border border-white/10 flex-shrink-0 shadow-inner" textClass="text-base font-extrabold text-white" />
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2">
                 <h4 class="text-sm font-bold text-white truncate">{{ team.name }}</h4>
@@ -514,19 +374,10 @@
 
           <!-- Actions -->
           <div class="flex items-center justify-end gap-2 pt-3 border-t border-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button (click)="selectedTeamId.set(team.id)"
-              class="px-2.5 py-1.5 text-[11px] font-bold text-violet-400 hover:text-white hover:bg-violet-600/20 border border-violet-500/10 hover:border-violet-500/30 rounded-lg transition-all cursor-pointer font-bold">
-              View Stats
-            </button>
+            <app-button label="Stats" iconClass="fi-rr-stats" variant="outline" size="xs" (clicked)="selectedTeamId.set(team.id)" />
             @if (canUpdate()) {
-            <button (click)="edit.emit(team)"
-              class="px-2.5 py-1.5 text-[11px] font-bold text-slate-300 hover:text-white hover:bg-white/5 border border-white/10 rounded-lg transition-all cursor-pointer">
-              Edit
-            </button>
-            <button (click)="delete.emit(team)"
-              class="px-2.5 py-1.5 text-[11px] font-bold text-rose-400 hover:text-white hover:bg-rose-600/20 border border-rose-500/10 hover:border-rose-500/30 rounded-lg transition-all cursor-pointer">
-              Delete
-            </button>
+              <app-button label="Edit" iconClass="fi-rr-edit" variant="ghost" size="xs" (clicked)="edit.emit(team)" />
+              <app-button label="Delete" iconClass="fi-rr-trash" variant="danger" size="xs" (clicked)="delete.emit(team)" />
             }
           </div>
         </div>
@@ -680,23 +531,8 @@
 
       <!-- Footer Buttons -->
       <div class="px-6 py-5 border-t border-white/5 flex justify-end gap-3 flex-shrink-0">
-        <button type="button" (click)="closeBulkModal()" [disabled]="isImportingBulk()"
-          class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white hover:text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-          Close
-        </button>
-        <button type="button" (click)="onConfirmBulkImport()"
-          [disabled]="isImportingBulk() || bulkImportTeams().length === 0"
-          class="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2">
-          @if (isImportingBulk()) {
-          <svg class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-          </svg>
-          Importing...
-          } @else {
-          Import Teams
-          }
-        </button>
+        <app-button label="Close" variant="secondary" size="md" [disabled]="isImportingBulk()" (clicked)="closeBulkModal()" />
+        <app-button label="Import Teams" iconClass="fi-rr-upload" variant="primary" size="md" [loading]="isImportingBulk()" [disabled]="bulkImportTeams().length === 0" (clicked)="onConfirmBulkImport()" />
       </div>
     </div>
   </div>

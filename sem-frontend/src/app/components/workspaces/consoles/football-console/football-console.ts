@@ -3,11 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { Match, Player, Team, MatchPlayer, CompetitionStage } from '../../../../services/workspace.service';
 import { CompetitionService } from '../../../../services/competition.service';
 import { UiService } from '../../../../services/ui.service';
+import { AvatarComponent } from '../../../../shared/components/avatar/avatar';
 
 @Component({
   selector: 'app-football-console',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, AvatarComponent],
   templateUrl: './football-console.html',
 })
 export class FootballConsoleComponent implements OnDestroy {
@@ -917,21 +918,5 @@ export class FootballConsoleComponent implements OnDestroy {
     }
 
     return teamPlayers;
-  }
-
-  avatarColor(name: string): string {
-    const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6'];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return colors[Math.abs(hash) % colors.length];
-  }
-
-  initials(name: string): string {
-    if (!name) return '';
-    const parts = name.split(' ');
-    if (parts.length > 1) {
-      return parts.slice(0, 2).map(w => w[0]).join('').toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
   }
 }

@@ -33,1343 +33,90 @@
   <!-- Flex Container for Sidebar + Main Content -->
   <div class="flex flex-col lg:flex-row h-screen overflow-hidden bg-slate-950 text-white w-full">
 
-    <!-- Mobile Header / Navbar -->
-    <div
-      class="lg:hidden flex items-center justify-between px-6 h-16 border-b border-white/10 bg-slate-900 sticky top-0 z-40">
-      <div class="flex items-center gap-3">
-        <button (click)="isSidebarOpen.set(!isSidebarOpen())" class="text-white text-xl p-1 cursor-pointer">
-          <i class="fi text-sm" [class.fi-rr-cross]="isSidebarOpen()" [class.fi-rr-menu-burger]="!isSidebarOpen()"></i>
-        </button>
-        <span class="font-extrabold text-sm text-white truncate">{{ workspace()!.name }}</span>
-      </div>
-      <div class="flex items-center gap-3">
-        <span class="text-xs text-slate-500 font-mono">/{{ workspace()!.slug }}</span>
-      </div>
-    </div>
-
-    <!-- Sidebar Backdrop (Mobile Only) -->
-    @if (isSidebarOpen()) {
-    <div (click)="isSidebarOpen.set(false)"
-      class="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-all duration-300"></div>
-    }
-
-    <!-- Sidebar -->
-    <aside [class.w-64]="isSidebarOpen()" [class.translate-x-0]="isSidebarOpen()" [class.w-0]="!isSidebarOpen()"
-      [class.-translate-x-full]="!isSidebarOpen()" [class.lg:w-64]="isSidebarOpen()" [class.lg:w-20]="!isSidebarOpen()"
-      [class.lg:translate-x-0]="true"
-      class="fixed inset-y-0 left-0 bg-slate-900 border-r border-white/10 flex flex-col z-50 lg:z-10 lg:static lg:h-screen transition-all duration-300 ease-in-out shrink-0 overflow-hidden">
-
-      <!-- Sidebar Workspace Header -->
-      <div [class.lg:px-0]="!isSidebarOpen()"
-        class="p-6 border-b border-white/5 flex items-center justify-between gap-3">
-        <div [class.lg:flex-col]="!isSidebarOpen()" [class.lg:mx-auto]="!isSidebarOpen()"
-          class="flex items-center gap-3 min-w-0">
-          <div (click)="isSidebarOpen.set(!isSidebarOpen())"
-            class="w-10 h-10 rounded-xl flex items-center justify-center text-white text-base font-extrabold shadow-md shrink-0 overflow-hidden cursor-pointer hover:scale-105 transition-all"
-            [style.background]="workspace()?.logoUrl ? 'transparent' : avatarColor(workspace()!.name)">
-            @if (workspace()?.logoUrl) {
-            <img [src]="workspace()?.logoUrl" alt="Logo" class="w-full h-full object-cover" />
-            } @else {
-            {{ initials(workspace()!.name) }}
-            }
-          </div>
-          <div [class.lg:hidden]="!isSidebarOpen()" class="min-w-0">
-            <h2 class="text-sm font-extrabold text-white truncate">{{ workspace()!.name }}</h2>
-            <p class="text-[10px] text-slate-500 font-mono truncate">/{{ workspace()!.slug }}</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Navigation Menu -->
-      <div [class.lg:px-2.5]="!isSidebarOpen()" class="flex-1 overflow-y-auto px-4 py-6 flex flex-col gap-1">
-        <button (click)="activeTab.set('overview'); closeSidebarOnMobile()"
-          [class]="activeTab() === 'overview' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
-          [class.lg:justify-center]="!isSidebarOpen()" [class.lg:px-0]="!isSidebarOpen()"
-          class="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
-          <i class="fi fi-rr-apps text-base shrink-0"></i>
-          <span [class.lg:hidden]="!isSidebarOpen()">Overview</span>
-        </button>
-
-        <button (click)="activeTab.set('members'); closeSidebarOnMobile()"
-          [class]="activeTab() === 'members' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
-          [class.lg:justify-center]="!isSidebarOpen()" [class.lg:px-0]="!isSidebarOpen()"
-          class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
-          <span class="flex items-center gap-3 min-w-0" [class.lg:justify-center]="!isSidebarOpen()"
-            [class.w-full]="!isSidebarOpen()">
-            <i class="fi fi-rr-users text-base shrink-0"></i>
-            <span [class.lg:hidden]="!isSidebarOpen()">Members</span>
-          </span>
-          @if (isSidebarOpen()) {
-          <span class="px-2 py-0.5 text-[10px] bg-slate-800 text-slate-400 rounded-md border border-white/5">{{
-            members().length }}</span>
-          }
-        </button>
-
-        <button (click)="activeTab.set('teams'); closeSidebarOnMobile()"
-          [class]="activeTab() === 'teams' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
-          [class.lg:justify-center]="!isSidebarOpen()" [class.lg:px-0]="!isSidebarOpen()"
-          class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
-          <span class="flex items-center gap-3 min-w-0" [class.lg:justify-center]="!isSidebarOpen()"
-            [class.w-full]="!isSidebarOpen()">
-            <i class="fi fi-rr-users-alt text-base shrink-0"></i>
-            <span [class.lg:hidden]="!isSidebarOpen()">Teams</span>
-          </span>
-          @if (isSidebarOpen()) {
-          <span class="px-2 py-0.5 text-[10px] bg-slate-800 text-slate-400 rounded-md border border-white/5">{{
-            teams().length }}</span>
-          }
-        </button>
-
-        <button (click)="activeTab.set('players'); closeSidebarOnMobile()"
-          [class]="activeTab() === 'players' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
-          [class.lg:justify-center]="!isSidebarOpen()" [class.lg:px-0]="!isSidebarOpen()"
-          class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
-          <span class="flex items-center gap-3 min-w-0" [class.lg:justify-center]="!isSidebarOpen()"
-            [class.w-full]="!isSidebarOpen()">
-            <i class="fi fi-rr-running text-base shrink-0"></i>
-            <span [class.lg:hidden]="!isSidebarOpen()">Players</span>
-          </span>
-          @if (isSidebarOpen()) {
-          <span class="px-2 py-0.5 text-[10px] bg-slate-800 text-slate-400 rounded-md border border-white/5">{{
-            players().length }}</span>
-          }
-        </button>
-
-        <button (click)="activeTab.set('events'); closeSidebarOnMobile()"
-          [class]="activeTab() === 'events' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
-          [class.lg:justify-center]="!isSidebarOpen()" [class.lg:px-0]="!isSidebarOpen()"
-          class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
-          <span class="flex items-center gap-3 min-w-0" [class.lg:justify-center]="!isSidebarOpen()"
-            [class.w-full]="!isSidebarOpen()">
-            <i class="fi fi-rr-trophy text-base shrink-0"></i>
-            <span [class.lg:hidden]="!isSidebarOpen()">Events</span>
-          </span>
-          @if (isSidebarOpen()) {
-          <span class="px-2 py-0.5 text-[10px] bg-slate-800 text-slate-400 rounded-md border border-white/5">{{
-            events().length }}</span>
-          }
-        </button>
-
-        <button (click)="activeTab.set('venues'); closeSidebarOnMobile()"
-          [class]="activeTab() === 'venues' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
-          [class.lg:justify-center]="!isSidebarOpen()" [class.lg:px-0]="!isSidebarOpen()"
-          class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
-          <span class="flex items-center gap-3 min-w-0" [class.lg:justify-center]="!isSidebarOpen()"
-            [class.w-full]="!isSidebarOpen()">
-            <i class="fi fi-rr-marker text-base shrink-0"></i>
-            <span [class.lg:hidden]="!isSidebarOpen()">Venues</span>
-          </span>
-          @if (isSidebarOpen()) {
-          <span class="px-2 py-0.5 text-[10px] bg-slate-800 text-slate-400 rounded-md border border-white/5">{{
-            venues().length }}</span>
-          }
-        </button>
-
-        @if (hasPermission('workspace.update')) {
-        <button (click)="activeTab.set('settings'); closeSidebarOnMobile()"
-          [class]="activeTab() === 'settings' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
-          [class.lg:justify-center]="!isSidebarOpen()" [class.lg:px-0]="!isSidebarOpen()"
-          class="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
-          <i class="fi fi-rr-settings text-base shrink-0"></i>
-          <span [class.lg:hidden]="!isSidebarOpen()">Settings</span>
-        </button>
-        }
-      </div>
-    </aside>
+    <!-- Sidebar Component -->
+    <app-sidebar 
+      [workspace]="workspace()"
+      [(isSidebarOpen)]="isSidebarOpen"
+      [(activeTab)]="activeTab"
+      [membersCount]="members().length"
+      [teamsCount]="teams().length"
+      [playersCount]="players().length"
+      [eventsCount]="events().length"
+      [venuesCount]="venues().length"
+      [hasSettingsPermission]="hasPermission('workspace.update')" />
 
     <!-- Main Content Area -->
     <main class="flex-1 overflow-y-auto min-w-0 p-6 lg:p-10">
 
-      <!-- Top Bar -->
-      <header class="flex items-center justify-between border-b border-white/5 pb-5 mb-8">
-        <div class="flex items-center gap-3">
-          <!-- Global Search Bar (Left-aligned) -->
-          <div class="hidden md:flex items-center w-80 relative" id="globalSearchContainer">
-            <span class="absolute left-4 text-slate-500 text-sm pointer-events-none">
-              <i class="fi fi-rr-search"></i>
-            </span>
-            <input type="text" id="globalSearchInput" placeholder="Search teams, players, events, venues..." 
-              [ngModel]="globalSearchQuery()" (ngModelChange)="globalSearchQuery.set($event); showGlobalSearchResults.set(true)"
-              (focus)="showGlobalSearchResults.set(true)"
-              class="w-full bg-slate-900 border border-white/5 focus:border-violet-500/50 rounded-xl pl-11 pr-10 py-2.5 text-xs text-slate-200 placeholder-slate-500 outline-none transition-all" />
-            @if (globalSearchQuery()) {
-              <button (click)="clearGlobalSearch()" class="absolute right-12 text-slate-500 hover:text-slate-300 cursor-pointer bg-transparent border-0 flex items-center">
-                <i class="fi fi-rr-cross text-[10px]"></i>
-              </button>
-            }
-            <span class="absolute right-4 px-1.5 py-0.5 text-[9px] font-bold bg-slate-800 text-slate-500 rounded border border-white/5 font-mono select-none pointer-events-none">⌘K</span>
-
-            <!-- Search Results Dropdown Panel -->
-            @if (globalSearchQuery().trim() && showGlobalSearchResults()) {
-              <!-- Backdrop to close -->
-              <div class="fixed inset-0 z-30 bg-transparent cursor-default" (click)="showGlobalSearchResults.set(false)"></div>
-              
-              <div class="absolute left-0 top-full mt-2 w-[420px] max-h-[480px] overflow-y-auto bg-slate-900 border border-white/10 rounded-2xl shadow-2xl py-3 px-4 z-40 animate-fadeIn shrink-0 flex flex-col gap-3 scrollbar-thin">
-                <div class="border-b border-white/5 pb-2">
-                  <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Search Results</h4>
-                </div>
-
-                @if (globalSearchResults().totalCount === 0) {
-                  <div class="text-center py-6 text-slate-500 text-xs">
-                    No matching results found for "{{ globalSearchQuery() }}"
-                  </div>
-                } @else {
-                  <div class="flex flex-col gap-3">
-                    
-                    <!-- Teams Results -->
-                    @if (globalSearchResults().teams.length > 0) {
-                      <div>
-                        <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                          <i class="fi fi-rr-users text-slate-400"></i>
-                          <span>Teams ({{ globalSearchResults().teams.length }})</span>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                          @for (team of globalSearchResults().teams; track team.id) {
-                            <button (click)="selectGlobalTeam(team)" class="w-full flex items-center gap-2.5 p-2 hover:bg-white/[0.03] rounded-xl text-left transition-colors cursor-pointer border-0 bg-transparent">
-                              @if (team.logoUrl) {
-                                <img [src]="team.logoUrl" class="w-6 h-6 rounded-md object-cover" />
-                              } @else {
-                                <div class="w-6 h-6 rounded-md flex items-center justify-center text-[10px] text-white font-extrabold" [style.background]="avatarColor(team.name)">
-                                  {{ initials(team.name) }}
-                                </div>
-                              }
-                              <div class="min-w-0 flex-1">
-                                <p class="text-xs font-semibold text-white truncate">{{ team.name }}</p>
-                                <p class="text-[9px] text-slate-400 truncate">{{ team.code || 'No code' }} • {{ team.description || 'No description' }}</p>
-                              </div>
-                            </button>
-                          }
-                        </div>
-                      </div>
-                    }
-
-                    <!-- Players Results -->
-                    @if (globalSearchResults().players.length > 0) {
-                      <div>
-                        <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                          <i class="fi fi-rr-running text-slate-400"></i>
-                          <span>Players ({{ globalSearchResults().players.length }})</span>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                          @for (player of globalSearchResults().players; track player.id) {
-                            <button (click)="selectGlobalPlayer(player)" class="w-full flex items-center gap-2.5 p-2 hover:bg-white/[0.03] rounded-xl text-left transition-colors cursor-pointer border-0 bg-transparent">
-                              @if (player.user.avatarUrl) {
-                                <img [src]="player.user.avatarUrl" class="w-6 h-6 rounded-full object-cover" />
-                              } @else {
-                                <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-extrabold" [style.background]="avatarColor(player.user.username || 'P')">
-                                  {{ initials(player.user.username || 'P') }}
-                                </div>
-                              }
-                              <div class="min-w-0 flex-1">
-                                <p class="text-xs font-semibold text-white truncate">{{ player.user.username }}</p>
-                                <p class="text-[9px] text-slate-400 truncate">Team: {{ player.team.name }} • Jersey: #{{ player.jerseyNumber || 'N/A' }}</p>
-                              </div>
-                            </button>
-                          }
-                        </div>
-                      </div>
-                    }
-
-                    <!-- Events Results -->
-                    @if (globalSearchResults().events.length > 0) {
-                      <div>
-                        <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                          <i class="fi fi-rr-trophy text-slate-400"></i>
-                          <span>Events ({{ globalSearchResults().events.length }})</span>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                          @for (event of globalSearchResults().events; track event.id) {
-                            <button (click)="selectGlobalEvent(event)" class="w-full flex items-center gap-2.5 p-2 hover:bg-white/[0.03] rounded-xl text-left transition-colors cursor-pointer border-0 bg-transparent">
-                              <div class="w-6 h-6 rounded-md bg-slate-800 border border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0 text-[10px] text-violet-400">
-                                @if (event.logoUrl) {
-                                  <img [src]="event.logoUrl" class="w-full h-full object-cover" />
-                                } @else {
-                                  <i class="fi fi-rr-trophy"></i>
-                                }
-                              </div>
-                              <div class="min-w-0 flex-1">
-                                <p class="text-xs font-semibold text-white truncate">{{ event.name }}</p>
-                                <p class="text-[9px] text-slate-400 truncate">Status: {{ event.status }} • {{ event.description || 'No description' }}</p>
-                              </div>
-                            </button>
-                          }
-                        </div>
-                      </div>
-                    }
-
-                    <!-- Competitions Results -->
-                    @if (globalSearchResults().competitions.length > 0) {
-                      <div>
-                        <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                          <i class="fi fi-rr-layers text-slate-400"></i>
-                          <span>Competitions ({{ globalSearchResults().competitions.length }})</span>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                          @for (comp of globalSearchResults().competitions; track comp.id) {
-                            <button (click)="selectGlobalCompetition(comp)" class="w-full flex items-center gap-2.5 p-2 hover:bg-white/[0.03] rounded-xl text-left transition-colors cursor-pointer border-0 bg-transparent">
-                              <div class="w-6 h-6 rounded-md bg-slate-800 border border-white/10 flex items-center justify-center text-[10px] text-indigo-400">
-                                <i class="fi fi-rr-bolt"></i>
-                              </div>
-                              <div class="min-w-0 flex-1">
-                                <p class="text-xs font-semibold text-white truncate">{{ comp.name }}</p>
-                                <p class="text-[9px] text-slate-400 truncate">Sport: {{ comp.sport?.name || 'N/A' }} • Status: {{ comp.status }}</p>
-                              </div>
-                            </button>
-                          }
-                        </div>
-                      </div>
-                    }
-
-                    <!-- Venues Results -->
-                    @if (globalSearchResults().venues.length > 0) {
-                      <div>
-                        <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                          <i class="fi fi-rr-marker text-slate-400"></i>
-                          <span>Venues ({{ globalSearchResults().venues.length }})</span>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                          @for (venue of globalSearchResults().venues; track venue.id) {
-                            <button (click)="selectGlobalVenue(venue)" class="w-full flex items-center gap-2.5 p-2 hover:bg-white/[0.03] rounded-xl text-left transition-colors cursor-pointer border-0 bg-transparent">
-                              <div class="w-6 h-6 rounded-md bg-slate-800 border border-white/10 flex items-center justify-center text-[10px] text-emerald-400">
-                                <i class="fi fi-rr-marker"></i>
-                              </div>
-                              <div class="min-w-0 flex-1">
-                                <p class="text-xs font-semibold text-white truncate">{{ venue.name }}</p>
-                                <p class="text-[9px] text-slate-400 truncate">Location: {{ venue.location || 'No location' }}</p>
-                              </div>
-                            </button>
-                          }
-                        </div>
-                      </div>
-                    }
-
-                    <!-- Members Results -->
-                    @if (globalSearchResults().members.length > 0) {
-                      <div>
-                        <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                          <i class="fi fi-rr-users-alt text-slate-400"></i>
-                          <span>Members ({{ globalSearchResults().members.length }})</span>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                          @for (member of globalSearchResults().members; track member.id) {
-                            <button (click)="selectGlobalMember(member)" class="w-full flex items-center gap-2.5 p-2 hover:bg-white/[0.03] rounded-xl text-left transition-colors cursor-pointer border-0 bg-transparent">
-                              <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-extrabold" [style.background]="avatarColor(member.user.username)">
-                                {{ initials(member.user.username) }}
-                              </div>
-                              <div class="min-w-0 flex-1">
-                                <p class="text-xs font-semibold text-white truncate">{{ member.user.username }}</p>
-                                <p class="text-[9px] text-slate-400 truncate">Role: {{ member.role.name }}</p>
-                              </div>
-                            </button>
-                          }
-                        </div>
-                      </div>
-                    }
-
-                  </div>
-                }
-              </div>
-            }
-          </div>
-        </div>
-
-        <div class="flex items-center gap-3">
-          <!-- Workspace Switcher Select Dropdown -->
-          <div class="relative min-w-[160px] max-w-[220px]">
-            <select [ngModel]="workspace()?.id" (ngModelChange)="onSwitchWorkspace($event)"
-              class="w-full bg-slate-900 border border-white/10 hover:border-violet-500/50 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none cursor-pointer appearance-none transition-all truncate pr-8 shadow-sm">
-              @for (ws of allWorkspaces(); track ws.id) {
-                <option [value]="ws.id" class="bg-slate-900 text-white py-1.5">{{ ws.name }}</option>
-              }
-            </select>
-            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">
-              <i class="fi fi-rr-angle-small-down"></i>
-            </span>
-          </div>
-
-          <!-- Notification Dropdown Menu -->
-          <div class="relative">
-            <button (click)="isNotificationOpen.set(!isNotificationOpen())"
-              class="w-10 h-10 rounded-xl bg-slate-900 hover:bg-slate-800/80 border border-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all cursor-pointer relative">
-              <i class="fi fi-rr-bell text-base"></i>
-              @if (totalBadgeCount() > 0) {
-              <span
-                class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 text-white rounded-full text-[10px] font-extrabold flex items-center justify-center animate-pulse border-2 border-slate-950">
-                {{ totalBadgeCount() }}
-              </span>
-              }
-            </button>
-
-            <!-- Dropdown Panel -->
-            @if (isNotificationOpen()) {
-            <!-- Backdrop to close -->
-            <div class="fixed inset-0 z-30 bg-black/0 cursor-default" (click)="isNotificationOpen.set(false)"></div>
-
-            <div
-              class="absolute right-0 mt-2 w-80 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl py-3 px-4 z-40 animate-fadeIn shrink-0 flex flex-col gap-3">
-              <div class="border-b border-white/5 pb-2 flex items-center justify-between">
-                <h4 class="text-xs font-bold text-white uppercase tracking-wider">Notifications</h4>
-                @if (unreadNotificationsCount() > 0) {
-                <button (click)="markNotificationsAsRead(); $event.stopPropagation()"
-                  class="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold transition cursor-pointer">
-                  Mark all as read
-                </button>
-                }
-              </div>
-
-              <!-- Invitations Section -->
-              <div class="flex flex-col gap-2">
-                <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Invitations ({{
-                  pendingInvitations().length }})</div>
-                <div class="max-h-40 overflow-y-auto flex flex-col gap-2">
-                  @if (pendingInvitations().length === 0) {
-                  <div class="py-2 text-center text-[10px] text-slate-600 italic">No pending invitations</div>
-                  } @else {
-                  @for (invite of pendingInvitations(); track invite.id) {
-                  <div class="bg-slate-950/40 border border-white/5 rounded-xl p-2.5 flex flex-col gap-2">
-                    <div class="flex items-start gap-2.5">
-                      <div
-                        class="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
-                        {{ initials(invite.workspace?.name || 'W') }}
-                      </div>
-                      <div class="min-w-0">
-                        <p class="text-xs font-bold text-white truncate">{{ invite.workspace?.name }}</p>
-                        <p class="text-[9px] text-slate-400 mt-0.5 capitalize">
-                          Role: {{ invite.role.name || 'Viewer' }}
-                        </p>
-                      </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <button (click)="acceptInvite(invite.workspaceId, invite.workspace?.name || 'Workspace')"
-                        [disabled]="isProcessingInvitation()"
-                        class="flex-1 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-[10px] font-bold rounded-lg transition-all cursor-pointer text-center">
-                        Accept
-                      </button>
-                      <button (click)="rejectInvite(invite.workspaceId, invite.workspace?.name || 'Workspace')"
-                        [disabled]="isProcessingInvitation()"
-                        class="flex-1 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-rose-400 text-[10px] font-bold rounded-lg transition-all cursor-pointer text-center">
-                        Reject
-                      </button>
-                    </div>
-                  </div>
-                  }
-                  }
-                </div>
-              </div>
-
-              <!-- General Notifications Section -->
-              <div class="flex flex-col gap-2 pt-2 border-t border-white/5">
-                <div class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Recent Activity ({{
-                  notifications().length }})</div>
-                <div class="max-h-44 overflow-y-auto flex flex-col gap-2">
-                  @if (notifications().length === 0) {
-                  <div class="py-2 text-center text-[10px] text-slate-600 italic">No notifications</div>
-                  } @else {
-                  @for (notification of notifications(); track notification.id) {
-                  <div [class.bg-indigo-950/20]="!notification.isRead"
-                    class="bg-slate-950/40 border border-white/5 hover:border-white/10 rounded-xl p-2.5 flex items-start gap-2.5 transition-all">
-                    @if (notification.icon) {
-                      <span class="text-xs mt-0.5 shrink-0 select-none">{{ notification.icon }}</span>
-                    }
-                    <div class="flex-1 min-w-0 flex flex-col gap-1">
-                      <p class="text-[10px] text-white leading-relaxed">{{ notification.message }}</p>
-                      <span class="text-[8px] text-slate-500 text-right">{{ notification.createdAt | date: 'shortTime'
-                        }}</span>
-                    </div>
-                  </div>
-                  }
-                  }
-                </div>
-              </div>
-            </div>
-            }
-          </div>
-
-          <!-- User Dropdown Menu -->
-          <div class="relative">
-            <button (click)="isUserDropdownOpen.set(!isUserDropdownOpen())"
-              class="flex items-center gap-3 bg-slate-900 hover:bg-slate-800/80 border border-white/5 rounded-xl px-4 py-2 text-left cursor-pointer transition-all">
-              <!-- Profile Icon (Avatar) -->
-              <div
-                class="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center text-white font-bold text-sm shadow-sm select-none overflow-hidden relative">
-                @if (isUploadingAvatar()) {
-                <div class="absolute inset-0 bg-slate-950/85 flex items-center justify-center">
-                  <svg class="animate-spin h-4.5 w-4.5 text-violet-500" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                    </path>
-                  </svg>
-                </div>
-                } @else {
-                @if (authService.currentUser()?.avatarUrl) {
-                <img [src]="authService.currentUser()?.avatarUrl" alt="Avatar" class="w-full h-full object-cover" />
-                } @else {
-                {{ initials(authService.currentUser()?.username || 'U') }}
-                }
-                <!-- Hover Upload Overlay -->
-                <label
-                  class="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <input type="file" class="hidden" accept="image/*" (change)="onAvatarUpload($event)" />
-                </label>
-                }
-              </div>
-              <div class="text-left leading-none pr-1">
-                <p class="text-xs font-bold text-white">{{ authService.currentUser()?.username }}</p>
-                <p class="text-[9px] text-slate-500 font-mono mt-0.5 capitalize">{{ getCurrentUserRoleSlug() }}</p>
-              </div>
-              <i class="fi fi-rr-angle-small-down text-slate-400 text-sm transition-transform duration-200"
-                [class.rotate-180]="isUserDropdownOpen()"></i>
-            </button>
-
-            <!-- Dropdown Menu -->
-            @if (isUserDropdownOpen()) {
-            <!-- Backdrop to close -->
-            <div class="fixed inset-0 z-30 bg-black/0 cursor-default" (click)="isUserDropdownOpen.set(false)"></div>
-
-            <div
-              class="absolute right-0 mt-2 w-48 bg-slate-900 border border-white/10 rounded-xl shadow-2xl py-1.5 z-40 animate-fadeIn shrink-0">
-              <div class="px-4 py-2 border-b border-white/5 mb-1.5">
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Signed in as</p>
-                <p class="text-xs font-bold text-white truncate mt-0.5">{{ authService.currentUser()?.username }}</p>
-              </div>
-
-              <!-- My Profile Option -->
-              <a routerLink="/profile" (click)="isUserDropdownOpen.set(false)"
-                class="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer">
-                <i class="fi fi-rr-user text-sm"></i>
-                My Profile
-              </a>
-
-              <!-- System Settings option -->
-              <a routerLink="/system-settings" (click)="isUserDropdownOpen.set(false)"
-                class="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer">
-                <i class="fi fi-rr-settings text-sm"></i>
-                System Settings
-              </a>
-
-              <div class="border-t border-white/5 my-1.5"></div>
-
-              <button (click)="onSignOut(); isUserDropdownOpen.set(false)"
-                class="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/5 transition-all cursor-pointer text-left">
-                <i class="fi fi-rr-sign-out-alt text-sm"></i>
-                Sign Out
-              </button>
-            </div>
-            }
-          </div>
-        </div>
-      </header>
+      <!-- Top Bar Component -->
+      <app-topbar
+        [workspace]="workspace()"
+        [allWorkspaces]="allWorkspaces()"
+        [(globalSearchQuery)]="globalSearchQuery"
+        [(showGlobalSearchResults)]="showGlobalSearchResults"
+        [searchResults]="globalSearchResults()"
+        [(isNotificationOpen)]="isNotificationOpen"
+        [pendingInvitations]="pendingInvitations()"
+        [notifications]="notifications()"
+        [unreadNotificationsCount]="unreadNotificationsCount()"
+        [isProcessingInvitation]="isProcessingInvitation()"
+        [(isUserDropdownOpen)]="isUserDropdownOpen"
+        [currentUser]="authService.currentUser()"
+        [userRoleSlug]="getCurrentUserRoleSlug()"
+        [isUploadingAvatar]="isUploadingAvatar()"
+        (switchWorkspace)="onSwitchWorkspace($event)"
+        (selectTeam)="selectGlobalTeam($event)"
+        (selectPlayer)="selectGlobalPlayer($event)"
+        (selectEvent)="selectGlobalEvent($event)"
+        (selectCompetition)="selectGlobalCompetition($event)"
+        (selectVenue)="selectGlobalVenue($event)"
+        (selectMember)="selectGlobalMember($event)"
+        (acceptInvitation)="acceptInvite($event.workspaceId, $event.name)"
+        (rejectInvitation)="rejectInvite($event.workspaceId, $event.name)"
+        (markNotificationsRead)="markNotificationsAsRead()"
+        (signOut)="onSignOut()"
+        (avatarUpload)="onAvatarUpload($event)" />
 
       <!-- ═══════════════ OVERVIEW TAB ═══════════════ -->
       @if (activeTab() === 'overview') {
-      <div class="space-y-4 md:space-y-5 animate-fadeIn">
-        
-        <!-- Hero banner & Quick Action Toolbar (Compact) -->
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/10">
-          <div>
-            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 text-[10px] font-semibold mb-1">
-              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-              Workspace Active Command Center
-            </div>
-            <h1 class="text-xl font-black text-white tracking-tight">{{ workspace()!.name }} Overview</h1>
-            @if (workspace()!.description) {
-            <p class="text-slate-400 mt-0.5 text-xs max-w-xl truncate">{{ workspace()!.description }}</p>
-            }
-          </div>
-
-          <!-- Workspace Quick Action Buttons -->
-          <div class="flex flex-wrap items-center gap-2">
-            @if (hasPermission('event.create')) {
-              <button (click)="openEventModal()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-xl shadow-md shadow-violet-900/30 transition-all cursor-pointer flex items-center gap-1.5">
-                <i class="fi fi-rr-plus text-xs"></i> New Event
-              </button>
-            }
-            @if (hasPermission('team.manage')) {
-              <button (click)="openTeamModal()" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-semibold rounded-xl border border-white/10 transition-all cursor-pointer flex items-center gap-1.5">
-                <i class="fi fi-rr-users-alt text-xs"></i> Add Team
-              </button>
-            }
-            @if (hasPermission('player.manage')) {
-              <button (click)="openPlayerModal()" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-semibold rounded-xl border border-white/10 transition-all cursor-pointer flex items-center gap-1.5">
-                <i class="fi fi-rr-running text-xs"></i> Add Player
-              </button>
-            }
-            @if (hasPermission('venue.manage')) {
-              <button (click)="openVenueModal()" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white text-xs font-semibold rounded-xl border border-white/10 transition-all cursor-pointer flex items-center gap-1.5">
-                <i class="fi fi-rr-marker text-xs"></i> Add Venue
-              </button>
-            }
-          </div>
-        </div>
-
-        <!-- 1. Stats Summary Cards Grid (Compact 5-Col) -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <div (click)="activeTab.set('teams')"
-            class="bg-slate-900/90 border border-white/10 hover:border-violet-500/40 rounded-xl p-3.5 flex items-center justify-between shadow-md relative overflow-hidden group cursor-pointer transition-all">
-            <div class="absolute top-0 left-0 h-full w-[3px] bg-gradient-to-b from-violet-500 to-indigo-500"></div>
-            <div>
-              <p class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Registered Teams</p>
-              <h3 class="text-2xl font-black text-white mt-0.5">{{ teams().length }}</h3>
-            </div>
-            <div class="text-2xl text-violet-500/30 group-hover:text-violet-400 transition-colors"><i class="fi fi-rr-users-alt"></i></div>
-          </div>
-
-          <div (click)="activeTab.set('players')"
-            class="bg-slate-900/90 border border-white/10 hover:border-indigo-500/40 rounded-xl p-3.5 flex items-center justify-between shadow-md relative overflow-hidden group cursor-pointer transition-all">
-            <div class="absolute top-0 left-0 h-full w-[3px] bg-gradient-to-b from-indigo-500 to-blue-500"></div>
-            <div>
-              <p class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Active Players</p>
-              <h3 class="text-2xl font-black text-white mt-0.5">{{ players().length }}</h3>
-            </div>
-            <div class="text-2xl text-indigo-500/30 group-hover:text-indigo-400 transition-colors"><i class="fi fi-rr-running"></i></div>
-          </div>
-
-          <div (click)="activeTab.set('events')"
-            class="bg-slate-900/90 border border-white/10 hover:border-emerald-500/40 rounded-xl p-3.5 flex items-center justify-between shadow-md relative overflow-hidden group cursor-pointer transition-all">
-            <div class="absolute top-0 left-0 h-full w-[3px] bg-gradient-to-b from-emerald-500 to-teal-500"></div>
-            <div>
-              <p class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Sports Festivals</p>
-              <h3 class="text-2xl font-black text-white mt-0.5">{{ events().length }}</h3>
-            </div>
-            <div class="text-2xl text-emerald-500/30 group-hover:text-emerald-400 transition-colors"><i class="fi fi-rr-trophy"></i></div>
-          </div>
-
-          <div (click)="activeTab.set('venues')"
-            class="bg-slate-900/90 border border-white/10 hover:border-sky-500/40 rounded-xl p-3.5 flex items-center justify-between shadow-md relative overflow-hidden group cursor-pointer transition-all">
-            <div class="absolute top-0 left-0 h-full w-[3px] bg-gradient-to-b from-sky-500 to-violet-500"></div>
-            <div>
-              <p class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Venues</p>
-              <h3 class="text-2xl font-black text-white mt-0.5">{{ venues().length }}</h3>
-            </div>
-            <div class="text-2xl text-sky-500/30 group-hover:text-sky-400 transition-colors"><i class="fi fi-rr-marker"></i></div>
-          </div>
-
-          <div (click)="activeTab.set('members')"
-            class="bg-slate-900/90 border border-white/10 hover:border-amber-500/40 rounded-xl p-3.5 flex items-center justify-between shadow-md relative overflow-hidden group cursor-pointer transition-all">
-            <div class="absolute top-0 left-0 h-full w-[3px] bg-gradient-to-b from-amber-500 to-orange-500"></div>
-            <div>
-              <p class="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Collaborators</p>
-              <h3 class="text-2xl font-black text-white mt-0.5">{{ members().length }}</h3>
-            </div>
-            <div class="text-2xl text-amber-500/30 group-hover:text-amber-400 transition-colors"><i class="fi fi-rr-users"></i></div>
-          </div>
-        </div>
-
-        <!-- High-Density Workspace Status Ribbon -->
-        <div class="bg-slate-950/80 border border-white/10 rounded-xl p-2.5 px-4 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div class="flex items-center gap-4 text-[11px] font-semibold text-slate-300">
-            <span class="flex items-center gap-1.5 text-rose-400 font-bold">
-              <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-              <i class="fi fi-rr-play-alt text-xs"></i> {{ overviewLiveMatches().length }} Live Match{{ overviewLiveMatches().length !== 1 ? 'es' : '' }}
-            </span>
-            <span class="text-slate-600">•</span>
-            <span class="flex items-center gap-1.5">
-              <i class="fi fi-rr-trophy text-amber-400 text-xs"></i> {{ overviewRunningCompetitions().length }} Tournaments Active
-            </span>
-            <span class="text-slate-600">•</span>
-            <span class="flex items-center gap-1.5">
-              <i class="fi fi-rr-calendar text-violet-400 text-xs"></i> {{ overviewUpcomingMatches().length }} Scheduled Fixtures
-            </span>
-          </div>
-
-          @if (overviewTopScorers().length > 0) {
-            <div class="flex items-center gap-1.5 text-[10px] bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg text-emerald-300 font-bold">
-              <i class="fi fi-rr-target text-xs"></i> Top Scorer: {{ overviewTopScorers()[0].playerName }} ({{ overviewTopScorers()[0].score }} Goals)
-            </div>
-          }
-        </div>
-
-        <!-- 2. LIVE MATCHES & SCOREBOARDS (Direct Entry to Live Console) -->
-        <div class="space-y-3">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <div class="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-md shadow-rose-500/50 animate-pulse"></div>
-              <h2 class="text-sm font-extrabold text-white tracking-tight flex items-center gap-2">
-                Live Games & Scoreboards
-                @if (overviewLiveMatches().length > 0) {
-                  <span class="px-2 py-0.5 text-[9px] font-extrabold rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                    {{ overviewLiveMatches().length }} LIVE
-                  </span>
-                }
-              </h2>
-            </div>
-            <span class="text-[11px] text-slate-400">Click any match card to enter live scoring console</span>
-          </div>
-
-          @if (overviewLiveMatches().length > 0) {
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              @for (match of overviewLiveMatches(); track match.id) {
-                <div (click)="onEnterLiveMatchFromOverview(match)"
-                  class="group relative overflow-hidden rounded-xl bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border border-rose-500/30 hover:border-rose-500/70 p-4 shadow-lg hover:shadow-rose-500/10 transition-all cursor-pointer">
-                  
-                  <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 via-amber-500 to-rose-500 animate-pulse"></div>
-
-                  <!-- Match Top Meta -->
-                  <div class="flex items-center justify-between mb-3">
-                    <div class="flex items-center gap-1.5">
-                      <span class="px-2 py-0.5 text-[9px] font-extrabold rounded-md border uppercase tracking-wider flex items-center gap-1"
-                            [ngClass]="getSportBadgeClass(match.stage?.competition?.sport?.code)">
-                        <i [class]="getSportIconClass(match.stage?.competition?.sport?.code)"></i>
-                        {{ match.stage?.competition?.sport?.name || 'Sport' }}
-                      </span>
-                      <span class="text-xs text-slate-400 truncate max-w-[130px] font-medium">{{ match.stage?.competition?.name }}</span>
-                    </div>
-
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/40 text-rose-400 text-[10px] font-black animate-pulse">
-                      <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
-                      {{ formatMatchStatusDetail(match) }}
-                    </span>
-                  </div>
-
-                  <!-- Scoreboard Body -->
-                  <div class="flex items-center justify-between my-2 px-1">
-                    <!-- Home Team -->
-                    <div class="flex flex-col items-center text-center space-y-1 w-2/5">
-                      <div class="w-10 h-10 rounded-xl bg-slate-800 border border-white/10 flex items-center justify-center p-1.5 shadow-inner group-hover:scale-105 transition-transform overflow-hidden">
-                        @if (match.homeTeam?.logoUrl) {
-                          <img [src]="match.homeTeam.logoUrl" [alt]="match.homeTeam.name" class="w-full h-full object-contain">
-                        } @else {
-                          <span class="text-xs font-black text-violet-400">{{ match.homeTeam?.name?.slice(0, 2) || 'HT' }}</span>
-                        }
-                      </div>
-                      <span class="text-xs font-bold text-white truncate w-full">{{ match.homeTeam?.name || 'Home Team' }}</span>
-                    </div>
-
-                    <!-- Score Display -->
-                    <div class="flex flex-col items-center justify-center w-1/5">
-                      <div class="text-xl font-black text-white tracking-wider font-mono flex items-center gap-1">
-                        <span>{{ match.homeScore ?? 0 }}</span>
-                        <span class="text-slate-500 text-sm">:</span>
-                        <span>{{ match.awayScore ?? 0 }}</span>
-                      </div>
-                      <span class="text-[8px] text-slate-400 uppercase tracking-widest mt-0.5 font-bold">Live Score</span>
-                    </div>
-
-                    <!-- Away Team -->
-                    <div class="flex flex-col items-center text-center space-y-1 w-2/5">
-                      <div class="w-10 h-10 rounded-xl bg-slate-800 border border-white/10 flex items-center justify-center p-1.5 shadow-inner group-hover:scale-105 transition-transform overflow-hidden">
-                        @if (match.awayTeam?.logoUrl) {
-                          <img [src]="match.awayTeam.logoUrl" [alt]="match.awayTeam.name" class="w-full h-full object-contain">
-                        } @else {
-                          <span class="text-xs font-black text-indigo-400">{{ match.awayTeam?.name?.slice(0, 2) || 'AT' }}</span>
-                        }
-                      </div>
-                      <span class="text-xs font-bold text-white truncate w-full">{{ match.awayTeam?.name || 'Away Team' }}</span>
-                    </div>
-                  </div>
-
-                  <!-- Footer Venue & Action -->
-                  <div class="pt-2.5 mt-2 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
-                    <span class="truncate max-w-[170px] flex items-center gap-1 text-[10px]">
-                      <i class="fi fi-rr-marker text-slate-500 text-xs"></i>
-                      {{ match.venue?.name || 'Stadium' }}
-                    </span>
-                    <span class="text-violet-400 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-1 text-[11px]">
-                      Enter Console <i class="fi fi-rr-angle-small-right text-xs"></i>
-                    </span>
-                  </div>
-
-                </div>
-              }
-            </div>
-          } @else {
-            <div class="p-4 rounded-xl bg-slate-900/50 border border-white/10 text-center space-y-1">
-              <p class="text-xs font-bold text-slate-300">No Matches Currently Live</p>
-              <p class="text-[10px] text-slate-500">There are no matches actively running right now in this workspace.</p>
-            </div>
-          }
-        </div>
-
-        <!-- 3. RUNNING COMPETITION POINTS TABLE (STANDINGS) -->
-        <div class="space-y-3">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 class="text-sm font-extrabold text-white tracking-tight flex items-center gap-2">
-                <i class="fi fi-rr-trophy text-amber-400 text-sm"></i>
-                Running Competition Points Table
-              </h2>
-              <p class="text-[11px] text-slate-400">Live standings for active tournaments in this workspace</p>
-            </div>
-
-            @if (overviewRunningCompetitions().length > 0) {
-              <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5">
-                @for (comp of overviewRunningCompetitions(); track comp.id) {
-                  <button (click)="onSelectOverviewCompetition(comp)"
-                    class="px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer"
-                    [ngClass]="selectedOverviewCompId() === comp.id ? 'bg-violet-600 text-white shadow-sm shadow-violet-600/30' : 'bg-slate-900 text-slate-400 hover:text-white border border-white/10'">
-                    {{ comp.name }}
-                  </button>
-                }
-              </div>
-            }
-          </div>
-
-          @if (selectedOverviewComp() && selectedOverviewComp()?.standings?.length > 0) {
-            <div class="overflow-x-auto rounded-xl border border-white/10 bg-slate-900/90 backdrop-blur-md shadow-lg">
-              <table class="w-full text-left text-xs text-slate-300">
-                <thead class="bg-slate-950/90 text-slate-400 uppercase tracking-wider text-[9px] font-extrabold border-b border-white/10">
-                  <tr>
-                    <th class="py-2.5 px-3 text-center">Pos</th>
-                    <th class="py-2.5 px-3">Team</th>
-                    <th class="py-2.5 px-2 text-center">P</th>
-                    <th class="py-2.5 px-2 text-center">W</th>
-                    <th class="py-2.5 px-2 text-center">D</th>
-                    <th class="py-2.5 px-2 text-center">L</th>
-                    <th class="py-2.5 px-2 text-center">GF</th>
-                    <th class="py-2.5 px-2 text-center">GA</th>
-                    <th class="py-2.5 px-2 text-center">GD</th>
-                    <th class="py-2.5 px-3 text-center font-black text-violet-400">Pts</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-white/5">
-                  @for (row of selectedOverviewComp()?.standings; track row.teamId; let idx = $index) {
-                    <tr class="hover:bg-white/5 transition-colors">
-                      <td class="py-2 px-3 text-center font-black">
-                        @if (idx === 0) {
-                          <span class="inline-flex items-center gap-1 text-amber-400 font-extrabold"><i class="fi fi-rr-medal text-xs"></i> 1</span>
-                        } @else if (idx === 1) {
-                          <span class="inline-flex items-center gap-1 text-slate-300 font-extrabold"><i class="fi fi-rr-medal text-xs"></i> 2</span>
-                        } @else if (idx === 2) {
-                          <span class="inline-flex items-center gap-1 text-amber-600 font-extrabold"><i class="fi fi-rr-medal text-xs"></i> 3</span>
-                        } @else {
-                          <span class="text-slate-500 font-bold">{{ idx + 1 }}</span>
-                        }
-                      </td>
-                      <td class="py-2 px-3 flex items-center gap-2.5 font-semibold text-white">
-                        <div class="w-6 h-6 rounded-md bg-slate-800 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
-                          @if (row.teamLogoUrl) {
-                            <img [src]="row.teamLogoUrl" [alt]="row.teamName" class="w-full h-full object-cover">
-                          } @else {
-                            <span class="text-[9px] font-bold text-violet-400">{{ row.teamName?.slice(0, 2) }}</span>
-                          }
-                        </div>
-                        <span class="truncate max-w-[180px]">{{ row.teamName }}</span>
-                      </td>
-                      <td class="py-2 px-2 text-center font-medium text-slate-300">{{ row.played }}</td>
-                      <td class="py-2 px-2 text-center font-bold text-emerald-400">{{ row.won }}</td>
-                      <td class="py-2 px-2 text-center font-medium text-amber-400">{{ row.drawn }}</td>
-                      <td class="py-2 px-2 text-center font-medium text-rose-400">{{ row.lost }}</td>
-                      <td class="py-2 px-2 text-center text-slate-400 text-[11px]">{{ row.gf }}</td>
-                      <td class="py-2 px-2 text-center text-slate-400 text-[11px]">{{ row.ga }}</td>
-                      <td class="py-2 px-2 text-center font-bold text-[11px]" [ngClass]="row.gd > 0 ? 'text-emerald-400' : row.gd < 0 ? 'text-rose-400' : 'text-slate-400'">
-                        {{ row.gd > 0 ? '+' + row.gd : row.gd }}
-                      </td>
-                      <td class="py-2 px-3 text-center font-black text-xs text-violet-300 bg-violet-500/10">{{ row.pts }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          } @else {
-            <div class="p-4 rounded-xl bg-slate-900/50 border border-white/10 text-center text-xs text-slate-400">
-              No active competition points table available.
-            </div>
-          }
-        </div>
-
-        <!-- 4. UPCOMING GAMES & LEADERBOARDS GRID -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-          <!-- Upcoming Games (2 Cols) -->
-          <div class="lg:col-span-2 space-y-3">
-            <div class="flex items-center justify-between">
-              <h2 class="text-sm font-extrabold text-white tracking-tight flex items-center gap-2">
-                <i class="fi fi-rr-calendar text-violet-400 text-sm"></i>
-                Upcoming Matches & Fixtures
-              </h2>
-              <span class="text-[11px] text-slate-400">Scheduled fixtures</span>
-            </div>
-
-            @if (overviewUpcomingMatches().length > 0) {
-              <div class="space-y-2">
-                @for (match of overviewUpcomingMatches(); track match.id) {
-                  <div (click)="onEnterLiveMatchFromOverview(match)"
-                    class="group p-3 rounded-xl bg-slate-900/90 border border-white/10 hover:border-violet-500/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer">
-                    
-                    <div class="flex items-center gap-2.5">
-                      <span class="px-2 py-0.5 text-[9px] font-extrabold rounded-md border uppercase tracking-wider flex items-center gap-1"
-                            [ngClass]="getSportBadgeClass(match.stage?.competition?.sport?.code)">
-                        <i [class]="getSportIconClass(match.stage?.competition?.sport?.code)"></i>
-                        {{ match.stage?.competition?.sport?.name || 'Sport' }}
-                      </span>
-                      <div>
-                        <span class="text-xs font-bold text-white block truncate max-w-[180px]">{{ match.stage?.competition?.name }}</span>
-                        <span class="text-[10px] text-slate-400 flex items-center gap-1">
-                          <i class="fi fi-rr-marker text-[9px] text-slate-500"></i>
-                          {{ match.venue?.name || 'Stadium Venue' }}
-                        </span>
-                      </div>
-                    </div>
-
-                    <!-- Teams Versus -->
-                    <div class="flex items-center gap-2.5 font-bold text-xs text-slate-200">
-                      <span class="text-right truncate max-w-[100px]">{{ match.homeTeam?.name || 'Home' }}</span>
-                      <span class="px-1.5 py-0.5 rounded bg-slate-800 text-[9px] font-extrabold text-slate-400">VS</span>
-                      <span class="text-left truncate max-w-[100px]">{{ match.awayTeam?.name || 'Away' }}</span>
-                    </div>
-
-                    <button class="px-3 py-1 rounded-lg bg-violet-600/20 hover:bg-violet-600 text-violet-300 hover:text-white border border-violet-500/30 text-xs font-bold transition flex items-center gap-1 self-end sm:self-center">
-                      Match Details <i class="fi fi-rr-angle-small-right text-xs"></i>
-                    </button>
-                  </div>
-                }
-              </div>
-            } @else {
-              <div class="p-4 rounded-xl bg-slate-900/50 border border-white/10 text-center text-xs text-slate-400">
-                No upcoming scheduled games in this workspace.
-              </div>
-            }
-          </div>
-
-          <!-- Leaderboards Column (1 Col) -->
-          <div class="space-y-4">
-
-            <!-- Top Scorers Leaderboard -->
-            <div class="p-4 rounded-xl bg-slate-900/90 border border-white/10 shadow-lg space-y-3">
-              <h3 class="text-xs font-extrabold text-white tracking-tight flex items-center gap-2">
-                <i class="fi fi-rr-target text-emerald-400 text-sm"></i>
-                Top Scorers
-              </h3>
-
-              @if (overviewTopScorers().length > 0) {
-                <div class="space-y-2">
-                  @for (player of overviewTopScorers(); track player.playerId; let idx = $index) {
-                    <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950/70 border border-white/5">
-                      <div class="flex items-center gap-2">
-                        <span class="w-4 text-center text-xs font-black" [ngClass]="idx === 0 ? 'text-amber-400' : 'text-slate-400'">
-                          {{ idx + 1 }}
-                        </span>
-                        <div class="min-w-0">
-                          <span class="text-xs font-bold text-white block truncate max-w-[120px]">{{ player.playerName }}</span>
-                          <span class="text-[9px] text-slate-400 truncate max-w-[120px] block">{{ player.teamName }}</span>
-                        </div>
-                      </div>
-                      <span class="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 font-extrabold text-[11px] border border-emerald-500/30 shrink-0">
-                        {{ player.score }} Goals
-                      </span>
-                    </div>
-                  }
-                </div>
-              } @else {
-                <p class="text-xs text-slate-400 text-center py-3">No top scorers recorded yet.</p>
-              }
-            </div>
-
-            <!-- Top Rated Players Leaderboard -->
-            <div class="p-4 rounded-xl bg-slate-900/90 border border-white/10 shadow-lg space-y-3">
-              <h3 class="text-xs font-extrabold text-white tracking-tight flex items-center gap-2">
-                <i class="fi fi-rr-star text-amber-400 text-sm"></i>
-                Top Rated Players
-              </h3>
-
-              @if (overviewTopRatedPlayers().length > 0) {
-                <div class="space-y-2">
-                  @for (player of overviewTopRatedPlayers(); track player.playerId; let idx = $index) {
-                    <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950/70 border border-white/5">
-                      <div class="flex items-center gap-2">
-                        <span class="w-4 text-center text-xs font-black" [ngClass]="idx === 0 ? 'text-amber-400' : 'text-slate-400'">
-                          {{ idx + 1 }}
-                        </span>
-                        <div class="min-w-0">
-                          <span class="text-xs font-bold text-white block truncate max-w-[120px]">{{ player.playerName }}</span>
-                          <span class="text-[9px] text-slate-400 truncate max-w-[120px] block">{{ player.teamName }} ({{ player.appearances }}g)</span>
-                        </div>
-                      </div>
-                      <span class="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-black text-[11px] border border-amber-500/30 flex items-center gap-1 shrink-0">
-                        <i class="fi fi-rr-star text-amber-300 text-[9px]"></i> {{ player.avgRating }}
-                      </span>
-                    </div>
-                  }
-                </div>
-              } @else {
-                <p class="text-xs text-slate-400 text-center py-3">No player ratings available yet.</p>
-              }
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
+        <app-workspace-dashboard
+          [workspace]="workspace()"
+          [(activeTab)]="activeTab"
+          [liveMatches]="overviewLiveMatches()"
+          [upcomingMatches]="overviewUpcomingMatches()"
+          [runningCompetitions]="overviewRunningCompetitions()"
+          [topScorers]="overviewTopScorers()"
+          [topRatedPlayers]="overviewTopRatedPlayers()"
+          [teamsCount]="teams().length"
+          [playersCount]="players().length"
+          [eventsCount]="events().length"
+          [venuesCount]="venues().length"
+          [membersCount]="members().length"
+          [canCreateEvent]="hasPermission('event.create')"
+          [canManageTeams]="hasPermission('team.manage')"
+          [canManagePlayers]="hasPermission('player.manage')"
+          [canManageVenues]="hasPermission('venue.manage')"
+          [(selectedOverviewCompId)]="selectedOverviewCompId"
+          [(selectedOverviewComp)]="selectedOverviewComp"
+          (enterLiveMatch)="onEnterLiveMatchFromOverview($event)" />
       }
 
       <!-- ═══════════════ MEMBERS TAB ═══════════════ -->
       @if (activeTab() === 'members') {
-      <div class="flex flex-col gap-8">
-
-        <!-- Invite Form -->
-        <!-- Invite Panel -->
-        @if (hasPermission('member.invite')) {
-        <div
-          class="grid grid-cols-1 lg:grid-cols-2 gap-8 bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-xl">
-
-          <!-- Left Column: Invite Form -->
-          <div class="flex flex-col justify-between">
-            <div>
-              <div class="flex items-center justify-between mb-1">
-                <h2 class="text-base font-bold text-white">Invite Member</h2>
-                <button (click)="openMemberBulkModal()"
-                  class="px-2.5 py-1 text-[10px] bg-slate-800 hover:bg-slate-700 text-violet-400 hover:text-violet-300 font-bold rounded-lg border border-white/5 transition-all cursor-pointer flex items-center gap-1.5">
-                  <i class="fi fi-rr-file-import text-[11px]"></i> Bulk Import
-                </button>
-              </div>
-              <p class="text-xs text-slate-400 mb-5">Invite collaborators by username and assign them a role.</p>
-
-              @if (inviteSuccess()) {
-              <div
-                class="mb-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3 text-emerald-300 text-xs flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24"
-                  fill="currentColor">
-                  <path
-                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-                </svg>
-                {{ inviteSuccess() }}
-              </div>
-              }
-              @if (inviteError()) {
-              <div
-                class="mb-4 rounded-xl bg-rose-500/10 border border-rose-500/30 p-3 text-rose-300 text-xs flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24"
-                  fill="currentColor">
-                  <path
-                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-                </svg>
-                {{ inviteError() }}
-              </div>
-              }
-            </div>
-
-            <form (submit)="onInvite(); $event.preventDefault()" class="flex flex-col gap-4">
-              <div class="flex flex-col gap-1.5">
-                <label for="inv-username"
-                  class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Username</label>
-                <input id="inv-username" type="text" placeholder="Enter username" autocomplete="off"
-                  class="bg-slate-800 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition-all"
-                  [ngModel]="inviteUsername()" (ngModelChange)="inviteUsername.set($event)" name="username" required />
-              </div>
-
-              <div class="flex flex-col sm:flex-row gap-3 items-end">
-                <div class="flex-1 flex flex-col gap-1.5">
-                  <label for="inv-role"
-                    class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Role</label>
-                  <select id="inv-role" name="role"
-                    class="w-full bg-slate-800 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-2.5 text-sm text-white outline-none transition-all cursor-pointer"
-                    [ngModel]="inviteRole()" (ngModelChange)="inviteRole.set($event)">
-                    @for (r of assignableRoles; track r.id) {
-                    <option [value]="r.slug" class="bg-slate-900">{{ r.name }}</option>
-                    }
-                  </select>
-                </div>
-                <button type="submit" [disabled]="isInviting() || !inviteUsername().trim()"
-                  class="w-full sm:w-auto px-6 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 h-[42px]">
-                  @if (isInviting()) {
-                  <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                  </svg>
-                  } @else { Invite }
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <!-- Right Column: Invite via Link / QR Code -->
-          <div
-            class="border-t lg:border-t-0 lg:border-l border-white/10 pt-6 lg:pt-0 lg:pl-8 flex flex-col justify-between">
-            <div>
-              <h2 class="text-base font-bold text-white mb-1">Invite via Link / QR Code</h2>
-              <p class="text-xs text-slate-400 mb-5">Share the workspace joining link or QR code with collaborators.</p>
-            </div>
-
-            <div class="flex flex-col md:flex-row gap-5 items-center">
-              <!-- QR Code Container -->
-              <div
-                class="p-3 bg-white rounded-xl shadow-lg border border-white/5 flex items-center justify-center flex-shrink-0">
-                <img [src]="getQrCodeUrl()" alt="Workspace Join QR Code" class="w-28 h-28 select-none" />
-              </div>
-
-              <!-- Share Link Input & Copy -->
-              <div class="flex-1 w-full flex flex-col gap-2">
-                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Shareable Invite
-                  Link</label>
-                <div class="relative w-full">
-                  <input type="text" [value]="getInviteLink()" readonly
-                    class="w-full bg-slate-800 border border-white/10 rounded-xl pl-4 pr-12 py-2.5 text-xs text-slate-400 outline-none select-all" />
-                  <button (click)="copyInviteLink()"
-                    class="absolute right-2.5 top-1.5 p-1.5 hover:bg-slate-700 text-slate-400 hover:text-slate-950 rounded-lg transition-colors cursor-pointer">
-                    <i class="fi" [class.fi-rr-copy]="!isCopied()" [class.fi-rr-check]="isCopied()"></i>
-                  </button>
-                </div>
-                <p class="text-[10px] text-slate-500">Users who visit this link will automatically join the workspace as
-                  a <strong class="text-slate-400">Viewer</strong>.</p>
-              </div>
-            </div>
-          </div>
-
-        </div>
-        }
-
-        <!-- Members Table -->
-        <div class="bg-slate-900 border border-white/10 rounded-2xl overflow-hidden">
-          <div class="px-6 py-4 border-b border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h2 class="text-sm font-bold text-white">All Members</h2>
-              <span class="text-xs text-slate-500">
-                @if (memberSearchQuery()) {
-                  {{ filteredMembers().length }} found (out of {{ members().length }})
-                } @else {
-                  {{ members().length }} member{{ members().length !== 1 ? 's' : '' }}
-                }
-              </span>
-            </div>
-            <!-- Search bar -->
-            <div class="relative w-full md:w-72">
-              <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                <i class="fi fi-rr-search text-xs"></i>
-              </span>
-              <input type="text" [ngModel]="memberSearchQuery()" (ngModelChange)="memberSearchQuery.set($event)"
-                placeholder="Search members..."
-                class="w-full bg-slate-950 border border-white/10 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-slate-500 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 outline-none transition-all" />
-              @if (memberSearchQuery()) {
-              <button (click)="memberSearchQuery.set('')"
-                class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 cursor-pointer bg-transparent border-0">
-                <i class="fi fi-rr-cross text-[10px]"></i>
-              </button>
-              }
-            </div>
-          </div>
-          <div class="divide-y divide-white/5">
-            @if (filteredMembers().length === 0) {
-            <div class="px-6 py-12 text-center text-slate-500 text-xs">
-              No members found matching "{{ memberSearchQuery() }}"
-            </div>
-            }
-            @for (member of filteredMembers(); track member.id) {
-            <div
-              class="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:bg-white/[0.02] transition-colors">
-              <!-- Avatar + Info -->
-              <div class="flex items-center gap-4 flex-1 min-w-0">
-                <div
-                  class="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-xs font-bold shadow-inner overflow-hidden"
-                  [style.background]="member.user.avatarUrl ? 'transparent' : avatarColor(member.user.username)">
-                  @if (member.user.avatarUrl) {
-                  <img [src]="member.user.avatarUrl" alt="Avatar" class="w-full h-full object-cover" />
-                  } @else {
-                  {{ initials(member.user.username) }}
-                  }
-                </div>
-                <div class="min-w-0">
-                  <p class="text-sm font-semibold text-white truncate">{{ member.user.username }}</p>
-                  <p class="text-[10px] text-slate-500">Joined {{ member.joinedAt | date:'MMM d, y' }}</p>
-                </div>
-              </div>
-              <!-- Role + Actions -->
-              @if ((hasPermission('member.update') || hasPermission('member.remove')) && member.role.slug !== 'owner' &&
-              member.userId !==
-              authService.currentUser()?.id) {
-
-              @if (hasPermission('member.update')) {
-              <div class="relative">
-                <select (change)="onUpdateRole(member, $event)"
-                  class="bg-slate-800 border border-white/10 focus:border-violet-500 rounded-lg pl-3 pr-8 py-1.5 text-xs text-white outline-none cursor-pointer appearance-none font-semibold">
-                  @for (r of assignableRoles; track r.id) {
-                  <option [value]="r.slug" [selected]="member.role.slug === r.slug" class="bg-slate-900">{{ r.name }}
-                  </option>
-                  }
-                </select>
-                <div class="absolute inset-y-0 right-2 flex items-center pointer-events-none text-slate-400">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-              </div>
-              } @else {
-              <span class="text-xs font-semibold px-2.5 py-1 rounded-lg border"
-                [class]="roleBadgeClass(member.role.slug)">
-                {{ member.role.name }}
-              </span>
-              }
-
-              @if (hasPermission('member.remove')) {
-              <button (click)="onRemoveMember(member)" title="Remove Member"
-                class="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                  <line x1="10" y1="11" x2="10" y2="17"></line>
-                  <line x1="14" y1="11" x2="14" y2="17"></line>
-                </svg>
-              </button>
-              }
-
-              } @else {
-              <span class="text-xs font-semibold px-2.5 py-1 rounded-lg border"
-                [class]="roleBadgeClass(member.role.slug)">
-                {{ member.role.name }}
-              </span>
-              }
-            </div>
-            }
-          </div>
-        </div>
-
-      </div>
+        <app-workspace-members
+          [workspace]="workspace()"
+          [(members)]="members"
+          [assignableRoles]="assignableRoles"
+          [canInvite]="hasPermission('member.invite')"
+          [canUpdate]="hasPermission('member.update')"
+          [canRemove]="hasPermission('member.remove')" />
       }
 
       <!-- ═══════════════ SETTINGS VIEW ═══════════════ -->
       @if (activeTab() === 'settings') {
-      <div class="space-y-6 animate-fadeIn">
-
-        <!-- Back button -->
-        <div class="mb-2">
-          <button (click)="activeTab.set('overview')"
-            class="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition cursor-pointer">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
-            </svg>
-            Back to Overview
-          </button>
-        </div>
-
-        <!-- General Settings Card -->
-        <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-          <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-violet-500 to-indigo-500"></div>
-          <h2 class="text-base font-bold text-white mb-1">General Settings</h2>
-          <p class="text-xs text-slate-400 mb-5">Update your workspace name and description.</p>
-
-          @if (settingsSuccess()) {
-          <div
-            class="mb-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3 text-emerald-300 text-xs flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24"
-              fill="currentColor">
-              <path
-                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-            </svg>
-            {{ settingsSuccess() }}
-          </div>
-          }
-          @if (settingsError()) {
-          <div
-            class="mb-4 rounded-xl bg-rose-500/10 border border-rose-500/30 p-3 text-rose-300 text-xs flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24"
-              fill="currentColor">
-              <path
-                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-            </svg>
-            {{ settingsError() }}
-          </div>
-          }
-
-          <form (submit)="onSaveSettings(); $event.preventDefault()" class="flex flex-col gap-4">
-            <div class="flex flex-col gap-1.5">
-              <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Workspace Logo</label>
-              <div class="flex items-center gap-4">
-                <div
-                  class="w-16 h-16 rounded-xl bg-slate-800 border border-white/10 flex items-center justify-center overflow-hidden relative">
-                  @if (isUploadingWorkspaceLogo()) {
-                  <div class="absolute inset-0 bg-slate-950/80 flex items-center justify-center">
-                    <svg class="animate-spin h-5 w-5 text-violet-500" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                      </path>
-                    </svg>
-                  </div>
-                  } @else if (editLogoUrl()) {
-                  <img [src]="editLogoUrl()" alt="Logo" class="w-full h-full object-cover" />
-                  } @else {
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-slate-500" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  }
-                </div>
-                <label
-                  class="px-4 py-2 bg-slate-850 hover:bg-slate-800 border border-white/10 hover:border-white/20 text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-                  [class.opacity-50]="isUploadingWorkspaceLogo()"
-                  [class.pointer-events-none]="isUploadingWorkspaceLogo()">
-                  @if (isUploadingWorkspaceLogo()) {
-                  <span class="animate-pulse">Uploading...</span>
-                  } @else {
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                  </svg>
-                  Upload Logo
-                  <input type="file" class="hidden" accept="image/*" (change)="onWorkspaceLogoUpload($event)" />
-                  }
-                </label>
-                @if (editLogoUrl()) {
-                <button type="button" (click)="editLogoUrl.set('')"
-                  class="text-xs text-rose-400 hover:text-rose-300">Remove</button>
-                }
-              </div>
-            </div>
-
-            <div class="flex flex-col gap-1.5">
-              <label for="ws-name" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Workspace
-                Name</label>
-              <input id="ws-name" type="text" placeholder="Workspace Name" autocomplete="off"
-                class="bg-slate-800 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition-all"
-                [ngModel]="editName()" (ngModelChange)="editName.set($event)" name="wsName" required />
-            </div>
-            <div class="flex flex-col gap-1.5">
-              <label for="ws-desc"
-                class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Description</label>
-              <textarea id="ws-desc" rows="3" placeholder="Workspace description..."
-                class="bg-slate-800 border border-white/10 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition-all resize-none"
-                [ngModel]="editDescription()" (ngModelChange)="editDescription.set($event)" name="wsDesc"></textarea>
-            </div>
-            <div class="flex justify-end mt-2">
-              <button type="submit" [disabled]="isSavingSettings() || !editName().trim()"
-                class="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2">
-                @if (isSavingSettings()) {
-                <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                </svg>
-                Saving...
-                } @else { Save Changes }
-              </button>
-            </div>
-          </form>
-        </div>
-
-        <!-- Danger Zone Card (Owner only) -->
-        @if (isOwner()) {
-        <div class="bg-slate-900 border border-rose-500/20 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-          <div class="absolute top-0 left-0 w-full h-[2px] bg-rose-500"></div>
-          <h2 class="text-base font-bold text-rose-400 mb-1">Danger Zone</h2>
-          <p class="text-xs text-slate-400 mb-5">Permanently delete this workspace and all of its data. This action is
-            irreversible.</p>
-
-          <div
-            class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-rose-500/5 border border-rose-500/10 p-4 rounded-xl">
-            <div>
-              <h3 class="text-sm font-bold text-white">Delete Workspace</h3>
-              <p class="text-xs text-slate-400 mt-0.5">Once you delete a workspace, there is no going back. Please be
-                certain.</p>
-            </div>
-            <button (click)="deleteWorkspace()"
-              class="w-full sm:w-auto px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer">
-              Delete Workspace
-            </button>
-          </div>
-        </div>
-        }
-
-      </div>
+        <app-workspace-settings
+          [(workspace)]="workspace"
+          [(activeTab)]="activeTab" />
       }
 
       <!-- ═══════════════ TEAMS TAB ═══════════════ -->
@@ -1621,16 +368,7 @@
                     </div>
                   </div>
                 </div>
-                @if (leader.teamLogoUrl) {
-                <img [src]="leader.teamLogoUrl" alt="Leader Logo"
-                  class="w-10 h-10 rounded-lg border border-amber-500/20 object-cover flex-shrink-0" />
-                } @else {
-                <div
-                  class="w-10 h-10 rounded-lg flex items-center justify-center text-white text-xs font-extrabold shadow-inner flex-shrink-0"
-                  [style.background]="avatarColor(leader.teamName)">
-                  {{ initials(leader.teamName) }}
-                </div>
-                }
+                <app-avatar [name]="leader.teamName" [logoUrl]="leader.teamLogoUrl" customClass="w-10 h-10 rounded-lg flex-shrink-0 border border-amber-500/20" textClass="text-xs font-extrabold text-white" />
               </div>
 
               <!-- Standings Table -->
@@ -1662,16 +400,7 @@
                       </td>
                       <td class="py-3 px-2 min-w-0">
                         <div class="flex items-center gap-2.5 min-w-0">
-                          @if (row.teamLogoUrl) {
-                          <img [src]="row.teamLogoUrl" alt="Team Logo"
-                            class="w-6 h-6 rounded-md object-cover flex-shrink-0" />
-                          } @else {
-                          <div
-                            class="w-6 h-6 rounded-md flex items-center justify-center text-white text-[8px] font-black flex-shrink-0"
-                            [style.background]="avatarColor(row.teamName)">
-                            {{ initials(row.teamName) }}
-                          </div>
-                          }
+                          <app-avatar [name]="row.teamName" [logoUrl]="row.teamLogoUrl" customClass="w-6 h-6 rounded-md flex-shrink-0" textClass="text-[8px] font-black text-white" />
                           <div class="flex flex-col min-w-0 text-left">
                             <span class="font-bold text-white text-xs truncate">{{ row.teamName }}</span>
                             @if (row.points > 0) {
@@ -1681,7 +410,7 @@
                               <span
                                 class="inline-flex items-center text-[8px] bg-violet-500/10 border border-violet-500/20 text-violet-300 rounded px-1 py-0.2"
                                 [title]="b.competitionName + ' - Rank #' + b.position">
-                                {{ initials(b.competitionName) }}: {{ b.points }}p
+                                {{ b.competitionName | initials }}: {{ b.points }}p
                               </span>
                               }
                               }
@@ -2137,19 +866,7 @@
                         <!-- Home Team -->
                         <div class="flex-1 text-right flex items-center justify-end gap-3">
                           <span class="text-sm font-bold text-white">{{ match.homeTeam?.name || 'Home' }}</span>
-                          <div
-                            class="w-6 h-6 rounded-md overflow-hidden bg-slate-950 border border-white/10 flex items-center justify-center flex-shrink-0"
-                            [style.background]="match.homeTeam?.logoUrl ? 'transparent' : (match.homeTeam ? avatarColor(match.homeTeam.name) : 'transparent')">
-                            @if (match.homeTeam; as homeTeam) {
-                            @if (homeTeam.logoUrl) {
-                            <img [src]="homeTeam.logoUrl" alt="Logo" class="w-full h-full object-cover" />
-                            } @else {
-                            <span class="text-[9px] font-bold text-white">{{ initials(homeTeam.name) }}</span>
-                            }
-                            } @else {
-                            <span class="text-[9px] font-bold text-slate-500">HM</span>
-                            }
-                          </div>
+                          <app-avatar [name]="match.homeTeam?.name || 'HM'" [logoUrl]="match.homeTeam?.logoUrl" customClass="w-6 h-6 rounded-md flex-shrink-0" textClass="text-[9px] font-bold text-white" />
                         </div>
 
                         <!-- Score details -->
@@ -2170,19 +887,7 @@
 
                         <!-- Away Team -->
                         <div class="flex-1 text-left flex items-center justify-start gap-3">
-                          <div
-                            class="w-6 h-6 rounded-md overflow-hidden bg-slate-950 border border-white/10 flex items-center justify-center flex-shrink-0"
-                            [style.background]="match.awayTeam?.logoUrl ? 'transparent' : (match.awayTeam ? avatarColor(match.awayTeam.name) : 'transparent')">
-                            @if (match.awayTeam; as awayTeam) {
-                            @if (awayTeam.logoUrl) {
-                            <img [src]="awayTeam.logoUrl" alt="Logo" class="w-full h-full object-cover" />
-                            } @else {
-                            <span class="text-[9px] font-bold text-white">{{ initials(awayTeam.name) }}</span>
-                            }
-                            } @else {
-                            <span class="text-[9px] font-bold text-slate-500">AW</span>
-                            }
-                          </div>
+                          <app-avatar [name]="match.awayTeam?.name || 'AW'" [logoUrl]="match.awayTeam?.logoUrl" customClass="w-6 h-6 rounded-md flex-shrink-0" textClass="text-[9px] font-bold text-white" />
                           <span class="text-sm font-bold text-white">{{ match.awayTeam?.name || 'Away' }}</span>
                         </div>
                       </div>
@@ -2318,15 +1023,7 @@
                           <td class="py-3 px-2 font-semibold text-slate-400">{{ idx + 1 }}</td>
                           <td class="py-3 font-medium text-white pl-2">
                             <div class="flex items-center gap-2">
-                              <div
-                                class="w-5 h-5 rounded overflow-hidden bg-slate-950 border border-white/10 flex items-center justify-center flex-shrink-0"
-                                [style.background]="row.teamLogoUrl ? 'transparent' : avatarColor(row.teamName)">
-                                @if (row.teamLogoUrl) {
-                                <img [src]="row.teamLogoUrl" alt="Logo" class="w-full h-full object-cover" />
-                                } @else {
-                                <span class="text-[8px] font-bold text-white">{{ initials(row.teamName) }}</span>
-                                }
-                              </div>
+                              <app-avatar [name]="row.teamName" [logoUrl]="row.teamLogoUrl" customClass="w-5 h-5 rounded flex-shrink-0" textClass="text-[8px] font-bold text-white" />
                               <span class="truncate max-w-[100px]" [title]="row.teamName">{{ row.teamName }}</span>
                               @if ((selectedStage()?.type === 'league' || selectedStage()?.type === 'group') &&
                               isStageCompleted() && idx === 0) {
@@ -2424,19 +1121,7 @@
                           <!-- Home Team -->
                           <div class="flex items-center justify-between">
                             <div class="flex items-center gap-1.5">
-                              <div
-                                class="w-4 h-4 rounded overflow-hidden bg-slate-900 border border-white/10 flex items-center justify-center flex-shrink-0"
-                                [style.background]="m.homeTeam?.logoUrl ? 'transparent' : (m.homeTeam ? avatarColor(m.homeTeam.name) : 'transparent')">
-                                @if (m.homeTeam; as homeTeam) {
-                                @if (homeTeam.logoUrl) {
-                                <img [src]="homeTeam.logoUrl" alt="Logo" class="w-full h-full object-cover" />
-                                } @else {
-                                <span class="text-[7px] font-bold text-white">{{ initials(homeTeam.name) }}</span>
-                                }
-                                } @else {
-                                <span class="text-[7px] font-bold text-slate-500">TB</span>
-                                }
-                              </div>
+                              <app-avatar [name]="m.homeTeam?.name || 'TBD'" [logoUrl]="m.homeTeam?.logoUrl" customClass="w-4 h-4 rounded flex-shrink-0" textClass="text-[7px] font-bold text-white" />
                               <span class="font-medium truncate max-w-[120px]" [class.text-slate-500]="!m.homeTeam"
                                 [class.text-white]="m.homeTeam">
                                 {{ m.homeTeam?.name || 'TBD' }}
@@ -2449,19 +1134,7 @@
                           <!-- Away Team -->
                           <div class="flex items-center justify-between">
                             <div class="flex items-center gap-1.5">
-                              <div
-                                class="w-4 h-4 rounded overflow-hidden bg-slate-900 border border-white/10 flex items-center justify-center flex-shrink-0"
-                                [style.background]="m.awayTeam?.logoUrl ? 'transparent' : (m.awayTeam ? avatarColor(m.awayTeam.name) : 'transparent')">
-                                @if (m.awayTeam; as awayTeam) {
-                                @if (awayTeam.logoUrl) {
-                                <img [src]="m.awayTeam.logoUrl" alt="Logo" class="w-full h-full object-cover" />
-                                } @else {
-                                <span class="text-[7px] font-bold text-white">{{ initials(m.awayTeam.name) }}</span>
-                                }
-                                } @else {
-                                <span class="text-[7px] font-bold text-slate-500">TB</span>
-                                }
-                              </div>
+                              <app-avatar [name]="m.awayTeam?.name || 'TBD'" [logoUrl]="m.awayTeam?.logoUrl" customClass="w-4 h-4 rounded flex-shrink-0" textClass="text-[7px] font-bold text-white" />
                               <span class="font-medium truncate max-w-[120px]" [class.text-slate-500]="!m.awayTeam"
                                 [class.text-white]="m.awayTeam">
                                 {{ m.awayTeam?.name || 'TBD' }}
@@ -2887,18 +1560,7 @@
                             : 'border-white/5 bg-slate-950/40'"
                     class="border hover:border-violet-500/30 rounded-xl px-3 py-2 flex items-center justify-between gap-3 cursor-pointer transition-all select-none">
                     <div class="flex items-center gap-2">
-                      @if (team.logoUrl) {
-                      <div
-                        class="w-6 h-6 rounded-lg bg-violet-500/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                        <img [src]="team.logoUrl" alt="Logo Preview" class="w-full h-full object-cover" />
-                      </div>
-                      } @else {
-                      <div
-                        class="w-6 h-6 rounded-lg flex items-center justify-center text-white text-[8px] font-extrabold shadow-inner flex-shrink-0"
-                        [style.background]="avatarColor(team.name)">
-                        {{ initials(team.name) }}
-                      </div>
-                      }
+                      <app-avatar [name]="team.name" [logoUrl]="team.logoUrl" customClass="w-6 h-6 rounded-lg flex-shrink-0" textClass="text-[8px] font-extrabold text-white" />
                       <span class="text-xs font-semibold text-white truncate max-w-[150px]">{{ team.name }}</span>
                     </div>
                     <div class="w-4 h-4 rounded border flex items-center justify-center transition-all" [class]="selectedEventTeamIds().includes(team.id)
@@ -3072,18 +1734,7 @@
                             : 'border-white/5 bg-slate-950/40'"
                     class="border hover:border-violet-500/30 rounded-xl px-3 py-2 flex items-center justify-between gap-3 cursor-pointer transition-all select-none">
                     <div class="flex items-center gap-2">
-                      @if (team.logoUrl) {
-                      <div
-                        class="w-6 h-6 rounded-lg bg-violet-500/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                        <img [src]="team.logoUrl" alt="Logo Preview" class="w-full h-full object-cover" />
-                      </div>
-                      } @else {
-                      <div
-                        class="w-6 h-6 rounded-lg flex items-center justify-center text-white text-[8px] font-extrabold shadow-inner flex-shrink-0"
-                        [style.background]="avatarColor(team.name)">
-                        {{ initials(team.name) }}
-                      </div>
-                      }
+                      <app-avatar [name]="team.name" [logoUrl]="team.logoUrl" customClass="w-6 h-6 rounded-lg flex-shrink-0" textClass="text-[8px] font-extrabold text-white" />
                       <span class="text-xs font-semibold text-white truncate max-w-[150px]">{{ team.name }}</span>
                     </div>
                     <div class="w-4 h-4 rounded border flex items-center justify-center transition-all" [class]="selectedEventTeamIds().includes(team.id)
@@ -3497,18 +2148,7 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
             @for (team of selectedEvent()?.teams; track team.id) {
             <div class="border border-white/5 bg-slate-950/40 rounded-xl px-4 py-3 flex items-center gap-3">
-              @if (team.logoUrl) {
-              <div
-                class="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                <img [src]="team.logoUrl" alt="Logo" class="w-full h-full object-cover" />
-              </div>
-              } @else {
-              <div
-                class="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[9px] font-extrabold shadow-inner flex-shrink-0"
-                [style.background]="avatarColor(team.name)">
-                {{ initials(team.name) }}
-              </div>
-              }
+              <app-avatar [name]="team.name" [logoUrl]="team.logoUrl" customClass="w-7 h-7 rounded-lg flex-shrink-0" textClass="text-[9px] font-extrabold text-white" />
               <span class="text-xs font-semibold text-white truncate max-w-[180px]">{{ team.name }}</span>
             </div>
             }
@@ -3893,14 +2533,7 @@
         <!-- Home Team -->
         <div class="flex flex-col gap-3">
           <h4 class="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5 border-b border-white/5 pb-2">
-            @if (match.homeTeam?.logoUrl) {
-            <img [src]="match.homeTeam?.logoUrl" class="w-4 h-4 rounded object-cover" />
-            } @else {
-            <div class="w-4 h-4 rounded flex items-center justify-center text-white text-[6px] font-black"
-              [style.background]="avatarColor(match.homeTeam?.name || '')">
-              {{ initials(match.homeTeam?.name || '') }}
-            </div>
-            }
+              <app-avatar [name]="match.homeTeam?.name || 'HM'" [logoUrl]="match.homeTeam?.logoUrl" customClass="w-4 h-4 rounded flex-shrink-0" textClass="text-[6px] font-black text-white" />
             {{ match.homeTeam?.name }} (Home)
           </h4>
 
@@ -3909,14 +2542,7 @@
             @for (item of homeForm; track item.playerId) {
                 <label class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/40 border border-white/5 hover:border-violet-500/30 transition cursor-pointer select-none">
                   <div class="flex items-center gap-2.5 min-w-0">
-                    @if (item.player.user.avatarUrl) {
-                    <img [src]="item.player.user.avatarUrl" class="w-6 h-6 rounded-full object-cover" />
-                    } @else {
-                    <div class="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-black"
-                      [style.background]="avatarColor(item.player.user.username)">
-                      {{ initials(item.player.user.username) }}
-                    </div>
-                    }
+                    <app-avatar [name]="item.player.user.username" [logoUrl]="item.player.user.avatarUrl" customClass="w-6 h-6 rounded-full" textClass="text-[9px] font-black text-white" />
                     <div class="flex flex-col min-w-0 text-left">
                       <span class="text-xs font-bold text-white truncate">{{ item.player.user.username }}</span>
                       <span class="text-[9px] font-mono font-extrabold text-violet-400">
@@ -3946,14 +2572,7 @@
         <!-- Away Team -->
         <div class="flex flex-col gap-3">
           <h4 class="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5 border-b border-white/5 pb-2">
-            @if (match.awayTeam?.logoUrl) {
-            <img [src]="match.awayTeam?.logoUrl" class="w-4 h-4 rounded object-cover" />
-            } @else {
-            <div class="w-4 h-4 rounded flex items-center justify-center text-white text-[6px] font-black"
-              [style.background]="avatarColor(match.awayTeam?.name || '')">
-              {{ initials(match.awayTeam?.name || '') }}
-            </div>
-            }
+              <app-avatar [name]="match.awayTeam?.name || 'AW'" [logoUrl]="match.awayTeam?.logoUrl" customClass="w-4 h-4 rounded flex-shrink-0" textClass="text-[6px] font-black text-white" />
             {{ match.awayTeam?.name }} (Away)
           </h4>
 
@@ -3962,14 +2581,7 @@
             @for (item of awayForm; track item.playerId) {
                 <label class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/40 border border-white/5 hover:border-violet-500/30 transition cursor-pointer select-none">
                   <div class="flex items-center gap-2.5 min-w-0">
-                    @if (item.player.user.avatarUrl) {
-                    <img [src]="item.player.user.avatarUrl" class="w-6 h-6 rounded-full object-cover" />
-                    } @else {
-                    <div class="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-black"
-                      [style.background]="avatarColor(item.player.user.username)">
-                      {{ initials(item.player.user.username) }}
-                    </div>
-                    }
+                    <app-avatar [name]="item.player.user.username" [logoUrl]="item.player.user.avatarUrl" customClass="w-6 h-6 rounded-full" textClass="text-[9px] font-black text-white" />
                     <div class="flex flex-col min-w-0 text-left">
                       <span class="text-xs font-bold text-white truncate">{{ item.player.user.username }}</span>
                       <span class="text-[9px] font-mono font-extrabold text-violet-400">

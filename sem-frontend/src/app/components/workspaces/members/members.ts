@@ -1,0 +1,330 @@
+import { Component, input, model, computed, signal, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { Workspace, WorkspaceMember, WorkspaceService } from '../../../services/workspace.service';
+import { UiService } from '../../../services/ui.service';
+import { AuthService } from '../../../services/auth.service';
+import { AvatarComponent } from '../../../shared/components/avatar/avatar';
+
+@Component({
+  selector: 'app-workspace-members',
+  standalone: true,
+  imports: [CommonModule, FormsModule, AvatarComponent],
+  templateUrl: './members.html',
+})
+export class WorkspaceMembersComponent {
+  private workspaceService = inject(WorkspaceService);
+  private uiService = inject(UiService);
+  authService = inject(AuthService);
+
+  workspace = input.required<Workspace | null>();
+  members = model<WorkspaceMember[]>([]);
+  assignableRoles = input<any[]>([]);
+
+  canInvite = input<boolean>(false);
+  canUpdate = input<boolean>(false);
+  canRemove = input<boolean>(false);
+
+  // Search filter
+  memberSearchQuery = signal<string>('');
+  filteredMembers = computed(() => {
+    const query = this.memberSearchQuery().toLowerCase().trim();
+    if (!query) return this.members();
+    return this.members().filter(m =>
+      m.user.username.toLowerCase().includes(query) ||
+      m.role.name.toLowerCase().includes(query)
+    );
+  });
+
+  // Invitation Form state
+  inviteUsername = signal<string>('');
+  inviteRole = signal<string>('viewer');
+  isInviting = signal<boolean>(false);
+  inviteError = signal<string>('');
+  inviteSuccess = signal<string>('');
+
+  // Bulk Import state
+  isMemberBulkModalOpen = signal<boolean>(false);
+  memberBulkImportPassword = signal<string>('');
+  showBulkImportPassword = signal<boolean>(false);
+  memberBulkImportError = signal<string>('');
+  memberBulkImportSuccess = signal<string>('');
+  isImportingMemberBulk = signal<boolean>(false);
+  memberBulkImportProgress = signal<number>(0);
+  bulkImportMembersList = signal<any[]>([]);
+
+  // Share link state
+  isCopied = signal(false);
+
+  getInviteLink(): string {
+    return `${window.location.origin}/workspaces/join?id=${this.workspace()?.id}`;
+  }
+
+  getQrCodeUrl(): string {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&color=222831&bgcolor=EEEEEE&data=${encodeURIComponent(this.getInviteLink())}`;
+  }
+
+  copyInviteLink() {
+    navigator.clipboard.writeText(this.getInviteLink());
+    this.isCopied.set(true);
+    setTimeout(() => this.isCopied.set(false), 2000);
+  }
+
+  roleBadgeClass(slug: string): string {
+    const map: Record<string, string> = {
+      owner:               'bg-violet-500/20 text-violet-300 border-violet-500/30',
+      administrator:       'bg-blue-500/20 text-blue-300 border-blue-500/30',
+      event_manager:       'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      competition_manager: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+      referee:             'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+      statistician:        'bg-orange-500/20 text-orange-300 border-orange-500/30',
+      media_team:          'bg-pink-500/20 text-pink-300 border-pink-500/30',
+      viewer:              'bg-slate-500/20 text-slate-300 border-slate-500/30',
+    };
+    return map[slug] ?? 'bg-slate-500/20 text-slate-300 border-slate-500/30';
+  }
+
+  onInvite() {
+    const username = this.inviteUsername().trim();
+    const roleSlug = this.inviteRole();
+    const ws = this.workspace();
+    if (!ws || !username) return;
+
+    this.isInviting.set(true);
+    this.inviteError.set('');
+    this.inviteSuccess.set('');
+
+    this.workspaceService.inviteMember(ws.id, username, roleSlug).subscribe({
+      next: (newMember) => {
+        this.isInviting.set(false);
+        this.inviteSuccess.set(`${username} has been invited successfully!`);
+        this.inviteUsername.set('');
+        // Reload members list
+        this.loadMembers(ws.id);
+      },
+      error: (err) => {
+        this.isInviting.set(false);
+        this.inviteError.set(err.error?.message ?? 'Failed to invite user.');
+      }
+    });
+  }
+
+  onUpdateRole(member: WorkspaceMember, event: Event) {
+    const select = event.target as HTMLSelectElement;
+    const newRoleSlug = select.value;
+    const ws = this.workspace();
+    if (!ws) return;
+
+    this.workspaceService.updateMemberRole(ws.id, member.userId, newRoleSlug).subscribe({
+      next: (updated) => {
+        this.members.update(prev => prev.map(m => m.id === member.id ? { ...m, role: updated.role } : m));
+        this.uiService.success(`Role for ${member.user.username} updated to ${updated.role.name}.`);
+      },
+      error: (err) => {
+        this.uiService.error(err.error?.message ?? 'Failed to update member role.');
+        select.value = member.role?.slug ?? '';
+      }
+    });
+  }
+
+  async onRemoveMember(member: WorkspaceMember) {
+    const ws = this.workspace();
+    if (!ws) return;
+    const confirmed = await this.uiService.confirm({
+      title: 'Remove Member',
+      message: `Remove "${member.user.username}" from this workspace?`,
+      confirmText: 'Remove',
+      type: 'danger',
+    });
+    if (!confirmed) return;
+
+    this.workspaceService.removeMember(ws.id, member.userId).subscribe({
+      next: () => {
+        this.members.update(prev => prev.filter(m => m.userId !== member.userId));
+        this.uiService.success(`Removed "${member.user.username}" from workspace.`);
+      },
+      error: (err) => this.uiService.error(err.error?.message ?? 'Failed to remove member.'),
+    });
+  }
+
+  loadMembers(workspaceId: string) {
+    this.workspaceService.getMembers(workspaceId).subscribe({
+      next: (members: WorkspaceMember[]) => this.members.set(members),
+      error: (err: any) => console.error('Failed to load members', err)
+    });
+  }
+
+  // Bulk Import methods
+  openMemberBulkModal() {
+    this.bulkImportMembersList.set([]);
+    this.memberBulkImportPassword.set('');
+    this.memberBulkImportError.set('');
+    this.memberBulkImportSuccess.set('');
+    this.showBulkImportPassword.set(false);
+    this.isMemberBulkModalOpen.set(true);
+  }
+
+  closeMemberBulkModal() {
+    this.isMemberBulkModalOpen.set(false);
+  }
+
+  async downloadMemberTemplate() {
+    try {
+      const XLSX = await import('xlsx-js-style') as any;
+      const ws: any = {
+        '!ref': 'A1:B3',
+        'A1': { v: 'Username', t: 's', s: { font: { bold: true } } },
+        'B1': { v: 'Role', t: 's', s: { font: { bold: true } } },
+        'A2': { v: '#Required', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
+        'B2': { v: '#Optional (defaults to viewer)', t: 's', s: { font: { color: { rgb: '4B525D' } } } },
+        'A3': { v: 'eg. john_doe', t: 's', s: { font: { italic: true } } },
+        'B3': { v: 'eg. referee', t: 's', s: { font: { italic: true } } }
+      };
+      ws['!cols'] = [
+        { wch: 32 },
+        { wch: 25 }
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Members Template');
+      XLSX.writeFile(wb, 'members_import_template.xlsx');
+    } catch (err) {
+      console.error('Failed to generate template', err);
+    }
+  }
+
+  onMemberExcelUpload(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = async (e: any) => {
+      try {
+        const XLSX = await import('xlsx');
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+        const parsedMembers = json.map((row: any) => {
+          const usernameKey = Object.keys(row).find(k => k.toLowerCase() === 'username') || 'Username';
+          const roleKey = Object.keys(row).find(k => k.toLowerCase() === 'role') || 'Role';
+
+          const username = (row[usernameKey] || '').toString().trim();
+          const role = (row[roleKey] || '').toString().trim();
+
+          let status = 'pending';
+          let error = '';
+
+          if (!username) {
+            status = 'failed';
+            error = 'Username is missing';
+          } else {
+            const lowerUser = username.toLowerCase();
+            if (lowerUser.startsWith('#required') || lowerUser === 'required') {
+              return null;
+            }
+            if (lowerUser.startsWith('eg.')) {
+              return null;
+            }
+            const alreadyExists = this.members().some(m => m.user.username.toLowerCase() === lowerUser);
+            if (alreadyExists) {
+              status = 'exist';
+              error = 'Already a member';
+            }
+          }
+
+          return {
+            username,
+            role: role || undefined,
+            status,
+            error
+          };
+        }).filter(Boolean);
+
+        this.bulkImportMembersList.set(parsedMembers);
+        this.memberBulkImportError.set('');
+        if (parsedMembers.length === 0) {
+          this.memberBulkImportError.set('No valid members found in the spreadsheet. Make sure you have a "Username" column.');
+        }
+      } catch (err) {
+        console.error('Failed to parse file', err);
+        this.memberBulkImportError.set('Failed to parse spreadsheet. Please ensure it is a valid format.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    input.value = '';
+  }
+
+  onConfirmMemberBulkImport() {
+    const ws = this.workspace();
+    const membersToImport = [...this.bulkImportMembersList()];
+    const password = this.memberBulkImportPassword();
+
+    if (!ws || membersToImport.length === 0) return;
+    if (!password) {
+      this.memberBulkImportError.set('Common password is required for registering new accounts.');
+      return;
+    }
+    if (password.length < 6) {
+      this.memberBulkImportError.set('Password must be at least 6 characters long.');
+      return;
+    }
+    if (!/^(?=.*[A-Z])(?=.*\d).+$/.test(password)) {
+      this.memberBulkImportError.set('Password must contain at least one uppercase letter and one number.');
+      return;
+    }
+
+    this.isImportingMemberBulk.set(true);
+    this.memberBulkImportProgress.set(0);
+    this.memberBulkImportError.set('');
+    this.memberBulkImportSuccess.set('');
+
+    const payload = {
+      password,
+      members: membersToImport.map(m => ({
+        username: m.username,
+        role: m.role
+      }))
+    };
+
+    this.workspaceService.bulkImportMembers(ws.id, payload).subscribe({
+      next: (res) => {
+        this.isImportingMemberBulk.set(false);
+        this.memberBulkImportProgress.set(100);
+
+        let successCount = 0;
+        let failCount = 0;
+
+        membersToImport.forEach(item => {
+          const successItem = res.success.find((s: any) => s.username.toLowerCase() === item.username.toLowerCase());
+          const failedItem = res.failed.find((f: any) => f.username.toLowerCase() === item.username.toLowerCase());
+
+          if (successItem) {
+            item.status = 'success';
+            item.error = '';
+            successCount++;
+          } else if (failedItem) {
+            item.status = 'failed';
+            item.error = failedItem.error;
+            failCount++;
+          }
+        });
+
+        this.bulkImportMembersList.set([...membersToImport]);
+
+        if (failCount === 0) {
+          this.memberBulkImportSuccess.set(`Successfully imported all ${successCount} members!`);
+        } else {
+          this.memberBulkImportSuccess.set(`Import finished: ${successCount} successful, ${failCount} failed.`);
+        }
+
+        this.loadMembers(ws.id);
+      },
+      error: (err) => {
+        this.isImportingMemberBulk.set(false);
+        this.memberBulkImportError.set(err.error?.message ?? 'Bulk import failed.');
+      }
+    });
+  }
+}

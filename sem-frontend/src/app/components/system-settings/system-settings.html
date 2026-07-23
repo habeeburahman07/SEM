@@ -47,22 +47,17 @@
         <div class="relative">
           <button (click)="isUserDropdownOpen.set(!isUserDropdownOpen())"
             class="flex items-center gap-3 bg-slate-900 hover:bg-slate-800/80 border border-white/5 rounded-xl px-4 py-2 text-left cursor-pointer transition-all">
-            <div class="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center text-white font-bold text-sm shadow-sm select-none overflow-hidden relative">
+            <div class="w-8 h-8 flex items-center justify-center shadow-sm select-none overflow-hidden relative">
               @if (isUploadingAvatar()) {
-                <div class="absolute inset-0 bg-slate-950/85 flex items-center justify-center">
+                <div class="absolute inset-0 bg-slate-950/85 flex items-center justify-center z-10">
                   <i class="fi fi-rr-spinner animate-spin text-violet-500 text-sm"></i>
                 </div>
-              } @else {
-                @if (authService.currentUser()?.avatarUrl) {
-                  <img [src]="authService.currentUser()?.avatarUrl" alt="Avatar" class="w-full h-full object-cover" />
-                } @else {
-                  {{ initials(authService.currentUser()?.username || 'U') }}
-                }
-                <label class="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
-                  <i class="fi fi-rr-camera text-white text-xs"></i>
-                  <input type="file" class="hidden" accept="image/*" (change)="onAvatarUpload($event)" />
-                </label>
               }
+              <app-avatar [name]="authService.currentUser()?.username || 'U'" [logoUrl]="authService.currentUser()?.avatarUrl" customClass="w-8 h-8 rounded-lg flex-shrink-0" textClass="text-sm font-bold text-white" />
+              <label class="absolute inset-0 bg-black/60 opacity-0 hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity z-20">
+                <i class="fi fi-rr-camera text-white text-xs"></i>
+                <input type="file" class="hidden" accept="image/*" (change)="onAvatarUpload($event)" />
+              </label>
             </div>
             <div class="text-left leading-none pr-1">
               <p class="text-xs font-bold text-white">{{ authService.currentUser()?.username }}</p>
@@ -853,13 +848,7 @@
               @for (ws of workspaces(); track ws.id) {
                 <div class="flex items-center justify-between px-6 py-4 hover:bg-white/[0.02] transition-colors">
                   <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center text-white font-extrabold text-sm shadow-md overflow-hidden">
-                      @if (ws.logoUrl) {
-                        <img [src]="ws.logoUrl" [alt]="ws.name" class="w-full h-full object-cover">
-                      } @else {
-                        {{ initials(ws.name) }}
-                      }
-                    </div>
+                    <app-avatar [name]="ws.name" [logoUrl]="ws.logoUrl" customClass="w-10 h-10 rounded-xl flex-shrink-0" textClass="text-sm font-extrabold text-white" />
                     <div>
                       <div class="flex items-center gap-2">
                         <h4 class="text-xs font-bold text-white">{{ ws.name }}</h4>
