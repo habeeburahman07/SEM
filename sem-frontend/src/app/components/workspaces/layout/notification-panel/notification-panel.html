@@ -1,6 +1,9 @@
 <div class="relative">
   <button (click)="isNotificationOpen.set(!isNotificationOpen())"
-    class="w-10 h-10 rounded-xl bg-slate-900 hover:bg-slate-800/80 border border-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all cursor-pointer relative">
+    aria-haspopup="true"
+    [attr.aria-expanded]="isNotificationOpen()"
+    aria-label="Notifications"
+    class="w-10 h-10 rounded-xl bg-slate-900 hover:bg-slate-800/80 border border-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all cursor-pointer relative outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
     <i class="fi fi-rr-bell text-base"></i>
     @if ((pendingInvitations().length + unreadCount()) > 0) {
     <span
@@ -21,7 +24,7 @@
       <h4 class="text-xs font-bold text-white uppercase tracking-wider">Notifications</h4>
       @if (unreadCount() > 0) {
       <button (click)="markNotificationsRead.emit(); $event.stopPropagation()"
-        class="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold transition cursor-pointer">
+        class="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold transition cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
         Mark all as read
       </button>
       }
@@ -49,12 +52,12 @@
           <div class="flex items-center gap-2">
             <button (click)="acceptInvitation.emit({ workspaceId: invite.workspaceId, name: invite.workspace?.name || 'Workspace' })"
               [disabled]="isProcessingInvitation()"
-              class="flex-1 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-[10px] font-bold rounded-lg transition-all cursor-pointer text-center">
+              class="flex-1 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-[10px] font-bold rounded-lg transition-all cursor-pointer text-center outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
               Accept
             </button>
             <button (click)="rejectInvitation.emit({ workspaceId: invite.workspaceId, name: invite.workspace?.name || 'Workspace' })"
               [disabled]="isProcessingInvitation()"
-              class="flex-1 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-rose-400 text-[10px] font-bold rounded-lg transition-all cursor-pointer text-center">
+              class="flex-1 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-rose-400 text-[10px] font-bold rounded-lg transition-all cursor-pointer text-center outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
               Reject
             </button>
           </div>

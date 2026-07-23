@@ -1,4 +1,4 @@
-import { Component, input, output } from '@angular/core';
+import { Component, input, output, effect, ElementRef, HostListener, inject } from '@angular/core';
 
 /**
  * ModalComponent
@@ -21,7 +21,11 @@ import { Component, input, output } from '@angular/core';
       <!-- Backdrop -->
       <div
         class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn"
-        (click)="onBackdropClick($event)">
+        (click)="onBackdropClick($event)"
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-labelledby]="title() ? titleId : null"
+        [attr.aria-describedby]="subtitle() ? descId : null">
 
         <!-- Panel -->
         <div
@@ -36,7 +40,7 @@ import { Component, input, output } from '@angular/core';
           <div class="px-6 pt-7 pb-5 border-b border-white/5 flex items-start justify-between gap-4 shrink-0">
             <div class="min-w-0">
               @if (title()) {
-                <h3 class="text-base font-bold text-white flex items-center gap-2.5">
+                <h3 [id]="titleId" class="text-base font-bold text-white flex items-center gap-2.5">
                   @if (iconClass()) {
                     <i [class]="'fi ' + iconClass() + ' text-violet-400 text-lg'"></i>
                   }
@@ -44,13 +48,14 @@ import { Component, input, output } from '@angular/core';
                 </h3>
               }
               @if (subtitle()) {
-                <p class="text-xs text-slate-400 mt-1">{{ subtitle() }}</p>
+                <p [id]="descId" class="text-xs text-slate-400 mt-1">{{ subtitle() }}</p>
               }
             </div>
             <!-- Close button -->
             <button
-              class="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer border-0 bg-transparent"
-              (click)="closed.emit()">
+              class="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all cursor-pointer border-0 bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500"
+              (click)="closed.emit()"
+              aria-label="Close modal">
               <i class="fi fi-rr-cross text-xs"></i>
             </button>
           </div>
@@ -80,6 +85,80 @@ export class ModalComponent {
   closeOnBackdrop = input<boolean>(true);
 
   closed = output<void>();
+
+  private elRef = inject(ElementRef);
+  private previouslyFocusedElement: HTMLElement | null = null;
+  protected readonly titleId = `modal-title-${Math.random().toString(36).substring(2, 9)}`;
+  protected readonly descId = `modal-desc-${Math.random().toString(36).substring(2, 9)}`;
+
+  constructor() {
+    effect(() => {
+      const isOpen = this.open();
+      if (isOpen) {
+        if (document.activeElement instanceof HTMLElement) {
+          this.previouslyFocusedElement = document.activeElement;
+        }
+        setTimeout(() => {
+          const el = this.elRef.nativeElement;
+          const focusables = el.querySelectorAll(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          );
+          if (focusables.length > 0) {
+            // Focus the first non-button (like input/textarea) if available, otherwise focus first element
+            const firstInput = Array.from(focusables).find(
+              (f: any) => f.tagName === 'INPUT' || f.tagName === 'TEXTAREA' || f.tagName === 'SELECT'
+            ) as HTMLElement;
+            if (firstInput) {
+              firstInput.focus();
+            } else {
+              (focusables[0] as HTMLElement).focus();
+            }
+          }
+        }, 50);
+      } else {
+        if (this.previouslyFocusedElement) {
+          this.previouslyFocusedElement.focus();
+          this.previouslyFocusedElement = null;
+        }
+      }
+    });
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  handleKeyDown(event: KeyboardEvent) {
+    if (!this.open()) return;
+
+    if (event.key === 'Escape') {
+      if (this.closeOnBackdrop()) {
+        this.closed.emit();
+      }
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key === 'Tab') {
+      const el = this.elRef.nativeElement;
+      const focusables = el.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusables.length === 0) return;
+
+      const first = focusables[0] as HTMLElement;
+      const last = focusables[focusables.length - 1] as HTMLElement;
+
+      if (event.shiftKey) {
+        if (document.activeElement === first) {
+          last.focus();
+          event.preventDefault();
+        }
+      } else {
+        if (document.activeElement === last) {
+          first.focus();
+          event.preventDefault();
+        }
+      }
+    }
+  }
 
   protected panelSizeClass() {
     const map: Record<string, string> = {

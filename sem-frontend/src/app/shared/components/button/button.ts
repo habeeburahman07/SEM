@@ -10,6 +10,7 @@ export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
     <button
       [type]="type()"
       [disabled]="disabled() || loading()"
+      [attr.aria-label]="ariaLabel() || label()"
       (click)="clicked.emit()"
       [class]="classes()">
       @if (loading()) {
@@ -37,11 +38,12 @@ export class ButtonComponent {
   disabled = input<boolean>(false);
   loading  = input<boolean>(false);
   fullWidth = input<boolean>(false);
+  ariaLabel = input<string | null>(null);
 
   clicked = output<void>();
 
   protected classes = computed(() => {
-    const base = 'inline-flex items-center justify-center gap-2 font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
+    const base = 'inline-flex items-center justify-center gap-2 font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500';
 
     const sizes: Record<ButtonSize, string> = {
       xs: 'px-2.5 py-1 text-[10px]',

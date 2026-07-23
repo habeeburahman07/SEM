@@ -1,4 +1,4 @@
-import { Component, input, model, output } from '@angular/core';
+import { Component, input, model, output, HostListener } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AvatarComponent } from '../../../../shared/components/avatar/avatar';
 
@@ -19,5 +19,13 @@ export class UserDropdownComponent {
 
   onAvatarUpload(event: Event) {
     this.avatarUpload.emit(event);
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  handleKeyDown(event: KeyboardEvent) {
+    if (this.isUserDropdownOpen() && event.key === 'Escape') {
+      this.isUserDropdownOpen.set(false);
+      event.preventDefault();
+    }
   }
 }

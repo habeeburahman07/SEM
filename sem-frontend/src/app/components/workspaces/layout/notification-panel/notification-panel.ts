@@ -1,4 +1,4 @@
-import { Component, input, model, output } from '@angular/core';
+import { Component, input, model, output, HostListener } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { WorkspaceMember, AppNotification } from '../../../../services/workspace.service';
 import { AvatarComponent } from '../../../../shared/components/avatar/avatar';
@@ -20,4 +20,12 @@ export class NotificationPanelComponent {
   acceptInvitation = output<{ workspaceId: string; name: string }>();
   rejectInvitation = output<{ workspaceId: string; name: string }>();
   markNotificationsRead = output<void>();
+
+  @HostListener('window:keydown', ['$event'])
+  handleKeyDown(event: KeyboardEvent) {
+    if (this.isNotificationOpen() && event.key === 'Escape') {
+      this.isNotificationOpen.set(false);
+      event.preventDefault();
+    }
+  }
 }

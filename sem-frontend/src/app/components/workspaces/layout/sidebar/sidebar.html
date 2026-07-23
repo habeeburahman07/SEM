@@ -2,7 +2,10 @@
 <div
   class="lg:hidden flex items-center justify-between px-6 h-16 border-b border-white/10 bg-slate-900 sticky top-0 z-40">
   <div class="flex items-center gap-3">
-    <button (click)="isSidebarOpen.set(!isSidebarOpen())" class="text-white text-xl p-1 cursor-pointer">
+    <button (click)="isSidebarOpen.set(!isSidebarOpen())"
+      [attr.aria-expanded]="isSidebarOpen()"
+      aria-label="Toggle sidebar menu"
+      class="text-white text-xl p-1 cursor-pointer rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
       <i class="fi text-sm" [class.fi-rr-cross]="isSidebarOpen()" [class.fi-rr-menu-burger]="!isSidebarOpen()"></i>
     </button>
     <span class="font-extrabold text-sm text-white truncate">{{ workspace()?.name }}</span>
@@ -42,19 +45,24 @@
   </div>
 
   <!-- Navigation Menu -->
-  <div [class.lg:px-2.5]="!isSidebarOpen()" class="flex-1 overflow-y-auto px-4 py-6 flex flex-col gap-1">
+  <nav [class.lg:px-2.5]="!isSidebarOpen()"
+    aria-label="Workspace Navigation"
+    class="flex-1 overflow-y-auto px-4 py-6 flex flex-col gap-1">
+    
     <button (click)="activeTab.set('overview'); closeSidebarOnMobile()"
+      [attr.aria-current]="activeTab() === 'overview' ? 'page' : null"
       [class]="activeTab() === 'overview' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
       [class.lg:justify-center]="!isSidebarOpen()" [class.lg:px-0]="!isSidebarOpen()"
-      class="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
+      class="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
       <i class="fi fi-rr-apps text-base shrink-0"></i>
       <span [class.lg:hidden]="!isSidebarOpen()">Overview</span>
     </button>
 
     <button (click)="activeTab.set('members'); closeSidebarOnMobile()"
+      [attr.aria-current]="activeTab() === 'members' ? 'page' : null"
       [class]="activeTab() === 'members' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
       [class.lg:justify-center]="!isSidebarOpen()" [class.lg:px-0]="!isSidebarOpen()"
-      class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
+      class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
       <span class="flex items-center gap-3 min-w-0" [class.lg:justify-center]="!isSidebarOpen()"
         [class.w-full]="!isSidebarOpen()">
         <i class="fi fi-rr-users text-base shrink-0"></i>
@@ -67,9 +75,10 @@
     </button>
 
     <button (click)="activeTab.set('teams'); closeSidebarOnMobile()"
+      [attr.aria-current]="activeTab() === 'teams' ? 'page' : null"
       [class]="activeTab() === 'teams' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
       [class.lg:justify-center]="!isSidebarOpen()" [class.lg:px-0]="!isSidebarOpen()"
-      class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
+      class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
       <span class="flex items-center gap-3 min-w-0" [class.lg:justify-center]="!isSidebarOpen()"
         [class.w-full]="!isSidebarOpen()">
         <i class="fi fi-rr-users-alt text-base shrink-0"></i>
@@ -82,9 +91,10 @@
     </button>
 
     <button (click)="activeTab.set('players'); closeSidebarOnMobile()"
+      [attr.aria-current]="activeTab() === 'players' ? 'page' : null"
       [class]="activeTab() === 'players' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
       [class.lg:justify-center]="!isSidebarOpen()" [class.lg:px-0]="!isSidebarOpen()"
-      class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
+      class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
       <span class="flex items-center gap-3 min-w-0" [class.lg:justify-center]="!isSidebarOpen()"
         [class.w-full]="!isSidebarOpen()">
         <i class="fi fi-rr-running text-base shrink-0"></i>
@@ -97,9 +107,10 @@
     </button>
 
     <button (click)="activeTab.set('events'); closeSidebarOnMobile()"
+      [attr.aria-current]="activeTab() === 'events' ? 'page' : null"
       [class]="activeTab() === 'events' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
       [class.lg:justify-center]="!isSidebarOpen()" [class.lg:px-0]="!isSidebarOpen()"
-      class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
+      class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
       <span class="flex items-center gap-3 min-w-0" [class.lg:justify-center]="!isSidebarOpen()"
         [class.w-full]="!isSidebarOpen()">
         <i class="fi fi-rr-trophy text-base shrink-0"></i>
@@ -112,9 +123,10 @@
     </button>
 
     <button (click)="activeTab.set('venues'); closeSidebarOnMobile()"
+      [attr.aria-current]="activeTab() === 'venues' ? 'page' : null"
       [class]="activeTab() === 'venues' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
       [class.lg:justify-center]="!isSidebarOpen()" [class.lg:px-0]="!isSidebarOpen()"
-      class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
+      class="w-full flex items-center justify-between px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
       <span class="flex items-center gap-3 min-w-0" [class.lg:justify-center]="!isSidebarOpen()"
         [class.w-full]="!isSidebarOpen()">
         <i class="fi fi-rr-marker text-base shrink-0"></i>
@@ -128,12 +140,13 @@
 
     @if (hasSettingsPermission()) {
     <button (click)="activeTab.set('settings'); closeSidebarOnMobile()"
+      [attr.aria-current]="activeTab() === 'settings' ? 'page' : null"
       [class]="activeTab() === 'settings' ? 'bg-violet-600/10 text-violet-400 border border-violet-500/20' : 'text-slate-400 hover:text-white border border-transparent hover:bg-white/5'"
       [class.lg:justify-center]="!isSidebarOpen()" [class.lg:px-0]="!isSidebarOpen()"
-      class="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer">
+      class="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500">
       <i class="fi fi-rr-settings text-base shrink-0"></i>
       <span [class.lg:hidden]="!isSidebarOpen()">Settings</span>
     </button>
     }
-  </div>
+  </nav>
 </aside>
