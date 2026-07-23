@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
+import { Team } from '../../workspaces/entities/team.entity';
+import { Player } from '../../workspaces/entities/player.entity';
 import { Competition } from '../../workspaces/entities/competition.entity';
 import { CompetitionStage } from '../../workspaces/entities/competition-stage.entity';
-import { Match, MatchType } from '../../workspaces/entities/match.entity';
+import { Match } from '../../workspaces/entities/match.entity';
 import { MatchPlayer } from '../../workspaces/entities/match-player.entity';
 import { Event } from '../../workspaces/entities/event.entity';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
@@ -12,6 +14,7 @@ import { CreateMatchDto } from '../dto/create-match.dto';
 import { UpdateMatchDto } from '../dto/update-match.dto';
 import { StatisticsRatingsService } from './statistics-ratings.service';
 import { BracketAdvancementService } from './bracket-advancement.service';
+import { SportEngineRegistry } from '../sports/sport-engine.registry';
 
 @Injectable()
 export class MatchLineupService {
@@ -29,6 +32,7 @@ export class MatchLineupService {
     private readonly workspacesService: WorkspacesService,
     private readonly statisticsRatingsService: StatisticsRatingsService,
     private readonly bracketAdvancementService: BracketAdvancementService,
+    private readonly sportEngineRegistry: SportEngineRegistry,
   ) {}
 
   async createMatch(
@@ -50,49 +54,9 @@ export class MatchLineupService {
     }
 
     const sportCode = comp.sport?.code ?? 'football';
-    const config = dto.config ?? {};
-    let liveData: any = {};
-
-    if (sportCode === 'football') {
-      if (!config.timerDuration) config.timerDuration = 90;
-      liveData = {
-        elapsedSeconds: 0,
-        timerRunning: false,
-        events: [],
-      };
-    } else if (sportCode === 'cricket') {
-      if (!config.overs) config.overs = 20;
-      liveData = {
-        tossWinnerId: null,
-        tossChoice: null,
-        currentInnings: 1,
-        inningsData: [
-          {
-            battingTeamId: dto.homeTeamId,
-            bowlingTeamId: dto.awayTeamId,
-            runs: 0,
-            wickets: 0,
-            overs: 0,
-            balls: 0,
-            batsmanStats: {},
-            bowlerStats: {},
-            extraRuns: 0,
-            completed: false,
-          },
-        ],
-      };
-    } else if (sportCode === 'badminton') {
-      if (!config.setsToWin) config.setsToWin = 2;
-      if (!config.matchType) config.matchType = MatchType.MENS_SINGLES;
-      liveData = {
-        currentSet: 1,
-        setsScore: [{ home: 0, away: 0 }],
-        homeSetsWon: 0,
-        awaySetsWon: 0,
-        matchStatus: 'Scheduled',
-        rallies: [],
-      };
-    }
+    const engine = this.sportEngineRegistry.getEngine(sportCode);
+    const config = engine.getDefaultConfig(dto.config);
+    const liveData = engine.getInitialLiveData(dto.homeTeamId, dto.awayTeamId, config);
 
     const match = this.matchRepo.create({
       stageId,
@@ -182,12 +146,35 @@ export class MatchLineupService {
     userId: string,
   ): Promise<MatchPlayer[]> {
     await this.workspacesService.ensurePermission(workspaceId, userId, 'match.score');
+    await this.validateStageContext(workspaceId, eventId, competitionId, stageId);
 
     const match = await this.matchRepo.findOne({
       where: { id: matchId, stageId },
     });
     if (!match) {
       throw new NotFoundException('Match not found');
+    }
+
+    // Verify that all teams and players in the lineup belong to this workspace
+    const teamIds = [...new Set(lineups.map((l) => l.teamId))];
+    const playerIds = [...new Set(lineups.map((l) => l.playerId))];
+
+    if (teamIds.length > 0) {
+      const teamsCount = await this.eventRepo.manager.count(Team, {
+        where: { id: In(teamIds), workspaceId },
+      });
+      if (teamsCount !== teamIds.length) {
+        throw new ForbiddenException('One or more teams do not belong to this workspace');
+      }
+    }
+
+    if (playerIds.length > 0) {
+      const playersCount = await this.eventRepo.manager.count(Player, {
+        where: { id: In(playerIds), workspaceId },
+      });
+      if (playersCount !== playerIds.length) {
+        throw new ForbiddenException('One or more players do not belong to this workspace');
+      }
     }
 
     const existing = await this.matchPlayerRepo.find({

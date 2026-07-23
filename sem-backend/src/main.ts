@@ -7,6 +7,19 @@ import { RequestContextInterceptor } from './common/request-context.interceptor'
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Set up Redis adapter for Socket.IO if configured (for horizontal scaling)
+  const redisHost = process.env.REDIS_HOST;
+  if (redisHost) {
+    const { RedisIoAdapter } = require('./common/redis-io.adapter');
+    const redisPort = process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT, 10) : 6379;
+    const redisPassword = process.env.REDIS_PASSWORD;
+    const redisIoAdapter = new RedisIoAdapter(app);
+    const connected = await redisIoAdapter.connectToRedis(redisHost, redisPort, redisPassword);
+    if (connected) {
+      app.useWebSocketAdapter(redisIoAdapter);
+    }
+  }
+
   // Set global API prefix
   app.setGlobalPrefix('api');
 

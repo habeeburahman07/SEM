@@ -18,6 +18,7 @@ import { FixturesGeneratorService } from './services/fixtures-generator.service'
 import { MatchLineupService } from './services/match-lineup.service';
 import { StatisticsRatingsService } from './services/statistics-ratings.service';
 import { BracketAdvancementService } from './services/bracket-advancement.service';
+import { SportEngineRegistry } from './sports/sport-engine.registry';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { BracketAdvancementService } from './services/bracket-advancement.servic
     MatchLineupService,
     StatisticsRatingsService,
     BracketAdvancementService,
+    SportEngineRegistry,
   ],
   exports: [
     CompetitionsService,
@@ -50,6 +52,7 @@ import { BracketAdvancementService } from './services/bracket-advancement.servic
     MatchLineupService,
     StatisticsRatingsService,
     BracketAdvancementService,
+    SportEngineRegistry,
   ],
 })
 export class CompetitionsModule {}

@@ -7,6 +7,7 @@ import { Match } from '../../workspaces/entities/match.entity';
 import { MatchPlayer } from '../../workspaces/entities/match-player.entity';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
 import { NotificationType } from '../../workspaces/entities/notification.entity';
+import { SportEngineRegistry } from '../sports/sport-engine.registry';
 
 @Injectable()
 export class StatisticsRatingsService {
@@ -20,6 +21,7 @@ export class StatisticsRatingsService {
     @InjectRepository(MatchPlayer)
     private readonly matchPlayerRepo: Repository<MatchPlayer>,
     private readonly workspacesService: WorkspacesService,
+    private readonly sportEngineRegistry: SportEngineRegistry,
   ) {}
 
   async getMatchRatings(
@@ -310,153 +312,18 @@ export class StatisticsRatingsService {
     }
     const mostMvps = Array.from(mvpCounts.values()).sort((a, b) => b.mvps - a.mvps).slice(0, 10);
 
-    if (sportCode === 'football') {
-      const scorers = new Map<string, { playerId: string; playerName: string; teamName: string; goals: number }>();
-      const assists = new Map<string, { playerId: string; playerName: string; teamName: string; assists: number }>();
-      const yellowCards = new Map<string, { playerId: string; playerName: string; teamName: string; cards: number }>();
-      const redCards = new Map<string, { playerId: string; playerName: string; teamName: string; cards: number }>();
+    const engine = this.sportEngineRegistry.getEngine(sportCode);
+    const sportStats = engine.getCompetitionStats(completedMatches, allMatchPlayers, {
+      userUserIdMap,
+      userUsernameMap,
+    });
 
-      const getOrCreateTally = (
-        map: Map<string, any>,
-        pUserId: string,
-        initialValueKey: string,
-      ) => {
-        let entry = map.get(pUserId);
-        if (!entry) {
-          const info = userUserIdMap.get(pUserId) ?? { playerId: pUserId, playerName: 'Unknown', teamName: 'Unknown' };
-          entry = { ...info, [initialValueKey]: 0 };
-          map.set(pUserId, entry);
-        }
-        return entry;
-      };
-
-      for (const m of completedMatches) {
-        const events = (m.liveData as any)?.events;
-        if (!Array.isArray(events)) continue;
-
-        for (const ev of events) {
-          const pUserId = ev.playerUserId;
-          if (!pUserId) continue;
-
-          if (ev.type === 'goal') {
-            if (ev.goalType !== 'own_goal') {
-              const scorer = getOrCreateTally(scorers, pUserId, 'goals');
-              scorer.goals++;
-
-              const assistUserId = ev.assistPlayerUserId;
-              if (assistUserId) {
-                const assister = getOrCreateTally(assists, assistUserId, 'assists');
-                assister.assists++;
-              }
-            }
-          } else if (ev.type === 'card') {
-            if (ev.cardType === 'yellow') {
-              const yc = getOrCreateTally(yellowCards, pUserId, 'cards');
-              yc.cards++;
-            } else if (ev.cardType === 'red' || ev.cardType === 'second_yellow') {
-              const rc = getOrCreateTally(redCards, pUserId, 'cards');
-              rc.cards++;
-            }
-          }
-        }
-      }
-
-      return {
-        sportCode,
-        topRated,
-        mostMvps,
-        topScorers: Array.from(scorers.values()).sort((a, b) => b.goals - a.goals).slice(0, 10),
-        topAssists: Array.from(assists.values()).sort((a, b) => b.assists - a.assists).slice(0, 10),
-        mostYellowCards: Array.from(yellowCards.values()).sort((a, b) => b.cards - a.cards).slice(0, 10),
-        mostRedCards: Array.from(redCards.values()).sort((a, b) => b.cards - a.cards).slice(0, 10),
-      };
-    }
-
-    if (sportCode === 'cricket') {
-      const runs = new Map<string, { playerId: string; playerName: string; teamName: string; runs: number; innings: number }>();
-      const wickets = new Map<string, { playerId: string; playerName: string; teamName: string; wickets: number; innings: number }>();
-
-      for (const m of completedMatches) {
-        const innings = (m.liveData as any)?.inningsData;
-        if (!Array.isArray(innings)) continue;
-
-        for (const inn of innings) {
-          const batStats = inn.batsmanStats || {};
-          for (const username of Object.keys(batStats)) {
-            const playerRuns = batStats[username]?.runs ?? 0;
-            if (playerRuns > 0) {
-              let entry = runs.get(username);
-              if (!entry) {
-                const info = userUsernameMap.get(username) ?? { playerId: username, playerName: username, teamName: 'Unknown' };
-                entry = { ...info, runs: 0, innings: 0 };
-                runs.set(username, entry);
-              }
-              entry.runs += playerRuns;
-              entry.innings++;
-            }
-          }
-
-          const bowlStats = inn.bowlerStats || {};
-          for (const username of Object.keys(bowlStats)) {
-            const playerWickets = bowlStats[username]?.wickets ?? 0;
-            if (playerWickets > 0) {
-              let entry = wickets.get(username);
-              if (!entry) {
-                const info = userUsernameMap.get(username) ?? { playerId: username, playerName: username, teamName: 'Unknown' };
-                entry = { ...info, wickets: 0, innings: 0 };
-                wickets.set(username, entry);
-              }
-              entry.wickets += playerWickets;
-              entry.innings++;
-            }
-          }
-        }
-      }
-
-      return {
-        sportCode,
-        topRated,
-        mostMvps,
-        topRuns: Array.from(runs.values()).sort((a, b) => b.runs - a.runs).slice(0, 10),
-        topWickets: Array.from(wickets.values()).sort((a, b) => b.wickets - a.wickets).slice(0, 10),
-      };
-    }
-
-    if (sportCode === 'badminton') {
-      const ralliesWon = new Map<string, { playerId: string; playerName: string; teamName: string; ralliesWon: number }>();
-
-      for (const m of completedMatches) {
-        const rallies = (m.liveData as any)?.rallies || [];
-        const matchPlayersInMatch = allMatchPlayers.filter(mp => mp.matchId === m.id);
-
-        for (const r of rallies) {
-          if (r.winnerSide === 'none') continue;
-
-          const targetTeamId = r.winnerSide === 'home' ? m.homeTeamId : m.awayTeamId;
-          const winners = matchPlayersInMatch.filter(mp => mp.teamId === targetTeamId);
-
-          for (const w of winners) {
-            let entry = ralliesWon.get(w.playerId);
-            if (!entry) {
-              const playerName = w.player?.user?.username ?? w.player?.jerseyNumber?.toString() ?? w.playerId;
-              const teamName = w.team?.name ?? 'Unknown';
-              entry = { playerId: w.playerId, playerName, teamName, ralliesWon: 0 };
-              ralliesWon.set(w.playerId, entry);
-            }
-            entry.ralliesWon++;
-          }
-        }
-      }
-
-      return {
-        sportCode,
-        topRated,
-        mostMvps,
-        topRalliesWon: Array.from(ralliesWon.values()).sort((a, b) => b.ralliesWon - a.ralliesWon).slice(0, 10),
-      };
-    }
-
-    return { sportCode, topRated, mostMvps };
+    return {
+      sportCode,
+      topRated,
+      mostMvps,
+      ...sportStats,
+    };
   }
 
   async autoRateMatchPlayers(match: Match): Promise<void> {
@@ -492,239 +359,9 @@ export class StatisticsRatingsService {
           ? match.homeTeamId
           : null;
 
-    if (sportCode === 'football') {
-      if (!Array.isArray(liveData.events)) return;
-      const playingStarters = matchPlayers.filter(mp => mp.isPlaying);
-      if (playingStarters.length === 0) return;
-
-      type PlayerTally = {
-        goals: number;
-        assists: number;
-        ownGoals: number;
-        yellowCards: number;
-        redCards: number;
-      };
-      const tallies = new Map<string, PlayerTally>();
-      for (const mp of playingStarters) {
-        tallies.set(mp.playerId, { goals: 0, assists: 0, ownGoals: 0, yellowCards: 0, redCards: 0 });
-      }
-
-      for (const event of liveData.events as any[]) {
-        let scorerPlayerId: string | undefined = undefined;
-        let assistPlayerId: string | undefined = undefined;
-
-        if (event.playerId) {
-          scorerPlayerId = event.playerId;
-        } else if (event.playerUserId) {
-          scorerPlayerId = matchPlayers.find(mp => mp.player?.userId === event.playerUserId)?.playerId;
-        }
-
-        if (event.assistPlayerUserId) {
-          assistPlayerId = matchPlayers.find(mp => mp.player?.userId === event.assistPlayerUserId)?.playerId;
-        } else if (event.assistPlayerId) {
-          assistPlayerId = event.assistPlayerId;
-        }
-
-        if (event.type === 'goal') {
-          if (event.goalType === 'own_goal') {
-            if (scorerPlayerId) {
-              const t = tallies.get(scorerPlayerId);
-              if (t) t.ownGoals++;
-            }
-          } else {
-            if (scorerPlayerId) {
-              const t = tallies.get(scorerPlayerId);
-              if (t) t.goals++;
-            }
-            if (assistPlayerId) {
-              const t = tallies.get(assistPlayerId);
-              if (t) t.assists++;
-            }
-          }
-        } else if (event.type === 'own_goal') {
-          if (scorerPlayerId) {
-            const t = tallies.get(scorerPlayerId);
-            if (t) t.ownGoals++;
-          }
-        } else if (event.type === 'assist') {
-          if (scorerPlayerId) {
-            const t = tallies.get(scorerPlayerId);
-            if (t) t.assists++;
-          }
-        } else if (event.type === 'card') {
-          if (scorerPlayerId) {
-            const t = tallies.get(scorerPlayerId);
-            if (t) {
-              if (event.cardType === 'yellow') {
-                t.yellowCards++;
-              } else if (event.cardType === 'red' || event.cardType === 'second_yellow') {
-                t.redCards++;
-              }
-            }
-          }
-        } else if (event.type === 'yellow_card') {
-          if (scorerPlayerId) {
-            const t = tallies.get(scorerPlayerId);
-            if (t) t.yellowCards++;
-          }
-        } else if (event.type === 'red_card') {
-          if (scorerPlayerId) {
-            const t = tallies.get(scorerPlayerId);
-            if (t) t.redCards++;
-          }
-        }
-      }
-
-      const homeGoalsAgainst = awayScore;
-      const awayGoalsAgainst = homeScore;
-
-      for (const mp of playingStarters) {
-        if (mp.rating !== null) continue;
-
-        const tally = tallies.get(mp.playerId) ?? { goals: 0, assists: 0, ownGoals: 0, yellowCards: 0, redCards: 0 };
-        let rating = 5.0;
-
-        const goalBonus = mp.isGoalkeeper ? 0.3 : 0.5;
-        rating += tally.goals * goalBonus;
-        rating += tally.assists * 0.3;
-        rating -= tally.ownGoals * 0.5;
-
-        if (winnerTeamId && mp.teamId === winnerTeamId) {
-          rating += 0.5;
-        } else if (loserTeamId && mp.teamId === loserTeamId) {
-          rating -= 0.3;
-        }
-
-        if (mp.isGoalkeeper) {
-          const goalsConceded =
-            mp.teamId === match.homeTeamId ? homeGoalsAgainst : awayGoalsAgainst;
-          if (goalsConceded === 0) {
-            rating += 0.5;
-          }
-        }
-
-        rating -= tally.yellowCards * 0.3;
-        rating -= tally.redCards * 0.8;
-
-        mp.rating = Math.min(10.0, Math.max(5.0, Math.round(rating * 100) / 100));
-        toSave.push(mp);
-      }
-    } else if (sportCode === 'cricket') {
-      const inningsList = liveData.inningsData || [];
-
-      for (const mp of matchPlayers) {
-        if (mp.rating !== null) continue;
-
-        const username = mp.player?.user?.username;
-        if (!username) continue;
-
-        const hasStats = inningsList.some((inn: any) => inn.batsmanStats?.[username] || inn.bowlerStats?.[username]);
-        if (!mp.isPlaying && !hasStats) continue;
-
-        let rating = 5.0;
-
-        let batRuns = 0, batBalls = 0, batFours = 0, batSixes = 0;
-        let bowledOut = false;
-
-        let bowlOvers = 0, bowlBalls = 0, bowlRunsConceded = 0, bowlWickets = 0, bowlMaidens = 0;
-
-        for (const inn of inningsList) {
-          const bStats = inn.batsmanStats?.[username];
-          if (bStats) {
-            batRuns += bStats.runs ?? 0;
-            batBalls += bStats.balls ?? 0;
-            batFours += bStats.fours ?? 0;
-            batSixes += bStats.sixes ?? 0;
-          }
-          const bwStats = inn.bowlerStats?.[username];
-          if (bwStats) {
-            bowlOvers += bwStats.overs ?? 0;
-            bowlBalls += bwStats.balls ?? 0;
-            bowlRunsConceded += bwStats.runsConceded ?? 0;
-            bowlWickets += bwStats.wickets ?? 0;
-            bowlMaidens += bwStats.maidens ?? 0;
-          }
-          if (inn.ballsHistory) {
-            for (const ball of inn.ballsHistory) {
-              if (ball.wicket && ball.striker === username && ball.wicketType !== 'Retired Hurt') {
-                bowledOut = true;
-              }
-            }
-          }
-        }
-
-        rating += batRuns * 0.05;
-        rating += batFours * 0.1;
-        rating += batSixes * 0.2;
-
-        if (batBalls > 5) {
-          const sr = (batRuns / batBalls) * 100;
-          if (sr > 150) rating += 0.5;
-          else if (sr > 120) rating += 0.3;
-          else if (sr < 80) rating -= 0.3;
-        }
-
-        if (bowledOut && batRuns === 0 && batBalls > 0) {
-          rating -= 0.5;
-        }
-
-        rating += bowlWickets * 0.8;
-        rating += bowlMaidens * 0.5;
-        rating -= bowlRunsConceded * 0.02;
-
-        const totalOvers = bowlOvers + (bowlBalls / 6);
-        if (totalOvers > 1.0) {
-          const econ = bowlRunsConceded / totalOvers;
-          if (econ < 6.0) rating += 0.5;
-          else if (econ < 8.0) rating += 0.2;
-          else if (econ > 10.0) rating -= 0.4;
-        }
-
-        if (winnerTeamId && mp.teamId === winnerTeamId) {
-          rating += 0.5;
-        } else if (loserTeamId && mp.teamId === loserTeamId) {
-          rating -= 0.3;
-        }
-
-        mp.rating = Math.min(10.0, Math.max(5.0, Math.round(rating * 100) / 100));
-        toSave.push(mp);
-      }
-    } else if (sportCode === 'badminton') {
-      const rallies = liveData.rallies || [];
-      const starters = matchPlayers.filter(mp => mp.isPlaying);
-
-      for (const mp of starters) {
-        if (mp.rating !== null) continue;
-
-        let rating = 5.0;
-        let wonRallies = 0, lostRallies = 0;
-
-        const isHomeTeam = mp.teamId === match.homeTeamId;
-
-        for (const r of rallies) {
-          if (r.winnerSide === 'none') continue;
-          if (isHomeTeam) {
-            if (r.winnerSide === 'home') wonRallies++;
-            else lostRallies++;
-          } else {
-            if (r.winnerSide === 'away') wonRallies++;
-            else lostRallies++;
-          }
-        }
-
-        rating += wonRallies * 0.1;
-        rating -= lostRallies * 0.05;
-
-        if (winnerTeamId && mp.teamId === winnerTeamId) {
-          rating += 0.5;
-        } else if (loserTeamId && mp.teamId === loserTeamId) {
-          rating -= 0.3;
-        }
-
-        mp.rating = Math.min(10.0, Math.max(5.0, Math.round(rating * 100) / 100));
-        toSave.push(mp);
-      }
-    }
+    const engine = this.sportEngineRegistry.getEngine(sportCode);
+    const calculated = engine.calculatePlayerRatings(match, matchPlayers, winnerTeamId, loserTeamId);
+    toSave.push(...calculated);
 
     if (toSave.length > 0) {
       await this.matchPlayerRepo.save(toSave);
