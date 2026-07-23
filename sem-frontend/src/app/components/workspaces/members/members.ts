@@ -5,14 +5,21 @@ import { Workspace, WorkspaceMember, WorkspaceService } from '../../../services/
 import { UiService } from '../../../services/ui.service';
 import { AuthService } from '../../../services/auth.service';
 import { AvatarComponent } from '../../../shared/components/avatar/avatar';
+import { BulkImportComponent, BulkImportFieldMapping } from '../../../shared/components/bulk-import/bulk-import';
 
 @Component({
   selector: 'app-workspace-members',
   standalone: true,
-  imports: [CommonModule, FormsModule, AvatarComponent],
+  imports: [CommonModule, FormsModule, AvatarComponent, BulkImportComponent],
   templateUrl: './members.html',
 })
 export class WorkspaceMembersComponent {
+  memberImportMapping: BulkImportFieldMapping = {
+    titleKey: 'username',
+    detailKey: 'role',
+    detailLabel: 'Role',
+  };
+
   private workspaceService = inject(WorkspaceService);
   private uiService = inject(UiService);
   authService = inject(AuthService);
@@ -192,68 +199,48 @@ export class WorkspaceMembersComponent {
     }
   }
 
-  onMemberExcelUpload(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (!input.files || input.files.length === 0) return;
-    const file = input.files[0];
-    const reader = new FileReader();
-    reader.onload = async (e: any) => {
-      try {
-        const XLSX = await import('xlsx');
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+  onMembersExcelParsed(json: any[]) {
+    const parsedMembers = json.map((row: any) => {
+      const usernameKey = Object.keys(row).find(k => k.toLowerCase() === 'username') || 'Username';
+      const roleKey = Object.keys(row).find(k => k.toLowerCase() === 'role') || 'Role';
 
-        const parsedMembers = json.map((row: any) => {
-          const usernameKey = Object.keys(row).find(k => k.toLowerCase() === 'username') || 'Username';
-          const roleKey = Object.keys(row).find(k => k.toLowerCase() === 'role') || 'Role';
+      const username = (row[usernameKey] || '').toString().trim();
+      const role = (row[roleKey] || '').toString().trim();
 
-          const username = (row[usernameKey] || '').toString().trim();
-          const role = (row[roleKey] || '').toString().trim();
+      let status = 'pending';
+      let error = '';
 
-          let status = 'pending';
-          let error = '';
-
-          if (!username) {
-            status = 'failed';
-            error = 'Username is missing';
-          } else {
-            const lowerUser = username.toLowerCase();
-            if (lowerUser.startsWith('#required') || lowerUser === 'required') {
-              return null;
-            }
-            if (lowerUser.startsWith('eg.')) {
-              return null;
-            }
-            const alreadyExists = this.members().some(m => m.user.username.toLowerCase() === lowerUser);
-            if (alreadyExists) {
-              status = 'exist';
-              error = 'Already a member';
-            }
-          }
-
-          return {
-            username,
-            role: role || undefined,
-            status,
-            error
-          };
-        }).filter(Boolean);
-
-        this.bulkImportMembersList.set(parsedMembers);
-        this.memberBulkImportError.set('');
-        if (parsedMembers.length === 0) {
-          this.memberBulkImportError.set('No valid members found in the spreadsheet. Make sure you have a "Username" column.');
+      if (!username) {
+        status = 'failed';
+        error = 'Username is missing';
+      } else {
+        const lowerUser = username.toLowerCase();
+        if (lowerUser.startsWith('#required') || lowerUser === 'required') {
+          return null;
         }
-      } catch (err) {
-        console.error('Failed to parse file', err);
-        this.memberBulkImportError.set('Failed to parse spreadsheet. Please ensure it is a valid format.');
+        if (lowerUser.startsWith('eg.')) {
+          return null;
+        }
+        const alreadyExists = this.members().some(m => m.user.username.toLowerCase() === lowerUser);
+        if (alreadyExists) {
+          status = 'exist';
+          error = 'Already a member';
+        }
       }
-    };
-    reader.readAsArrayBuffer(file);
-    input.value = '';
+
+      return {
+        username,
+        role: role || undefined,
+        status,
+        error
+      };
+    }).filter(Boolean) as any[];
+
+    this.bulkImportMembersList.set(parsedMembers);
+    this.memberBulkImportError.set('');
+    if (parsedMembers.length === 0) {
+      this.memberBulkImportError.set('No valid members found in the spreadsheet. Make sure you have a "Username" column.');
+    }
   }
 
   onConfirmMemberBulkImport() {

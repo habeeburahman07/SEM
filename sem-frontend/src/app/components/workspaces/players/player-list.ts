@@ -10,14 +10,34 @@ import { LoadingSpinnerComponent } from '../../../shared/components/loading-spin
 import { SearchInputComponent } from '../../../shared/components/search-input/search-input';
 import { StatCardComponent } from '../../../shared/components/stat-card/stat-card';
 import { RatingColorPipe } from '../../../shared/pipes/rating-color.pipe';
+import { BulkImportComponent, BulkImportFieldMapping } from '../../../shared/components/bulk-import/bulk-import';
 
 @Component({
   selector: 'app-player-list',
   standalone: true,
-  imports: [FormsModule, AvatarComponent, ButtonComponent, BadgeComponent, EmptyStateComponent, LoadingSpinnerComponent, SearchInputComponent, StatCardComponent, RatingColorPipe],
+  imports: [
+    FormsModule,
+    AvatarComponent,
+    ButtonComponent,
+    BadgeComponent,
+    EmptyStateComponent,
+    LoadingSpinnerComponent,
+    SearchInputComponent,
+    StatCardComponent,
+    RatingColorPipe,
+    BulkImportComponent
+  ],
   templateUrl: './player-list.html',
 })
 export class PlayerListComponent {
+  playerImportMapping: BulkImportFieldMapping = {
+    titleKey: 'username',
+    subtitleKey: 'jerseyNumber',
+    subtitleLabel: 'Jersey',
+    detailKey: 'teamCode',
+    detailLabel: 'Team Code',
+  };
+
   private playerService = inject(PlayerService);
 
   workspaceId = input.required<string>();
@@ -134,86 +154,66 @@ export class PlayerListComponent {
     }
   }
 
-  onExcelUpload(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (!input.files || input.files.length === 0) return;
-    const file = input.files[0];
-    const reader = new FileReader();
-    reader.onload = async (e: any) => {
-      try {
-        const XLSX = await import('xlsx');
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+  onPlayersExcelParsed(json: any[]) {
+    const parsedPlayers = json.map((row: any) => {
+      const usernameKey = Object.keys(row).find(k => k.toLowerCase() === 'username') || 'Username';
+      const teamCodeKey = Object.keys(row).find(k => k.toLowerCase() === 'teamcode') || 'TeamCode';
+      const jerseyKey = Object.keys(row).find(k => k.toLowerCase() === 'jerseynumber' || k.toLowerCase() === 'jersey') || 'JerseyNumber';
 
-        const parsedPlayers = json.map((row: any) => {
-          const usernameKey = Object.keys(row).find(k => k.toLowerCase() === 'username') || 'Username';
-          const teamCodeKey = Object.keys(row).find(k => k.toLowerCase() === 'teamcode') || 'TeamCode';
-          const jerseyKey = Object.keys(row).find(k => k.toLowerCase() === 'jerseynumber' || k.toLowerCase() === 'jersey') || 'JerseyNumber';
+      const username = (row[usernameKey] || '').toString().trim();
+      const teamCode = (row[teamCodeKey] || '').toString().trim();
+      const jerseyNumber = (row[jerseyKey] || '').toString().trim();
 
-          const username = (row[usernameKey] || '').toString().trim();
-          const teamCode = (row[teamCodeKey] || '').toString().trim();
-          const jerseyNumber = (row[jerseyKey] || '').toString().trim();
+      const member = this.members().find(m => m.user.username.toLowerCase() === username.toLowerCase());
+      const team = this.teams().find(t => t.code && t.code.toUpperCase() === teamCode.toUpperCase());
 
-          const member = this.members().find(m => m.user.username.toLowerCase() === username.toLowerCase());
-          const team = this.teams().find(t => t.code && t.code.toUpperCase() === teamCode.toUpperCase());
+      let status = 'pending';
+      let error = '';
 
-          let status = 'pending';
-          let error = '';
-
-          if (!username) {
-            status = 'failed';
-            error = 'Username is missing';
-          } else if (!member) {
-            status = 'failed';
-            error = 'User not found in workspace';
-          } else if (!teamCode) {
-            status = 'failed';
-            error = 'Team Code is missing';
-          } else if (!team) {
-            status = 'failed';
-            error = 'Team Code not found';
-          } else {
-            const alreadyExists = this.players().some(p =>
-              p.user.username.toLowerCase() === username.toLowerCase() &&
-              p.teamId === team.id
-            );
-            if (alreadyExists) {
-              status = 'exist';
-              error = 'Already registered in this team';
-            }
-          }
-
-          return {
-            username,
-            teamCode,
-            jerseyNumber,
-            status,
-            error
-          };
-        }).filter(p => {
-          if (!p.username) return false;
-          const lowerUser = p.username.toLowerCase();
-          if (lowerUser.startsWith('#required') || lowerUser === 'required') return false;
-          if (lowerUser.startsWith('eg.')) return false;
-          if (lowerUser.startsWith('eg ')) return false;
-          return true;
-        });
-
-        this.bulkImportPlayers.set(parsedPlayers);
-        this.bulkImportError.set('');
-        if (parsedPlayers.length === 0) {
-          this.bulkImportError.set('No valid players found in the spreadsheet. Make sure you have a "Username" column.');
+      if (!username) {
+        status = 'failed';
+        error = 'Username is missing';
+      } else if (!member) {
+        status = 'failed';
+        error = 'User not found in workspace';
+      } else if (!teamCode) {
+        status = 'failed';
+        error = 'Team Code is missing';
+      } else if (!team) {
+        status = 'failed';
+        error = 'Team Code not found';
+      } else {
+        const alreadyExists = this.players().some(p =>
+          p.user.username.toLowerCase() === username.toLowerCase() &&
+          p.teamId === team.id
+        );
+        if (alreadyExists) {
+          status = 'exist';
+          error = 'Already registered in this team';
         }
-      } catch (err) {
-        console.error('Failed to parse file', err);
-        this.bulkImportError.set('Failed to parse spreadsheet. Please ensure it is a valid format.');
       }
-    };
-    reader.readAsArrayBuffer(file);
-    input.value = '';
+
+      return {
+        username,
+        teamCode,
+        jerseyNumber,
+        status,
+        error
+      };
+    }).filter(p => {
+      if (!p.username) return false;
+      const lowerUser = p.username.toLowerCase();
+      if (lowerUser.startsWith('#required') || lowerUser === 'required') return false;
+      if (lowerUser.startsWith('eg.')) return false;
+      if (lowerUser.startsWith('eg ')) return false;
+      return true;
+    });
+
+    this.bulkImportPlayers.set(parsedPlayers);
+    this.bulkImportError.set('');
+    if (parsedPlayers.length === 0) {
+      this.bulkImportError.set('No valid players found in the spreadsheet. Make sure you have a "Username" column.');
+    }
   }
 
   async onConfirmBulkImport() {
