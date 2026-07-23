@@ -14,6 +14,10 @@ import { WorkspaceMember } from '../workspaces/entities/workspace-member.entity'
 import { CompetitionsService } from './competitions.service';
 import { CompetitionsController } from './competitions.controller';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
+import { FixturesGeneratorService } from './services/fixtures-generator.service';
+import { MatchLineupService } from './services/match-lineup.service';
+import { StatisticsRatingsService } from './services/statistics-ratings.service';
+import { BracketAdvancementService } from './services/bracket-advancement.service';
 
 @Module({
   imports: [
@@ -33,7 +37,19 @@ import { WorkspacesModule } from '../workspaces/workspaces.module';
     WorkspacesModule,
   ],
   controllers: [CompetitionsController],
-  providers: [CompetitionsService],
-  exports: [CompetitionsService],
+  providers: [
+    CompetitionsService,
+    FixturesGeneratorService,
+    MatchLineupService,
+    StatisticsRatingsService,
+    BracketAdvancementService,
+  ],
+  exports: [
+    CompetitionsService,
+    FixturesGeneratorService,
+    MatchLineupService,
+    StatisticsRatingsService,
+    BracketAdvancementService,
+  ],
 })
 export class CompetitionsModule {}
