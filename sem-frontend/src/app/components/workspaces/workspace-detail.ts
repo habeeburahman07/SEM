@@ -18,6 +18,7 @@ import { PlayerService } from '../../services/player.service';
 import { PlayerListComponent } from './players/player-list';
 import { PlayerModalComponent } from './players/player-modal';
 import { EventService } from '../../services/event.service';
+import { CompetitionService } from '../../services/competition.service';
 
 declare const L: any;
 
@@ -51,6 +52,7 @@ export class WorkspaceDetailComponent implements OnInit {
   private teamService = inject(TeamService);
   private playerService = inject(PlayerService);
   private eventService = inject(EventService);
+  private competitionService = inject(CompetitionService);
 
   selectedPlayerId = signal<string | null>(null);
   selectedTeamId = signal<string | null>(null);
@@ -937,7 +939,7 @@ export class WorkspaceDetailComponent implements OnInit {
         this.selectedEvent.set(ev);
 
         if (!competitionId) return;
-        this.workspaceService.getCompetitions(ws.id, eventId).subscribe({
+        this.competitionService.getCompetitions(ws.id, eventId).subscribe({
           next: (comps) => {
             this.competitions.set(comps);
             const comp = comps.find((c) => c.id === competitionId);
@@ -945,7 +947,7 @@ export class WorkspaceDetailComponent implements OnInit {
             this.selectedCompetition.set(comp);
             this.activeCompetitionTab.set('matches');
 
-            this.workspaceService.getStages(ws.id, eventId, competitionId).subscribe({
+            this.competitionService.getStages(ws.id, eventId, competitionId).subscribe({
               next: (stages) => {
                 this.stages.set(stages);
                 const stage = (stageId ? stages.find((s) => s.id === stageId) : null) || stages[0];
@@ -953,7 +955,7 @@ export class WorkspaceDetailComponent implements OnInit {
                 this.selectedStage.set(stage);
 
                 if (!matchId) return;
-                this.workspaceService.getMatches(ws.id, eventId, competitionId, stage.id).subscribe({
+                this.competitionService.getMatches(ws.id, eventId, competitionId, stage.id).subscribe({
                   next: (matches) => {
                     this.matches.set(matches);
                     const m = matches.find((match) => match.id === matchId);
@@ -1624,7 +1626,7 @@ export class WorkspaceDetailComponent implements OnInit {
   loadAllCompetitions(workspaceId: string, events: WorkspaceEvent[]) {
     this.allCompetitions.set([]);
     for (const event of events) {
-      this.workspaceService.getCompetitions(workspaceId, event.id).subscribe({
+      this.competitionService.getCompetitions(workspaceId, event.id).subscribe({
         next: (comps) => {
           this.allCompetitions.update(prev => {
             const ids = new Set(prev.map(c => c.id));
@@ -1848,7 +1850,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const ws = this.workspace();
     if (!ws) return;
     this.isLoadingCompetitions.set(true);
-    this.workspaceService.getCompetitions(ws.id, eventId).subscribe({
+    this.competitionService.getCompetitions(ws.id, eventId).subscribe({
       next: (comps) => {
         this.competitions.set(comps);
         this.isLoadingCompetitions.set(false);
@@ -1939,7 +1941,7 @@ export class WorkspaceDetailComponent implements OnInit {
       pointsConfig: pointsConfig.length > 0 ? pointsConfig : null,
     };
 
-    this.workspaceService.createCompetition(ws.id, event.id, payload).subscribe({
+    this.competitionService.createCompetition(ws.id, event.id, payload).subscribe({
       next: (comp) => {
         this.isCreatingCompetition.set(false);
         this.competitionCreateSuccess.set(`Competition "${comp.name}" created successfully!`);
@@ -1990,7 +1992,7 @@ export class WorkspaceDetailComponent implements OnInit {
       pointsConfig: pointsConfig.length > 0 ? pointsConfig : null,
     };
 
-    this.workspaceService.updateCompetition(ws.id, event.id, comp.id, payload).subscribe({
+    this.competitionService.updateCompetition(ws.id, event.id, comp.id, payload).subscribe({
       next: (updated) => {
         this.isUpdatingCompetition.set(false);
         this.competitionUpdateSuccess.set(`Competition updated successfully!`);
@@ -2017,7 +2019,7 @@ export class WorkspaceDetailComponent implements OnInit {
     });
     if (!confirmed) return;
 
-    this.workspaceService.removeCompetition(ws.id, event.id, comp.id).subscribe({
+    this.competitionService.removeCompetition(ws.id, event.id, comp.id).subscribe({
       next: () => {
         this.competitions.update(prev => prev.filter(c => c.id !== comp.id));
         this.allCompetitions.update(prev => prev.filter(c => c.id !== comp.id));
@@ -2201,7 +2203,7 @@ export class WorkspaceDetailComponent implements OnInit {
     if (!comp || !ws || !event) return;
 
     this.isLoadingStats.set(true);
-    this.workspaceService.getCompetitionStats(ws.id, event.id, comp.id).subscribe({
+    this.competitionService.getCompetitionStats(ws.id, event.id, comp.id).subscribe({
       next: (stats) => {
         this.competitionStats.set(stats);
         this.isLoadingStats.set(false);
@@ -2218,7 +2220,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const event = this.selectedEvent();
     if (!ws || !event) return;
     this.isLoadingStages.set(true);
-    this.workspaceService.getStages(ws.id, event.id, competitionId).subscribe({
+    this.competitionService.getStages(ws.id, event.id, competitionId).subscribe({
       next: (stages) => {
         this.stages.set(stages);
         this.isLoadingStages.set(false);
@@ -2238,7 +2240,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const event = this.selectedEvent();
     if (!ws || !event) return;
     this.isLoadingCompetitionTeams.set(true);
-    this.workspaceService.getCompetitionTeams(ws.id, event.id, competitionId).subscribe({
+    this.competitionService.getCompetitionTeams(ws.id, event.id, competitionId).subscribe({
       next: (ct) => {
         this.competitionTeams.set(ct);
         this.isLoadingCompetitionTeams.set(false);
@@ -2259,7 +2261,7 @@ export class WorkspaceDetailComponent implements OnInit {
     this.isAddingTeam.set(true);
     this.addTeamError.set('');
     this.addTeamSuccess.set('');
-    this.workspaceService.addTeamToCompetition(ws.id, event.id, comp.id, teamId).subscribe({
+    this.competitionService.addTeamToCompetition(ws.id, event.id, comp.id, teamId).subscribe({
       next: (entry) => {
         this.isAddingTeam.set(false);
         this.competitionTeams.update(prev => [...prev, entry]);
@@ -2286,7 +2288,7 @@ export class WorkspaceDetailComponent implements OnInit {
       type: 'danger',
     });
     if (!confirmed) return;
-    this.workspaceService.removeTeamFromCompetition(ws.id, event.id, comp.id, entry.teamId).subscribe({
+    this.competitionService.removeTeamFromCompetition(ws.id, event.id, comp.id, entry.teamId).subscribe({
       next: () => {
         this.competitionTeams.update(prev => prev.filter(t => t.id !== entry.id));
         this.uiService.success(`Removed "${entry.team.name}" from competition.`);
@@ -2328,7 +2330,7 @@ export class WorkspaceDetailComponent implements OnInit {
     this.generateFixturesError.set('');
     this.generateFixturesSuccess.set('');
 
-    this.workspaceService.generateFixtures(ws.id, event.id, comp.id).subscribe({
+    this.competitionService.generateFixtures(ws.id, event.id, comp.id).subscribe({
       next: (result) => {
         this.isGeneratingFixtures.set(false);
         this.generateFixturesSuccess.set(
@@ -2381,7 +2383,7 @@ export class WorkspaceDetailComponent implements OnInit {
       config,
     };
 
-    this.workspaceService.createStage(ws.id, event.id, comp.id, payload).subscribe({
+    this.competitionService.createStage(ws.id, event.id, comp.id, payload).subscribe({
       next: (stage) => {
         this.isCreatingStage.set(false);
         this.stageCreateSuccess.set(`Stage "${stage.name}" created successfully!`);
@@ -2459,7 +2461,7 @@ export class WorkspaceDetailComponent implements OnInit {
       config,
     };
 
-    this.workspaceService.updateStage(ws.id, event.id, comp.id, stage.id, payload).subscribe({
+    this.competitionService.updateStage(ws.id, event.id, comp.id, stage.id, payload).subscribe({
       next: (updated) => {
         this.isUpdatingStage.set(false);
         this.stageUpdateSuccess.set(`Stage updated successfully!`);
@@ -2486,7 +2488,7 @@ export class WorkspaceDetailComponent implements OnInit {
     });
     if (!confirmed) return;
 
-    this.workspaceService.removeStage(ws.id, event.id, comp.id, stage.id).subscribe({
+    this.competitionService.removeStage(ws.id, event.id, comp.id, stage.id).subscribe({
       next: () => {
         this.stages.update(prev => prev.filter(s => s.id !== stage.id));
         this.uiService.success(`Stage "${stage.name}" deleted successfully.`);
@@ -2514,7 +2516,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const comp = this.selectedCompetition();
     if (!ws || !event || !comp) return;
 
-    this.workspaceService.getMatches(ws.id, event.id, comp.id, stage.id).subscribe({
+    this.competitionService.getMatches(ws.id, event.id, comp.id, stage.id).subscribe({
       next: (data) => {
         this.matches.set(data);
       },
@@ -2555,7 +2557,7 @@ export class WorkspaceDetailComponent implements OnInit {
     this.matchCreateError.set('');
     this.matchCreateSuccess.set('');
 
-    this.workspaceService.createMatch(ws.id, event.id, comp.id, stage.id, {
+    this.competitionService.createMatch(ws.id, event.id, comp.id, stage.id, {
       homeTeamId: homeId,
       awayTeamId: awayId,
       venueId: this.newMatchVenueId() || null,
@@ -2593,7 +2595,7 @@ export class WorkspaceDetailComponent implements OnInit {
     });
     if (!confirmed) return;
 
-    this.workspaceService.removeMatch(ws.id, event.id, comp.id, stage.id, match.id).subscribe({
+    this.competitionService.removeMatch(ws.id, event.id, comp.id, stage.id, match.id).subscribe({
       next: () => {
         this.matches.update(prev => prev.filter(m => m.id !== match.id));
         if (this.selectedMatch()?.id === match.id) {
@@ -2726,7 +2728,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const stage = this.selectedStage();
     if (!ws || !event || !comp || !stage) return;
 
-    this.workspaceService.getMatchLineup(ws.id, event.id, comp.id, stage.id, matchId).subscribe({
+    this.competitionService.getMatchLineup(ws.id, event.id, comp.id, stage.id, matchId).subscribe({
       next: (lineup) => this.matchLineup.set(lineup),
       error: (err) => console.error('Failed to load match lineup', err)
     });
@@ -2808,7 +2810,7 @@ export class WorkspaceDetailComponent implements OnInit {
       teamId: item.teamId
     }));
 
-    this.workspaceService.saveMatchLineup(ws.id, event.id, comp.id, stage.id, match.id, payload).subscribe({
+    this.competitionService.saveMatchLineup(ws.id, event.id, comp.id, stage.id, match.id, payload).subscribe({
       next: (updatedLineup) => {
         this.matchLineup.set(updatedLineup);
         this.isLineupModalOpen.set(false);
@@ -3137,7 +3139,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const live = { ...match.liveData };
     live.timerRunning = !live.timerRunning;
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live,
       status: 'live',
     }).subscribe({
@@ -3183,7 +3185,7 @@ export class WorkspaceDetailComponent implements OnInit {
       events: []
     };
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live,
       status: 'live',
     }).subscribe({
@@ -3217,7 +3219,7 @@ export class WorkspaceDetailComponent implements OnInit {
     live.elapsedSeconds = halfDurationMinutes * 60;
     live.timerRunning = true;
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live,
     }).subscribe({
       next: (updated) => {
@@ -3236,7 +3238,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const stage = this.selectedStage();
     if (!match || !ws || !event || !comp || !stage) return;
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live,
     }).subscribe({
       next: (updated) => {
@@ -3388,7 +3390,7 @@ export class WorkspaceDetailComponent implements OnInit {
       }
     }
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       homeScore: newHomeScore,
       awayScore: newAwayScore,
       liveData: live,
@@ -3431,7 +3433,7 @@ export class WorkspaceDetailComponent implements OnInit {
       minute: currentMin,
     });
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live,
     }).subscribe({
       next: (updated) => {
@@ -3483,7 +3485,7 @@ export class WorkspaceDetailComponent implements OnInit {
       }
     }
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       homeScore: newHomeScore,
       awayScore: newAwayScore,
       liveData: live,
@@ -3516,7 +3518,7 @@ export class WorkspaceDetailComponent implements OnInit {
       minute: currentMin
     });
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live
     }).subscribe({
       next: (updated) => {
@@ -3545,7 +3547,7 @@ export class WorkspaceDetailComponent implements OnInit {
       minute: currentMin
     });
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live
     }).subscribe({
       next: (updated) => {
@@ -3576,7 +3578,7 @@ export class WorkspaceDetailComponent implements OnInit {
       minute: currentMin
     });
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live
     }).subscribe({
       next: (updated) => {
@@ -3626,7 +3628,7 @@ export class WorkspaceDetailComponent implements OnInit {
       }
     }
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       homeScore: newHomeScore,
       awayScore: newAwayScore,
       liveData: live
@@ -3658,7 +3660,7 @@ export class WorkspaceDetailComponent implements OnInit {
       minute: currentMin
     });
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live
     }).subscribe({
       next: (updated) => {
@@ -3687,7 +3689,7 @@ export class WorkspaceDetailComponent implements OnInit {
       minute: currentMin
     });
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live
     }).subscribe({
       next: (updated) => {
@@ -3716,7 +3718,7 @@ export class WorkspaceDetailComponent implements OnInit {
       minute: currentMin
     });
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live
     }).subscribe({
       next: (updated) => {
@@ -3747,7 +3749,7 @@ export class WorkspaceDetailComponent implements OnInit {
       minute: currentMin
     });
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live
     }).subscribe({
       next: (updated) => {
@@ -3771,7 +3773,7 @@ export class WorkspaceDetailComponent implements OnInit {
     live.elapsedSeconds = halfDurationMinutes * 2 * 60;
     live.timerRunning = true;
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live,
     }).subscribe({
       next: (updated) => {
@@ -3797,7 +3799,7 @@ export class WorkspaceDetailComponent implements OnInit {
     live.elapsedSeconds = halfDurationMinutes * 2 * 60 + extraHalfMinutes * 60;
     live.timerRunning = true;
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live,
     }).subscribe({
       next: (updated) => {
@@ -3820,7 +3822,7 @@ export class WorkspaceDetailComponent implements OnInit {
     live.currentHalf = 5;
     live.timerRunning = false;
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live,
     }).subscribe({
       next: (updated) => {
@@ -3864,7 +3866,7 @@ export class WorkspaceDetailComponent implements OnInit {
       }
     }
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live
     }).subscribe({
       next: (updated) => {
@@ -3885,7 +3887,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const live = match.liveData ? { ...match.liveData } : {};
     live.result = result;
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       status: 'completed',
       liveData: live,
     }).subscribe({
@@ -3943,7 +3945,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const updatedConfig = { ...match.config, overs };
     match.config = updatedConfig;
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live,
       status: 'live',
       config: updatedConfig
@@ -4233,7 +4235,7 @@ export class WorkspaceDetailComponent implements OnInit {
       }
     }
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       homeScore,
       awayScore,
       status: match.status,
@@ -4363,7 +4365,7 @@ export class WorkspaceDetailComponent implements OnInit {
       match.status = 'live';
     }
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       homeScore,
       awayScore,
       status: match.status,
@@ -4393,7 +4395,7 @@ export class WorkspaceDetailComponent implements OnInit {
     if (!match || !ws || !event || !comp || !stage) return;
 
     const config = { ...match.config, matchType };
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       config
     }).subscribe({
       next: (updated) => {
@@ -4430,7 +4432,7 @@ export class WorkspaceDetailComponent implements OnInit {
       return;
     }
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       status: dbStatus,
       liveData: live
     }).subscribe({
@@ -4597,7 +4599,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const isDoubles = (match.config?.matchType || "").toLowerCase().includes('doubles');
     this.rotateBadmintonPlayers(live, winnerSide, isDoubles);
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       homeScore: live.homeSetsWon,
       awayScore: live.awaySetsWon,
       status: dbStatus,
@@ -4662,7 +4664,7 @@ export class WorkspaceDetailComponent implements OnInit {
     this.stopBadmintonTimer();
     this.badmintonDuration.set(0);
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live,
     }).subscribe({
       next: (updated) => {
@@ -4839,7 +4841,7 @@ export class WorkspaceDetailComponent implements OnInit {
     // Recalculate service details based on the new score
     this.recalculateLiveServiceDetails(match, live);
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       homeScore: live.homeSetsWon,
       awayScore: live.awaySetsWon,
       status: dbStatus,
@@ -4878,7 +4880,7 @@ export class WorkspaceDetailComponent implements OnInit {
 
     this.recalculateLiveServiceDetails(match, live);
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live
     }).subscribe({
       next: (updated) => {
@@ -4907,7 +4909,7 @@ export class WorkspaceDetailComponent implements OnInit {
 
     this.recalculateLiveServiceDetails(match, live);
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       liveData: live
     }).subscribe({
       next: (updated) => {
@@ -5036,7 +5038,7 @@ export class WorkspaceDetailComponent implements OnInit {
       dbStatus = 'completed';
     }
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       homeScore: live.homeSetsWon,
       awayScore: live.awaySetsWon,
       status: dbStatus,
@@ -5065,7 +5067,7 @@ export class WorkspaceDetailComponent implements OnInit {
     const stage = this.selectedStage();
     if (!match || !ws || !event || !comp || !stage) return;
 
-    this.workspaceService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
+    this.competitionService.updateMatch(ws.id, event.id, comp.id, stage.id, match.id, {
       status: 'completed',
     }).subscribe({
       next: (updated) => {
@@ -5240,7 +5242,7 @@ export class WorkspaceDetailComponent implements OnInit {
 
     try {
       // Refresh competition teams local state
-      const refreshedTeams = await firstValueFrom(this.workspaceService.getCompetitionTeams(ws.id, event.id, comp.id));
+      const refreshedTeams = await firstValueFrom(this.competitionService.getCompetitionTeams(ws.id, event.id, comp.id));
       this.competitionTeams.set(refreshedTeams);
 
       // 2. Setup stage (create or update)
@@ -5293,17 +5295,17 @@ export class WorkspaceDetailComponent implements OnInit {
 
       if (existingStages.length > 0) {
         await firstValueFrom(
-          this.workspaceService.updateStage(ws.id, event.id, comp.id, existingStages[0].id, stagePayload)
+          this.competitionService.updateStage(ws.id, event.id, comp.id, existingStages[0].id, stagePayload)
         );
       } else {
         await firstValueFrom(
-          this.workspaceService.createStage(ws.id, event.id, comp.id, stagePayload)
+          this.competitionService.createStage(ws.id, event.id, comp.id, stagePayload)
         );
       }
 
       // 3. Generate fixtures
       const result = await firstValueFrom(
-        this.workspaceService.generateFixtures(ws.id, event.id, comp.id)
+        this.competitionService.generateFixtures(ws.id, event.id, comp.id)
       );
 
       this.uiService.success(`Fixtures generated successfully! Created ${result.matchesCreated} matches.`);
@@ -5337,7 +5339,7 @@ export class WorkspaceDetailComponent implements OnInit {
     this.isResettingStages.set(true);
     try {
       await firstValueFrom(
-        this.workspaceService.resetStagesAndFixtures(ws.id, event.id, comp.id)
+        this.competitionService.resetStagesAndFixtures(ws.id, event.id, comp.id)
       );
 
       this.uiService.success('Stages and fixtures have been cleared successfully.');

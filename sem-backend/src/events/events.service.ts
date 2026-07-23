@@ -11,6 +11,7 @@ import { WorkspacesService } from '../workspaces/workspaces.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { NotificationType } from '../workspaces/entities/notification.entity';
+import { CompetitionsService } from '../competitions/competitions.service';
 
 @Injectable()
 export class EventsService {
@@ -20,6 +21,7 @@ export class EventsService {
     @InjectRepository(Team)
     private readonly teamRepo: Repository<Team>,
     private readonly workspacesService: WorkspacesService,
+    private readonly competitionsService: CompetitionsService,
   ) {}
 
   async getEvents(workspaceId: string, userId: string): Promise<Event[]> {
@@ -194,7 +196,7 @@ export class EventsService {
     }
 
     for (const comp of completedCompetitions) {
-      const rankings = await this.workspacesService.getCompetitionRankings(comp.id);
+      const rankings = await this.competitionsService.getCompetitionRankings(comp.id);
       const pointsConfig = comp.pointsConfig || [];
 
       for (const team of teams) {
