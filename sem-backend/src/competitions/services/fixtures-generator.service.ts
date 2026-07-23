@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Competition } from '../../workspaces/entities/competition.entity';
@@ -31,7 +35,11 @@ export class FixturesGeneratorService {
     competitionId: string,
     userId: string,
   ): Promise<{ stagesGenerated: number; matchesCreated: number }> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'competition.manage');
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'competition.manage',
+    );
 
     const event = await this.eventRepo.findOne({
       where: { id: eventId, workspaceId },
@@ -39,13 +47,19 @@ export class FixturesGeneratorService {
     });
     if (!event) throw new NotFoundException(`Event not found`);
 
-    const competition = await this.competitionRepo.findOne({ where: { id: competitionId, eventId } });
+    const competition = await this.competitionRepo.findOne({
+      where: { id: competitionId, eventId },
+    });
     if (!competition) throw new NotFoundException(`Competition not found`);
 
     const eventTeams = event.teams || [];
-    const uniqueTeams = Array.from(new Map(eventTeams.map((t) => [t.id, t])).values());
+    const uniqueTeams = Array.from(
+      new Map(eventTeams.map((t) => [t.id, t])).values(),
+    );
     if (uniqueTeams.length < 2) {
-      throw new BadRequestException('At least 2 teams must be mapped to the event before generating fixtures.');
+      throw new BadRequestException(
+        'At least 2 teams must be mapped to the event before generating fixtures.',
+      );
     }
 
     const stages = await this.stageRepo.find({
@@ -53,7 +67,9 @@ export class FixturesGeneratorService {
       order: { sequence: 'ASC', createdAt: 'ASC' },
     });
     if (stages.length === 0) {
-      throw new BadRequestException('Configure at least one stage before generating fixtures.');
+      throw new BadRequestException(
+        'Configure at least one stage before generating fixtures.',
+      );
     }
 
     const teamIds = uniqueTeams.map((t) => t.id);
@@ -62,10 +78,19 @@ export class FixturesGeneratorService {
     let totalMatches = 0;
 
     for (const stage of stages) {
-      const existing = await this.matchRepo.find({ where: { stageId: stage.id } });
-      if (existing.length) await this.matchRepo.remove(existing);
+      const existing = await this.matchRepo.find({
+        where: { stageId: stage.id },
+      });
+      if (existing.length) {
+        existing.forEach((m) => (m.deletedAt = new Date()));
+        await this.matchRepo.save(existing);
+      }
 
-      const fixtures: Array<{ homeTeamId: string | null; awayTeamId: string | null; config: any }> = [];
+      const fixtures: Array<{
+        homeTeamId: string | null;
+        awayTeamId: string | null;
+        config: any;
+      }> = [];
 
       if (stage.type === 'league' || stage.type === 'group') {
         const twoLegged = stage.config?.twoLegged || stage.config?.legs === 2;
@@ -84,9 +109,19 @@ export class FixturesGeneratorService {
         if (isFirstStage) {
           const n = teamIds.length;
           const bracketSize = Math.pow(2, Math.ceil(Math.log2(Math.max(n, 2))));
-          const padded: (string | null)[] = [...teamIds, ...Array(bracketSize - n).fill(null)];
+          const padded: (string | null)[] = [
+            ...teamIds,
+            ...Array(bracketSize - n).fill(null),
+          ];
 
-          const roundLabel = bracketSize === 2 ? 'Final' : bracketSize === 4 ? 'Semi-Final' : bracketSize === 8 ? 'Quarter-Final' : `Round of ${bracketSize}`;
+          const roundLabel =
+            bracketSize === 2
+              ? 'Final'
+              : bracketSize === 4
+                ? 'Semi-Final'
+                : bracketSize === 8
+                  ? 'Quarter-Final'
+                  : `Round of ${bracketSize}`;
           for (let i = 0; i < padded.length; i += 2) {
             const home = padded[i];
             const away = padded[i + 1];
@@ -94,7 +129,9 @@ export class FixturesGeneratorService {
             fixtures.push({
               homeTeamId: home,
               awayTeamId: away,
-              config: twoLegged ? { round: roundLabel, leg: 1 } : { round: roundLabel },
+              config: twoLegged
+                ? { round: roundLabel, leg: 1 }
+                : { round: roundLabel },
             });
             if (twoLegged && home !== null && away !== null) {
               fixtures.push({
@@ -107,13 +144,22 @@ export class FixturesGeneratorService {
 
           let remainingTeams = bracketSize / 2;
           while (remainingTeams >= 2) {
-            const subRoundLabel = remainingTeams === 2 ? 'Final' : remainingTeams === 4 ? 'Semi-Final' : remainingTeams === 8 ? 'Quarter-Final' : `Round of ${remainingTeams * 2}`;
+            const subRoundLabel =
+              remainingTeams === 2
+                ? 'Final'
+                : remainingTeams === 4
+                  ? 'Semi-Final'
+                  : remainingTeams === 8
+                    ? 'Quarter-Final'
+                    : `Round of ${remainingTeams * 2}`;
             const matchesInRound = remainingTeams / 2;
             for (let m = 0; m < matchesInRound; m++) {
               fixtures.push({
                 homeTeamId: null,
                 awayTeamId: null,
-                config: twoLegged ? { round: subRoundLabel, leg: 1 } : { round: subRoundLabel },
+                config: twoLegged
+                  ? { round: subRoundLabel, leg: 1 }
+                  : { round: subRoundLabel },
               });
               if (twoLegged) {
                 fixtures.push({
@@ -127,7 +173,9 @@ export class FixturesGeneratorService {
               fixtures.push({
                 homeTeamId: null,
                 awayTeamId: null,
-                config: twoLegged ? { round: 'Third Place Match', leg: 1 } : { round: 'Third Place Match' },
+                config: twoLegged
+                  ? { round: 'Third Place Match', leg: 1 }
+                  : { round: 'Third Place Match' },
               });
               if (twoLegged) {
                 fixtures.push({
@@ -141,8 +189,10 @@ export class FixturesGeneratorService {
           }
         }
       } else if (stage.type === 'group_knockout') {
-        const isSingleGroup = stage.config?.groupKnockoutSubtype === 'single_group';
-        const twoLeggedGroup = stage.config?.twoLegged || stage.config?.legs === 2;
+        const isSingleGroup =
+          stage.config?.groupKnockoutSubtype === 'single_group';
+        const twoLeggedGroup =
+          stage.config?.twoLegged || stage.config?.legs === 2;
         const twoLeggedKO = stage.config?.twoLegged || stage.config?.legs === 2;
 
         let totalAdvancing = 2;
@@ -159,7 +209,10 @@ export class FixturesGeneratorService {
           totalAdvancing = Number(stage.config?.singleGroupAdvancing ?? 2);
         } else {
           const groupsCount = stage.config?.groupsCount ?? 2;
-          const groups: string[][] = Array.from({ length: groupsCount }, () => []);
+          const groups: string[][] = Array.from(
+            { length: groupsCount },
+            () => [],
+          );
           teamIds.forEach((id, idx) => groups[idx % groupsCount].push(id));
 
           for (let gIndex = 0; gIndex < groups.length; gIndex++) {
@@ -176,22 +229,35 @@ export class FixturesGeneratorService {
             }
           }
 
-          const isWinnerAndRunner = stage.config?.advancingType === 'winner_and_runner';
+          const isWinnerAndRunner =
+            stage.config?.advancingType === 'winner_and_runner';
           totalAdvancing = groupsCount * (isWinnerAndRunner ? 2 : 1);
         }
 
-        let koTeamsCount = totalAdvancing;
-        const bracketSize = Math.pow(2, Math.ceil(Math.log2(Math.max(koTeamsCount, 2))));
+        const koTeamsCount = totalAdvancing;
+        const bracketSize = Math.pow(
+          2,
+          Math.ceil(Math.log2(Math.max(koTeamsCount, 2))),
+        );
 
         let remainingTeams = bracketSize;
         while (remainingTeams >= 2) {
-          const koRoundLabel = remainingTeams === 2 ? 'Final' : remainingTeams === 4 ? 'Semi-Final' : remainingTeams === 8 ? 'Quarter-Final' : `Round of ${remainingTeams}`;
+          const koRoundLabel =
+            remainingTeams === 2
+              ? 'Final'
+              : remainingTeams === 4
+                ? 'Semi-Final'
+                : remainingTeams === 8
+                  ? 'Quarter-Final'
+                  : `Round of ${remainingTeams}`;
           const matchesInRound = remainingTeams / 2;
           for (let m = 0; m < matchesInRound; m++) {
             fixtures.push({
               homeTeamId: null,
               awayTeamId: null,
-              config: twoLeggedKO ? { round: koRoundLabel, leg: 1 } : { round: koRoundLabel },
+              config: twoLeggedKO
+                ? { round: koRoundLabel, leg: 1 }
+                : { round: koRoundLabel },
             });
             if (twoLeggedKO) {
               fixtures.push({
@@ -205,7 +271,9 @@ export class FixturesGeneratorService {
             fixtures.push({
               homeTeamId: null,
               awayTeamId: null,
-              config: twoLeggedKO ? { round: 'Third Place Match', leg: 1 } : { round: 'Third Place Match' },
+              config: twoLeggedKO
+                ? { round: 'Third Place Match', leg: 1 }
+                : { round: 'Third Place Match' },
             });
             if (twoLeggedKO) {
               fixtures.push({
@@ -233,9 +301,12 @@ export class FixturesGeneratorService {
       }
     }
 
-    const compTeams = await this.competitionTeamRepo.find({ where: { competitionId } });
+    const compTeams = await this.competitionTeamRepo.find({
+      where: { competitionId },
+    });
     const teamIdsNotify = compTeams.map((ct) => ct.teamId);
-    const players = await this.workspacesService.getTeamsPlayerUserIds(teamIdsNotify);
+    const players =
+      await this.workspacesService.getTeamsPlayerUserIds(teamIdsNotify);
     await this.workspacesService.sendNotificationToMany(
       players,
       NotificationType.FIXTURES_GENERATED,
@@ -253,22 +324,35 @@ export class FixturesGeneratorService {
     competitionId: string,
     userId: string,
   ): Promise<void> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'competition.manage');
-    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'competition.manage',
+    );
+    const event = await this.eventRepo.findOne({
+      where: { id: eventId, workspaceId },
+    });
     if (!event) {
       throw new NotFoundException(`Event "${eventId}" not found in workspace`);
     }
-    const competition = await this.competitionRepo.findOne({ where: { id: competitionId, eventId } });
+    const competition = await this.competitionRepo.findOne({
+      where: { id: competitionId, eventId },
+    });
     if (!competition) {
-      throw new NotFoundException(`Competition "${competitionId}" not found in event`);
+      throw new NotFoundException(
+        `Competition "${competitionId}" not found in event`,
+      );
     }
 
     const stages = await this.stageRepo.find({ where: { competitionId } });
     if (stages.length > 0) {
-      await this.stageRepo.remove(stages);
+      stages.forEach((s) => (s.deletedAt = new Date()));
+      await this.stageRepo.save(stages);
     }
 
-    const compTeams = await this.competitionTeamRepo.find({ where: { competitionId } });
+    const compTeams = await this.competitionTeamRepo.find({
+      where: { competitionId },
+    });
     const teamIds = compTeams.map((ct) => ct.teamId);
     const players = await this.workspacesService.getTeamsPlayerUserIds(teamIds);
     await this.workspacesService.sendNotificationToMany(
@@ -287,7 +371,10 @@ export class FixturesGeneratorService {
     }
   }
 
-  private generateRoundRobin(teams: string[], twoLegged: boolean): [string, string][] {
+  private generateRoundRobin(
+    teams: string[],
+    twoLegged: boolean,
+  ): [string, string][] {
     const matches: [string, string][] = [];
     for (let i = 0; i < teams.length; i++) {
       for (let j = i + 1; j < teams.length; j++) {

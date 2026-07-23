@@ -75,58 +75,200 @@ export class WorkspacesService implements OnModuleInit {
 
   async onModuleInit() {
     const defaultSports = [
-      { name: 'Football', code: 'football', description: 'Association football/soccer' },
-      { name: 'Cricket', code: 'cricket', description: 'Bat-and-ball game played between two teams' },
-      { name: 'Badminton', code: 'badminton', description: 'Racket sport played with shuttlecocks' },
+      {
+        name: 'Football',
+        code: 'football',
+        description: 'Association football/soccer',
+      },
+      {
+        name: 'Cricket',
+        code: 'cricket',
+        description: 'Bat-and-ball game played between two teams',
+      },
+      {
+        name: 'Badminton',
+        code: 'badminton',
+        description: 'Racket sport played with shuttlecocks',
+      },
     ];
 
     for (const s of defaultSports) {
-      const existing = await this.sportRepo.findOne({ where: { code: s.code } });
+      const existing = await this.sportRepo.findOne({
+        where: { code: s.code },
+      });
       if (!existing) {
         await this.sportRepo.save(this.sportRepo.create(s));
       }
     }
 
     const defaultPermissions = [
-      { slug: 'workspace.read', name: 'Read Workspace', description: 'View workspace details, events, and members' },
-      { slug: 'workspace.update', name: 'Update Workspace', description: 'Modify workspace name, description, and configurations' },
-      { slug: 'workspace.delete', name: 'Delete Workspace', description: 'Permanently remove the workspace and all its data' },
-      { slug: 'member.invite', name: 'Invite Members', description: 'Send invitations to new users to join the workspace' },
-      { slug: 'member.update', name: 'Update Members', description: 'Update workspace member roles' },
-      { slug: 'member.remove', name: 'Remove Members', description: 'Remove members from the workspace' },
-      { slug: 'role.manage', name: 'Manage Roles', description: 'Create, modify, and delete custom workspace roles and map permissions' },
-      { slug: 'team.manage', name: 'Manage Teams', description: 'Create, edit, and delete teams inside the workspace' },
-      { slug: 'player.manage', name: 'Manage Players', description: 'Add, update, or remove players in teams' },
-      { slug: 'event.manage', name: 'Manage Events', description: 'Create, update, and close events' },
-      { slug: 'competition.manage', name: 'Manage Competitions', description: 'Create and configure competitions for events' },
-      { slug: 'match.score', name: 'Score Matches', description: 'Record, edit, and finalise scores for match fixtures' },
+      {
+        slug: 'workspace.read',
+        name: 'Read Workspace',
+        description: 'View workspace details, events, and members',
+      },
+      {
+        slug: 'workspace.update',
+        name: 'Update Workspace',
+        description: 'Modify workspace name, description, and configurations',
+      },
+      {
+        slug: 'workspace.delete',
+        name: 'Delete Workspace',
+        description: 'Permanently remove the workspace and all its data',
+      },
+      {
+        slug: 'member.invite',
+        name: 'Invite Members',
+        description: 'Send invitations to new users to join the workspace',
+      },
+      {
+        slug: 'member.update',
+        name: 'Update Members',
+        description: 'Update workspace member roles',
+      },
+      {
+        slug: 'member.remove',
+        name: 'Remove Members',
+        description: 'Remove members from the workspace',
+      },
+      {
+        slug: 'role.manage',
+        name: 'Manage Roles',
+        description:
+          'Create, modify, and delete custom workspace roles and map permissions',
+      },
+      {
+        slug: 'team.manage',
+        name: 'Manage Teams',
+        description: 'Create, edit, and delete teams inside the workspace',
+      },
+      {
+        slug: 'player.manage',
+        name: 'Manage Players',
+        description: 'Add, update, or remove players in teams',
+      },
+      {
+        slug: 'event.manage',
+        name: 'Manage Events',
+        description: 'Create, update, and close events',
+      },
+      {
+        slug: 'competition.manage',
+        name: 'Manage Competitions',
+        description: 'Create and configure competitions for events',
+      },
+      {
+        slug: 'match.score',
+        name: 'Score Matches',
+        description: 'Record, edit, and finalise scores for match fixtures',
+      },
     ];
 
     const seededPermissions: Record<string, Permission> = {};
     for (const p of defaultPermissions) {
-      let existing = await this.permissionRepo.findOne({ where: { slug: p.slug } });
+      let existing = await this.permissionRepo.findOne({
+        where: { slug: p.slug },
+      });
       if (!existing) {
-        existing = await this.permissionRepo.save(this.permissionRepo.create(p));
+        existing = await this.permissionRepo.save(
+          this.permissionRepo.create(p),
+        );
       }
       seededPermissions[p.slug] = existing;
     }
 
     const defaultRoles = [
-      { slug: 'owner', name: 'Owner', description: 'Full control — delete workspace, manage all', isSystem: true },
-      { slug: 'administrator', name: 'Administrator', description: 'Manage members, events, settings', isSystem: true },
-      { slug: 'event_manager', name: 'Event Manager', description: 'Create/edit events and competitions', isSystem: true },
-      { slug: 'competition_manager', name: 'Competition Manager', description: 'Manage brackets, fixtures, results', isSystem: true },
-      { slug: 'referee', name: 'Referee', description: 'Enter match scores, manage assigned fixtures', isSystem: true },
-      { slug: 'statistician', name: 'Statistician', description: 'Enter/edit player & match statistics', isSystem: true },
-      { slug: 'media_team', name: 'Media Team', description: 'Upload photos, announcements', isSystem: true },
-      { slug: 'viewer', name: 'Viewer', description: 'Read-only access to all workspace data', isSystem: true },
+      {
+        slug: 'owner',
+        name: 'Owner',
+        description: 'Full control — delete workspace, manage all',
+        isSystem: true,
+      },
+      {
+        slug: 'administrator',
+        name: 'Administrator',
+        description: 'Manage members, events, settings',
+        isSystem: true,
+      },
+      {
+        slug: 'event_manager',
+        name: 'Event Manager',
+        description: 'Create/edit events and competitions',
+        isSystem: true,
+      },
+      {
+        slug: 'competition_manager',
+        name: 'Competition Manager',
+        description: 'Manage brackets, fixtures, results',
+        isSystem: true,
+      },
+      {
+        slug: 'referee',
+        name: 'Referee',
+        description: 'Enter match scores, manage assigned fixtures',
+        isSystem: true,
+      },
+      {
+        slug: 'statistician',
+        name: 'Statistician',
+        description: 'Enter/edit player & match statistics',
+        isSystem: true,
+      },
+      {
+        slug: 'media_team',
+        name: 'Media Team',
+        description: 'Upload photos, announcements',
+        isSystem: true,
+      },
+      {
+        slug: 'viewer',
+        name: 'Viewer',
+        description: 'Read-only access to all workspace data',
+        isSystem: true,
+      },
     ];
 
     const rolePermissionMapping: Record<string, string[]> = {
-      owner: ['workspace.read', 'workspace.update', 'workspace.delete', 'member.invite', 'member.update', 'member.remove', 'role.manage', 'team.manage', 'player.manage', 'event.manage', 'competition.manage', 'match.score'],
-      administrator: ['workspace.read', 'workspace.update', 'member.invite', 'member.update', 'member.remove', 'role.manage', 'team.manage', 'player.manage', 'event.manage', 'competition.manage', 'match.score'],
-      event_manager: ['workspace.read', 'team.manage', 'player.manage', 'event.manage', 'competition.manage'],
-      competition_manager: ['workspace.read', 'competition.manage', 'match.score'],
+      owner: [
+        'workspace.read',
+        'workspace.update',
+        'workspace.delete',
+        'member.invite',
+        'member.update',
+        'member.remove',
+        'role.manage',
+        'team.manage',
+        'player.manage',
+        'event.manage',
+        'competition.manage',
+        'match.score',
+      ],
+      administrator: [
+        'workspace.read',
+        'workspace.update',
+        'member.invite',
+        'member.update',
+        'member.remove',
+        'role.manage',
+        'team.manage',
+        'player.manage',
+        'event.manage',
+        'competition.manage',
+        'match.score',
+      ],
+      event_manager: [
+        'workspace.read',
+        'team.manage',
+        'player.manage',
+        'event.manage',
+        'competition.manage',
+      ],
+      competition_manager: [
+        'workspace.read',
+        'competition.manage',
+        'match.score',
+      ],
       referee: ['workspace.read', 'match.score'],
       statistician: ['workspace.read', 'match.score'],
       media_team: ['workspace.read'],
@@ -134,18 +276,25 @@ export class WorkspacesService implements OnModuleInit {
     };
 
     for (const r of defaultRoles) {
-      let existing = await this.roleRepo.findOne({ where: { slug: r.slug, isSystem: true }, relations: { permissions: true } });
+      let existing = await this.roleRepo.findOne({
+        where: { slug: r.slug, isSystem: true },
+        relations: { permissions: true },
+      });
       if (!existing) {
         existing = await this.roleRepo.save(this.roleRepo.create(r));
         existing.permissions = [];
       }
 
       const requiredSlugs = rolePermissionMapping[r.slug] || [];
-      const currentSlugs = existing.permissions?.map(p => p.slug) || [];
-      const needsUpdate = requiredSlugs.some(slug => !currentSlugs.includes(slug)) || currentSlugs.some(slug => !requiredSlugs.includes(slug));
+      const currentSlugs = existing.permissions?.map((p) => p.slug) || [];
+      const needsUpdate =
+        requiredSlugs.some((slug) => !currentSlugs.includes(slug)) ||
+        currentSlugs.some((slug) => !requiredSlugs.includes(slug));
 
       if (needsUpdate || !existing.permissions) {
-        existing.permissions = requiredSlugs.map(slug => seededPermissions[slug]).filter(Boolean);
+        existing.permissions = requiredSlugs
+          .map((slug) => seededPermissions[slug])
+          .filter(Boolean);
         await this.roleRepo.save(existing);
       }
     }
@@ -154,7 +303,8 @@ export class WorkspacesService implements OnModuleInit {
   // ─── Workspace CRUD ───────────────────────────────────────────────────────
 
   async create(dto: CreateWorkspaceDto, ownerId: string): Promise<Workspace> {
-    const baseSlug = dto.slug ?? this.rolesPermissionsService.generateSlug(dto.name);
+    const baseSlug =
+      dto.slug ?? this.rolesPermissionsService.generateSlug(dto.name);
     let slug = baseSlug;
     let counter = 1;
     while (await this.workspaceRepo.findOne({ where: { slug } })) {
@@ -175,7 +325,10 @@ export class WorkspacesService implements OnModuleInit {
 
     const savedWorkspace = await this.workspaceRepo.save(workspace);
 
-    const ownerRole = await this.rolesPermissionsService.findRoleBySlug('owner', null);
+    const ownerRole = await this.rolesPermissionsService.findRoleBySlug(
+      'owner',
+      null,
+    );
     const ownerMember = this.memberRepo.create({
       workspaceId: savedWorkspace.id,
       userId: ownerId,
@@ -223,15 +376,26 @@ export class WorkspacesService implements OnModuleInit {
     return workspace;
   }
 
-  async update(id: string, dto: UpdateWorkspaceDto, userId: string): Promise<Workspace> {
-    await this.workspaceMembersService.ensurePermission(id, userId, 'workspace.update');
+  async update(
+    id: string,
+    dto: UpdateWorkspaceDto,
+    userId: string,
+  ): Promise<Workspace> {
+    await this.workspaceMembersService.ensurePermission(
+      id,
+      userId,
+      'workspace.update',
+    );
 
     const workspace = await this.workspaceRepo.findOne({ where: { id } });
     if (!workspace) throw new NotFoundException('Workspace not found');
 
     if (dto.slug && dto.slug !== workspace.slug) {
-      const existing = await this.workspaceRepo.findOne({ where: { slug: dto.slug } });
-      if (existing) throw new ConflictException(`Slug "${dto.slug}" is already taken`);
+      const existing = await this.workspaceRepo.findOne({
+        where: { slug: dto.slug },
+      });
+      if (existing)
+        throw new ConflictException(`Slug "${dto.slug}" is already taken`);
     }
 
     Object.assign(workspace, {
@@ -242,7 +406,8 @@ export class WorkspacesService implements OnModuleInit {
     });
 
     const saved = await this.workspaceRepo.save(workspace);
-    const memberIds = await this.workspaceMembersService.getWorkspaceMemberUserIds(id, userId);
+    const memberIds =
+      await this.workspaceMembersService.getWorkspaceMemberUserIds(id, userId);
     await this.notificationsService.sendNotificationToMany(
       memberIds,
       NotificationType.WORKSPACE_UPDATED,
@@ -254,11 +419,16 @@ export class WorkspacesService implements OnModuleInit {
   }
 
   async remove(id: string, userId: string): Promise<void> {
-    await this.workspaceMembersService.ensurePermission(id, userId, 'workspace.delete');
+    await this.workspaceMembersService.ensurePermission(
+      id,
+      userId,
+      'workspace.delete',
+    );
     const workspace = await this.workspaceRepo.findOne({ where: { id } });
     if (!workspace) throw new NotFoundException('Workspace not found');
 
-    const memberIds = await this.workspaceMembersService.getWorkspaceMemberUserIds(id, userId);
+    const memberIds =
+      await this.workspaceMembersService.getWorkspaceMemberUserIds(id, userId);
     await this.notificationsService.sendNotificationToMany(
       memberIds,
       NotificationType.WORKSPACE_DELETED,
@@ -267,7 +437,8 @@ export class WorkspacesService implements OnModuleInit {
       { workspaceName: workspace.name },
     );
 
-    await this.workspaceRepo.remove(workspace);
+    workspace.deletedAt = new Date();
+    await this.workspaceRepo.save(workspace);
   }
 
   // ─── Dashboard Standings Aggregator ───────────────────────────────────────
@@ -372,7 +543,14 @@ export class WorkspacesService implements OnModuleInit {
             teamId: m.homeTeamId,
             teamName: m.homeTeam?.name ?? 'Home',
             teamLogoUrl: m.homeTeam?.logoUrl,
-            played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, pts: 0,
+            played: 0,
+            won: 0,
+            drawn: 0,
+            lost: 0,
+            gf: 0,
+            ga: 0,
+            gd: 0,
+            pts: 0,
           });
         }
         if (!standingsMap.has(m.awayTeamId)) {
@@ -380,7 +558,14 @@ export class WorkspacesService implements OnModuleInit {
             teamId: m.awayTeamId,
             teamName: m.awayTeam?.name ?? 'Away',
             teamLogoUrl: m.awayTeam?.logoUrl,
-            played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, pts: 0,
+            played: 0,
+            won: 0,
+            drawn: 0,
+            lost: 0,
+            gf: 0,
+            ga: 0,
+            gd: 0,
+            pts: 0,
           });
         }
 
@@ -397,11 +582,18 @@ export class WorkspacesService implements OnModuleInit {
         a.ga += hScore;
 
         if (hScore > aScore) {
-          h.won++; h.pts += 3; a.lost++;
+          h.won++;
+          h.pts += 3;
+          a.lost++;
         } else if (hScore < aScore) {
-          a.won++; a.pts += 3; h.lost++;
+          a.won++;
+          a.pts += 3;
+          h.lost++;
         } else {
-          h.drawn++; h.pts += 1; a.drawn++; a.pts += 1;
+          h.drawn++;
+          h.pts += 1;
+          a.drawn++;
+          a.pts += 1;
         }
         h.gd = h.gf - h.ga;
         a.gd = a.gf - a.ga;
@@ -440,42 +632,83 @@ export class WorkspacesService implements OnModuleInit {
           relations: { player: { user: true }, team: true },
         });
 
-        const ratingsMap = new Map<string, { playerId: string; playerName: string; teamName: string; ratings: number[] }>();
+        const ratingsMap = new Map<
+          string,
+          {
+            playerId: string;
+            playerName: string;
+            teamName: string;
+            ratings: number[];
+          }
+        >();
         for (const mp of allMatchPlayers) {
           if (mp.rating !== null && mp.rating !== undefined) {
-            const playerName = mp.player?.user?.username ?? mp.player?.jerseyNumber?.toString() ?? 'Player';
+            const playerName =
+              mp.player?.user?.username ??
+              mp.player?.jerseyNumber?.toString() ??
+              'Player';
             const teamName = mp.team?.name ?? 'Team';
             let item = ratingsMap.get(mp.playerId);
             if (!item) {
-              item = { playerId: mp.playerId, playerName, teamName, ratings: [] };
+              item = {
+                playerId: mp.playerId,
+                playerName,
+                teamName,
+                ratings: [],
+              };
               ratingsMap.set(mp.playerId, item);
             }
             item.ratings.push(Number(mp.rating));
           }
         }
 
-        topRatedPlayers = Array.from(ratingsMap.values()).map((r) => ({
-          playerId: r.playerId,
-          playerName: r.playerName,
-          teamName: r.teamName,
-          avgRating: Math.round((r.ratings.reduce((a, b) => a + b, 0) / r.ratings.length) * 10) / 10,
-          appearances: r.ratings.length,
-        })).sort((a, b) => b.avgRating - a.avgRating).slice(0, 5);
+        topRatedPlayers = Array.from(ratingsMap.values())
+          .map((r) => ({
+            playerId: r.playerId,
+            playerName: r.playerName,
+            teamName: r.teamName,
+            avgRating:
+              Math.round(
+                (r.ratings.reduce((a, b) => a + b, 0) / r.ratings.length) * 10,
+              ) / 10,
+            appearances: r.ratings.length,
+          }))
+          .sort((a, b) => b.avgRating - a.avgRating)
+          .slice(0, 5);
 
-        const scorersMap = new Map<string, { playerId: string; playerName: string; teamName: string; score: number }>();
+        const scorersMap = new Map<
+          string,
+          {
+            playerId: string;
+            playerName: string;
+            teamName: string;
+            score: number;
+          }
+        >();
         for (const m of allMatches) {
-          const eventsList = (m.liveData as any)?.events;
+          const eventsList = m.liveData?.events;
           if (Array.isArray(eventsList)) {
             for (const ev of eventsList) {
-              if (ev.type === 'goal' && ev.goalType !== 'own_goal' && ev.playerUserId) {
-                const mp = allMatchPlayers.find((p) => p.player?.userId === ev.playerUserId);
+              if (
+                ev.type === 'goal' &&
+                ev.goalType !== 'own_goal' &&
+                ev.playerUserId
+              ) {
+                const mp = allMatchPlayers.find(
+                  (p) => p.player?.userId === ev.playerUserId,
+                );
                 const pId = mp?.playerId ?? ev.playerUserId;
                 const pName = mp?.player?.user?.username ?? ev.playerUserId;
                 const tName = mp?.team?.name ?? 'Team';
 
                 let item = scorersMap.get(pId);
                 if (!item) {
-                  item = { playerId: pId, playerName: pName, teamName: tName, score: 0 };
+                  item = {
+                    playerId: pId,
+                    playerName: pName,
+                    teamName: tName,
+                    score: 0,
+                  };
                   scorersMap.set(pId, item);
                 }
                 item.score++;
@@ -490,8 +723,12 @@ export class WorkspacesService implements OnModuleInit {
       }
     }
 
-    const totalTeams = await this.teamRepo.count({ where: { workspaceId: In(workspaceIds) } });
-    const totalPlayers = await this.playerRepo.count({ where: { workspaceId: In(workspaceIds) } });
+    const totalTeams = await this.teamRepo.count({
+      where: { workspaceId: In(workspaceIds) },
+    });
+    const totalPlayers = await this.playerRepo.count({
+      where: { workspaceId: In(workspaceIds) },
+    });
 
     return {
       workspaces,
@@ -535,16 +772,16 @@ export class WorkspacesService implements OnModuleInit {
         avatarUrl: user.avatarUrl,
         createdAt: user.createdAt,
       },
-      workspaces: memberships.map(m => ({
+      workspaces: memberships.map((m) => ({
         id: m.workspace.id,
         name: m.workspace.name,
         slug: m.workspace.slug,
         role: {
           slug: m.role.slug,
           name: m.role.name,
-        }
+        },
       })),
-      teams: players.map(p => ({
+      teams: players.map((p) => ({
         id: p.team.id,
         name: p.team.name,
         code: p.team.code,
@@ -553,8 +790,8 @@ export class WorkspacesService implements OnModuleInit {
         workspace: {
           id: p.workspace.id,
           name: p.workspace.name,
-        }
-      }))
+        },
+      })),
     };
   }
 
@@ -570,12 +807,20 @@ export class WorkspacesService implements OnModuleInit {
   }
 
   async createRole(workspaceId: string, dto: any, userId: string) {
-    await this.workspaceMembersService.ensurePermission(workspaceId, userId, 'role.manage');
+    await this.workspaceMembersService.ensurePermission(
+      workspaceId,
+      userId,
+      'role.manage',
+    );
     return this.rolesPermissionsService.createRole(workspaceId, dto);
   }
 
   async removeRole(workspaceId: string, roleId: string, userId: string) {
-    await this.workspaceMembersService.ensurePermission(workspaceId, userId, 'role.manage');
+    await this.workspaceMembersService.ensurePermission(
+      workspaceId,
+      userId,
+      'role.manage',
+    );
     return this.rolesPermissionsService.removeRole(workspaceId, roleId);
   }
 
@@ -612,15 +857,26 @@ export class WorkspacesService implements OnModuleInit {
   }
 
   async updateRolePermissions(roleId: string, permissionIds: string[]) {
-    return this.rolesPermissionsService.updateRolePermissions(roleId, permissionIds);
+    return this.rolesPermissionsService.updateRolePermissions(
+      roleId,
+      permissionIds,
+    );
   }
 
   async ensureMember(workspaceId: string, userId: string) {
     return this.workspaceMembersService.ensureMember(workspaceId, userId);
   }
 
-  async ensurePermission(workspaceId: string, userId: string, permissionSlug: string) {
-    return this.workspaceMembersService.ensurePermission(workspaceId, userId, permissionSlug);
+  async ensurePermission(
+    workspaceId: string,
+    userId: string,
+    permissionSlug: string,
+  ) {
+    return this.workspaceMembersService.ensurePermission(
+      workspaceId,
+      userId,
+      permissionSlug,
+    );
   }
 
   async getSports() {
@@ -644,11 +900,19 @@ export class WorkspacesService implements OnModuleInit {
   }
 
   async inviteMember(workspaceId: string, dto: any, requesterId: string) {
-    return this.workspaceMembersService.inviteMember(workspaceId, dto, requesterId);
+    return this.workspaceMembersService.inviteMember(
+      workspaceId,
+      dto,
+      requesterId,
+    );
   }
 
   async bulkImportMembers(workspaceId: string, dto: any, requesterId: string) {
-    return this.workspaceMembersService.bulkImportMembers(workspaceId, dto, requesterId);
+    return this.workspaceMembersService.bulkImportMembers(
+      workspaceId,
+      dto,
+      requesterId,
+    );
   }
 
   async joinWorkspace(workspaceId: string, userId: string) {
@@ -667,24 +931,69 @@ export class WorkspacesService implements OnModuleInit {
     return this.workspaceMembersService.rejectInvitation(workspaceId, userId);
   }
 
-  async updateMemberRole(workspaceId: string, targetUserId: string, dto: any, requesterId: string) {
-    return this.workspaceMembersService.updateMemberRole(workspaceId, targetUserId, dto, requesterId);
+  async updateMemberRole(
+    workspaceId: string,
+    targetUserId: string,
+    dto: any,
+    requesterId: string,
+  ) {
+    return this.workspaceMembersService.updateMemberRole(
+      workspaceId,
+      targetUserId,
+      dto,
+      requesterId,
+    );
   }
 
-  async removeMember(workspaceId: string, targetUserId: string, requesterId: string) {
-    return this.workspaceMembersService.removeMember(workspaceId, targetUserId, requesterId);
+  async removeMember(
+    workspaceId: string,
+    targetUserId: string,
+    requesterId: string,
+  ) {
+    return this.workspaceMembersService.removeMember(
+      workspaceId,
+      targetUserId,
+      requesterId,
+    );
   }
 
   async getWorkspaceMemberUserIds(workspaceId: string, excludeUserId?: string) {
-    return this.workspaceMembersService.getWorkspaceMemberUserIds(workspaceId, excludeUserId);
+    return this.workspaceMembersService.getWorkspaceMemberUserIds(
+      workspaceId,
+      excludeUserId,
+    );
   }
 
-  async sendNotification(userId: string, type: any, message: string, workspaceId?: string | null, metadata?: any) {
-    return this.notificationsService.sendNotification(userId, type, message, workspaceId, metadata);
+  async sendNotification(
+    userId: string,
+    type: any,
+    message: string,
+    workspaceId?: string | null,
+    metadata?: any,
+  ) {
+    return this.notificationsService.sendNotification(
+      userId,
+      type,
+      message,
+      workspaceId,
+      metadata,
+    );
   }
 
-  async sendNotificationToMany(userIds: string[], type: any, message: string, workspaceId?: string | null, metadata?: any) {
-    return this.notificationsService.sendNotificationToMany(userIds, type, message, workspaceId, metadata);
+  async sendNotificationToMany(
+    userIds: string[],
+    type: any,
+    message: string,
+    workspaceId?: string | null,
+    metadata?: any,
+  ) {
+    return this.notificationsService.sendNotificationToMany(
+      userIds,
+      type,
+      message,
+      workspaceId,
+      metadata,
+    );
   }
 
   async getNotifications(userId: string) {
@@ -695,8 +1004,26 @@ export class WorkspacesService implements OnModuleInit {
     return this.notificationsService.markNotificationsRead(userId);
   }
 
-  async logAudit(action: string, category?: string, entityType?: string, entityId?: string, performedById?: string, performedByName?: string, details?: string, status?: string) {
-    return this.auditLogsService.logAudit(action, category, entityType, entityId, performedById, performedByName, details, status);
+  async logAudit(
+    action: string,
+    category?: string,
+    entityType?: string,
+    entityId?: string,
+    performedById?: string,
+    performedByName?: string,
+    details?: string,
+    status?: string,
+  ) {
+    return this.auditLogsService.logAudit(
+      action,
+      category,
+      entityType,
+      entityId,
+      performedById,
+      performedByName,
+      details,
+      status,
+    );
   }
 
   async getAuditLogs(category?: string, limit?: number) {
@@ -715,8 +1042,18 @@ export class WorkspacesService implements OnModuleInit {
     return this.systemConfigService.getSystemConfigs();
   }
 
-  async updateSystemConfig(key: string, value: string, userId?: string, userName?: string) {
-    return this.systemConfigService.updateSystemConfig(key, value, userId, userName);
+  async updateSystemConfig(
+    key: string,
+    value: string,
+    userId?: string,
+    userName?: string,
+  ) {
+    return this.systemConfigService.updateSystemConfig(
+      key,
+      value,
+      userId,
+      userName,
+    );
   }
 
   async getTeamPlayerUserIds(teamId: string): Promise<string[]> {

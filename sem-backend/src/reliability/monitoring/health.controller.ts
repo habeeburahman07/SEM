@@ -130,7 +130,10 @@ class MetricsResponse {
   @ApiProperty({ type: CpuMetrics })
   cpu: CpuMetrics;
 
-  @ApiProperty({ example: 'development', enum: ['development', 'production', 'test'] })
+  @ApiProperty({
+    example: 'development',
+    enum: ['development', 'production', 'test'],
+  })
   environment: string;
 }
 
@@ -208,7 +211,8 @@ export class HealthController {
       () => this.db.pingCheck('database'),
       () => this.memory.checkHeap('memory_heap', 512 * 1024 * 1024),
       () => this.memory.checkRSS('memory_rss', 1024 * 1024 * 1024),
-      () => this.disk.checkStorage('disk', { thresholdPercent: 0.9, path: '/' }),
+      () =>
+        this.disk.checkStorage('disk', { thresholdPercent: 0.9, path: '/' }),
     ]);
   }
 
@@ -237,6 +241,6 @@ export class HealthController {
   @ApiResponse({ status: 401, description: 'Missing or invalid JWT' })
   @ApiResponse({ status: 403, description: 'Super-admin access required' })
   async metrics(): Promise<MetricsResponse> {
-    return this.metricsService.collect() as any;
+    return this.metricsService.collect();
   }
 }

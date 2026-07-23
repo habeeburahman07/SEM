@@ -1,4 +1,16 @@
-import { IsNotEmpty, IsString, IsUUID, IsOptional, MaxLength, MinLength, IsArray, ValidateNested, IsInt, Min, IsNumber } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsUUID,
+  IsOptional,
+  MaxLength,
+  MinLength,
+  IsArray,
+  ValidateNested,
+  IsInt,
+  Min,
+  IsNumber,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PointsConfigEntryDto {

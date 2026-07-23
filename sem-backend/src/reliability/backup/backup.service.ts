@@ -63,7 +63,9 @@ export class BackupService {
    */
   @Cron('0 3 * * *', { name: 'backup-cleanup' })
   async cleanupOldBackups(): Promise<void> {
-    this.logger.log(`Cleaning up backups older than ${this.retentionDays} days`);
+    this.logger.log(
+      `Cleaning up backups older than ${this.retentionDays} days`,
+    );
 
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - this.retentionDays);
@@ -88,7 +90,10 @@ export class BackupService {
         .where('createdAt < :cutoff', { cutoff })
         .execute();
     } catch (err) {
-      this.logger.error('Backup cleanup failed', err instanceof Error ? err.stack : String(err));
+      this.logger.error(
+        'Backup cleanup failed',
+        err instanceof Error ? err.stack : String(err),
+      );
     }
   }
 
@@ -127,7 +132,10 @@ export class BackupService {
     try {
       const host = this.configService.get<string>('DB_HOST', 'localhost');
       const port = this.configService.get<number>('DB_PORT', 5432);
-      const username = this.configService.get<string>('DB_USERNAME', 'postgres');
+      const username = this.configService.get<string>(
+        'DB_USERNAME',
+        'postgres',
+      );
       const database = this.configService.get<string>('DB_DATABASE', 'sem_db');
       const password = this.configService.get<string>('DB_PASSWORD', '');
 

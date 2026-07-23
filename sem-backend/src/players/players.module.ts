@@ -12,7 +12,13 @@ import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Player, Team, Match, MatchPlayer, WorkspaceMember]),
+    TypeOrmModule.forFeature([
+      Player,
+      Team,
+      Match,
+      MatchPlayer,
+      WorkspaceMember,
+    ]),
     WorkspacesModule,
     UsersModule,
   ],

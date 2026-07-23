@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsOptional, IsString, IsInt, Min, MaxLength } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsInt,
+  Min,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateVenueDto {
   @IsNotEmpty()

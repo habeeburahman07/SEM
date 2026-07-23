@@ -83,7 +83,9 @@ export class SystemConfigService {
       totalSports,
       totalAuditLogs,
     ] = await Promise.all([
-      this.usersService.countAll ? this.usersService.countAll() : Promise.resolve(0),
+      this.usersService.countAll
+        ? this.usersService.countAll()
+        : Promise.resolve(0),
       this.workspaceRepo.count(),
       this.competitionRepo.count(),
       this.matchRepo.count(),

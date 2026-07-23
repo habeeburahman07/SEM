@@ -14,9 +14,7 @@ import { ErrorSeverity } from '../reliability/logging/error-log.entity';
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
 
-  constructor(
-    @Optional() private readonly errorLogger?: ErrorLoggerService,
-  ) {}
+  constructor(@Optional() private readonly errorLogger?: ErrorLoggerService) {}
 
   catch(exception: any, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
@@ -31,7 +29,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const exceptionResponse =
       exception instanceof HttpException ? exception.getResponse() : null;
 
-    let message = exception instanceof Error ? exception.message : String(exception);
+    let message =
+      exception instanceof Error ? exception.message : String(exception);
     let errorDetails: any = null;
 
     if (exceptionResponse) {
@@ -54,7 +53,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
       timestamp: new Date().toISOString(),
       path: request.url,
       message: Array.isArray(message) ? message : [message],
-      error: errorDetails || (statusCode >= 500 ? 'Internal Server Error' : 'Bad Request'),
+      error:
+        errorDetails ||
+        (statusCode >= 500 ? 'Internal Server Error' : 'Bad Request'),
     });
   }
 
@@ -99,18 +100,31 @@ export class AllExceptionsFilter implements ExceptionFilter {
           error?.stack,
         );
       } else {
-        this.logger.warn(`[${method} ${reqPath}] Status ${statusCode}: ${cleanMessage}`);
+        this.logger.warn(
+          `[${method} ${reqPath}] Status ${statusCode}: ${cleanMessage}`,
+        );
       }
     }
   }
 
   private redactPayload(payload: any): any {
     if (!payload || typeof payload !== 'object') return payload;
-    if (Array.isArray(payload)) return payload.map((item) => this.redactPayload(item));
+    if (Array.isArray(payload))
+      return payload.map((item) => this.redactPayload(item));
     const redacted = { ...payload };
-    const sensitiveKeys = ['password', 'token', 'secret', 'passwordConfirm', 'accessToken', 'refreshToken', 'avatarUrl'];
+    const sensitiveKeys = [
+      'password',
+      'token',
+      'secret',
+      'passwordConfirm',
+      'accessToken',
+      'refreshToken',
+      'avatarUrl',
+    ];
     for (const key in redacted) {
-      if (sensitiveKeys.some((sk) => key.toLowerCase().includes(sk.toLowerCase()))) {
+      if (
+        sensitiveKeys.some((sk) => key.toLowerCase().includes(sk.toLowerCase()))
+      ) {
         redacted[key] = '[REDACTED]';
       } else if (typeof redacted[key] === 'object' && redacted[key] !== null) {
         redacted[key] = this.redactPayload(redacted[key]);

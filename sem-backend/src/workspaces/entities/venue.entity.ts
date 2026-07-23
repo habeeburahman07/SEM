@@ -10,8 +10,8 @@ import { Workspace } from './workspace.entity';
 import { AuditableEntity } from '../../common/auditable.entity';
 
 @Entity('venues')
-@Index('idx_venues_workspace_id', ['workspaceId'])             // FK: all venues in a workspace
-@Index('idx_venues_workspace_name', ['workspaceId', 'name'])  // Composite: search venues by name
+@Index('idx_venues_workspace_id', ['workspaceId']) // FK: all venues in a workspace
+@Index('idx_venues_workspace_name', ['workspaceId', 'name']) // Composite: search venues by name
 export class Venue extends AuditableEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;

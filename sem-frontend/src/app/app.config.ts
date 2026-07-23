@@ -3,8 +3,8 @@ import { provideRouter, withPreloading, PreloadAllModules } from '@angular/route
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 
 import { routes } from './app.routes';
-import { cacheInterceptor } from './services/cache.interceptor';
-import { authInterceptor } from './services/auth.interceptor';
+import { cacheInterceptor } from './interceptors/cache.interceptor';
+import { authInterceptor } from './interceptors/auth.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [

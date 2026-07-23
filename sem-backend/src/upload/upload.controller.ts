@@ -1,11 +1,21 @@
 import {
-  Controller, Post, UseInterceptors, UploadedFile,
-  Query, BadRequestException, UseGuards,
+  Controller,
+  Post,
+  UseInterceptors,
+  UploadedFile,
+  Query,
+  BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
-  ApiTags, ApiBearerAuth, ApiOperation, ApiResponse,
-  ApiQuery, ApiConsumes, ApiBody,
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { CloudinaryService } from './cloudinary.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -42,7 +52,11 @@ export class UploadController {
       type: 'object',
       required: ['file'],
       properties: {
-        file: { type: 'string', format: 'binary', description: 'Image file (JPEG, PNG, WebP, etc.)' },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Image file (JPEG, PNG, WebP, etc.)',
+        },
       },
     },
   })
@@ -58,12 +72,19 @@ export class UploadController {
     schema: {
       type: 'object',
       properties: {
-        url: { type: 'string', example: 'https://res.cloudinary.com/demo/image/upload/v1/sem/workspaces/logos/abc123.jpg' },
+        url: {
+          type: 'string',
+          example:
+            'https://res.cloudinary.com/demo/image/upload/v1/sem/workspaces/logos/abc123.jpg',
+        },
         publicId: { type: 'string', example: 'sem/workspaces/logos/abc123' },
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'No file provided, invalid type, or Cloudinary upload failure' })
+  @ApiResponse({
+    status: 400,
+    description: 'No file provided, invalid type, or Cloudinary upload failure',
+  })
   @ApiResponse({ status: 401, description: 'Unauthenticated' })
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
@@ -72,7 +93,9 @@ export class UploadController {
     if (!file) throw new BadRequestException('No file uploaded');
 
     if (!type || !VALID_TYPES.includes(type as any)) {
-      throw new BadRequestException(`Invalid upload type. Must be one of: ${VALID_TYPES.join(', ')}`);
+      throw new BadRequestException(
+        `Invalid upload type. Must be one of: ${VALID_TYPES.join(', ')}`,
+      );
     }
 
     const folderMap: Record<string, string> = {
@@ -84,10 +107,15 @@ export class UploadController {
     };
 
     try {
-      const result = await this.cloudinaryService.uploadFile(file, folderMap[type]);
+      const result = await this.cloudinaryService.uploadFile(
+        file,
+        folderMap[type],
+      );
       return { url: result.secure_url, publicId: result.public_id };
     } catch (error: any) {
-      throw new BadRequestException(`Cloudinary upload failed: ${error.message || error}`);
+      throw new BadRequestException(
+        `Cloudinary upload failed: ${error.message || error}`,
+      );
     }
   }
 }

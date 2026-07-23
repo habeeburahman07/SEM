@@ -3,7 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { User } from './entities/user.entity';
-import { Notification, NotificationType, NOTIFICATION_ICONS } from '../workspaces/entities/notification.entity';
+import {
+  Notification,
+  NotificationType,
+  NOTIFICATION_ICONS,
+} from '../workspaces/entities/notification.entity';
 
 @Injectable()
 export class UsersService {
@@ -14,7 +18,11 @@ export class UsersService {
     private readonly notificationRepository: Repository<Notification>,
   ) {}
 
-  private async sendNotification(userId: string, type: NotificationType, message: string): Promise<void> {
+  private async sendNotification(
+    userId: string,
+    type: NotificationType,
+    message: string,
+  ): Promise<void> {
     const notification = this.notificationRepository.create({
       userId,
       type,
@@ -26,8 +34,14 @@ export class UsersService {
     await this.notificationRepository.save(notification);
   }
 
-  async create(username: string, password: string, needsPasswordChange = false): Promise<User> {
-    const existingUser = await this.userRepository.findOne({ where: { username } });
+  async create(
+    username: string,
+    password: string,
+    needsPasswordChange = false,
+  ): Promise<User> {
+    const existingUser = await this.userRepository.findOne({
+      where: { username },
+    });
     if (existingUser) {
       throw new ConflictException('Username is already taken');
     }
@@ -64,7 +78,10 @@ export class UsersService {
     return await this.userRepository.findOne({ where: { id } });
   }
 
-  async update(id: string, updateData: { username?: string; avatarUrl?: string }): Promise<User> {
+  async update(
+    id: string,
+    updateData: { username?: string; avatarUrl?: string },
+  ): Promise<User> {
     const user = await this.findOneById(id);
     if (!user) {
       throw new ConflictException('User not found');
@@ -92,13 +109,20 @@ export class UsersService {
     return savedUser;
   }
 
-  async changePassword(id: string, oldPassword: string, newPassword: string): Promise<void> {
+  async changePassword(
+    id: string,
+    oldPassword: string,
+    newPassword: string,
+  ): Promise<void> {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
       throw new ConflictException('User not found');
     }
 
-    const isPasswordValid = await bcrypt.compare(oldPassword, user.password || '');
+    const isPasswordValid = await bcrypt.compare(
+      oldPassword,
+      user.password || '',
+    );
     if (!isPasswordValid) {
       throw new ConflictException('Invalid current password');
     }
@@ -120,4 +144,3 @@ export class UsersService {
     return await this.userRepository.count();
   }
 }
-

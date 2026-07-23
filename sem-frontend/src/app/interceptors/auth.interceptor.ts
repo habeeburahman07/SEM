@@ -18,7 +18,7 @@ import {
   take,
   tap,
 } from 'rxjs/operators';
-import { AuthService } from './auth.service';
+import { AuthService } from '../services/auth.service';
 
 /** URLs that must never receive the Authorization header */
 const PUBLIC_URLS = ['/auth/login', '/auth/register', '/auth/refresh'];

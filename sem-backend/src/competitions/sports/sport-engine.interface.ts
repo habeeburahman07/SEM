@@ -9,7 +9,11 @@ export interface SportEngine {
   /**
    * Return the initial liveData state when a match is created.
    */
-  getInitialLiveData(homeTeamId: string, awayTeamId: string, config?: Record<string, any>): Record<string, any>;
+  getInitialLiveData(
+    homeTeamId: string,
+    awayTeamId: string,
+    config?: Record<string, any>,
+  ): Record<string, any>;
 
   /**
    * Calculate automatic player ratings at match completion.

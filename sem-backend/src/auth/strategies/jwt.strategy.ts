@@ -20,11 +20,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET', 'super-secret-key-12345'),
+      secretOrKey: configService.get<string>(
+        'JWT_SECRET',
+        'super-secret-key-12345',
+      ),
     });
   }
 
-  async validate(payload: { sub: string; username: string; isSuperAdmin: boolean }): Promise<JwtPayloadUser> {
+  async validate(payload: {
+    sub: string;
+    username: string;
+    isSuperAdmin: boolean;
+  }): Promise<JwtPayloadUser> {
     const user = await this.usersService.findOneById(payload.sub);
     if (!user) {
       throw new UnauthorizedException('User not found or token invalid');

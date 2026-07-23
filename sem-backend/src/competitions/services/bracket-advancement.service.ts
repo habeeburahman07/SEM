@@ -33,20 +33,24 @@ export class BracketAdvancementService {
     private readonly statisticsRatingsService: StatisticsRatingsService,
   ) {}
 
-  async getCompetitionRankings(competitionId: string): Promise<Map<string, number>> {
+  async getCompetitionRankings(
+    competitionId: string,
+  ): Promise<Map<string, number>> {
     const rankings = new Map<string, number>();
     const comp = await this.competitionRepo.findOne({
       where: { id: competitionId },
-      relations: { stages: true }
+      relations: { stages: true },
     });
     if (!comp || comp.stages.length === 0) return rankings;
 
-    const sortedStages = [...comp.stages].sort((a, b) => a.sequence - b.sequence);
+    const sortedStages = [...comp.stages].sort(
+      (a, b) => a.sequence - b.sequence,
+    );
     const lastStage = sortedStages[sortedStages.length - 1];
 
     const matches = await this.matchRepo.find({
       where: { stageId: lastStage.id },
-      relations: { homeTeam: true, awayTeam: true }
+      relations: { homeTeam: true, awayTeam: true },
     });
     if (matches.length === 0) return rankings;
 
@@ -54,16 +58,40 @@ export class BracketAdvancementService {
       const winPoint = lastStage.config?.winPoint ?? 3;
       const drawPoint = lastStage.config?.drawPoint ?? 1;
 
-      const teamStats = new Map<string, { teamId: string; group?: string; pts: number; gd: number; gf: number; ga: number }>();
+      const teamStats = new Map<
+        string,
+        {
+          teamId: string;
+          group?: string;
+          pts: number;
+          gd: number;
+          gf: number;
+          ga: number;
+        }
+      >();
       for (const m of matches) {
         if (!m.homeTeamId || !m.awayTeamId) continue;
         const g = (m.config as any)?.round || 'Group Stage';
 
         if (!teamStats.has(m.homeTeamId)) {
-          teamStats.set(m.homeTeamId, { teamId: m.homeTeamId, group: g, pts: 0, gd: 0, gf: 0, ga: 0 });
+          teamStats.set(m.homeTeamId, {
+            teamId: m.homeTeamId,
+            group: g,
+            pts: 0,
+            gd: 0,
+            gf: 0,
+            ga: 0,
+          });
         }
         if (!teamStats.has(m.awayTeamId)) {
-          teamStats.set(m.awayTeamId, { teamId: m.awayTeamId, group: g, pts: 0, gd: 0, gf: 0, ga: 0 });
+          teamStats.set(m.awayTeamId, {
+            teamId: m.awayTeamId,
+            group: g,
+            pts: 0,
+            gd: 0,
+            gf: 0,
+            ga: 0,
+          });
         }
 
         const home = teamStats.get(m.homeTeamId)!;
@@ -109,7 +137,9 @@ export class BracketAdvancementService {
       }
 
       let rank = 1;
-      let maxGroupSize = Math.max(...Array.from(groups.values()).map(list => list.length));
+      const maxGroupSize = Math.max(
+        ...Array.from(groups.values()).map((list) => list.length),
+      );
 
       for (let pos = 0; pos < maxGroupSize; pos++) {
         const teamsAtPos: any[] = [];
@@ -127,18 +157,30 @@ export class BracketAdvancementService {
           rankings.set(t.teamId, rank++);
         }
       }
-    } else if (lastStage.type === 'knockout' || lastStage.type === 'group_knockout') {
+    } else if (
+      lastStage.type === 'knockout' ||
+      lastStage.type === 'group_knockout'
+    ) {
       const groupMatches = matches.filter((m: any) => {
-        const r = (m.config as any)?.round || '';
-        return r.toLowerCase().includes('group') || r.toLowerCase().includes('league');
+        const r = m.config?.round || '';
+        return (
+          r.toLowerCase().includes('group') ||
+          r.toLowerCase().includes('league')
+        );
       });
       const knockoutMatches = matches.filter((m: any) => {
-        const r = (m.config as any)?.round || '';
-        return !r.toLowerCase().includes('group') && !r.toLowerCase().includes('league');
+        const r = m.config?.round || '';
+        return (
+          !r.toLowerCase().includes('group') &&
+          !r.toLowerCase().includes('league')
+        );
       });
 
       const teamHighestRound = new Map<string, string>();
-      const teamFinalStatus = new Map<string, 'won_final' | 'lost_final' | 'won_third' | 'lost_third' | 'lost'>();
+      const teamFinalStatus = new Map<
+        string,
+        'won_final' | 'lost_final' | 'won_third' | 'lost_third' | 'lost'
+      >();
 
       const allTeamIds = new Set<string>();
       for (const m of matches) {
@@ -146,7 +188,9 @@ export class BracketAdvancementService {
         if (m.awayTeamId) allTeamIds.add(m.awayTeamId);
       }
 
-      const finalMatch = knockoutMatches.find((m: any) => (m.config as any)?.round?.toLowerCase() === 'final');
+      const finalMatch = knockoutMatches.find(
+        (m: any) => m.config?.round?.toLowerCase() === 'final',
+      );
       if (finalMatch && finalMatch.status === 'completed') {
         const hScore = finalMatch.homeScore ?? 0;
         const aScore = finalMatch.awayScore ?? 0;
@@ -160,7 +204,7 @@ export class BracketAdvancementService {
       }
 
       const thirdPlaceMatch = knockoutMatches.find((m: any) => {
-        const r = (m.config as any)?.round?.toLowerCase() || '';
+        const r = m.config?.round?.toLowerCase() || '';
         return r.includes('third') || r.includes('3rd') || r.includes('bronze');
       });
       if (thirdPlaceMatch && thirdPlaceMatch.status === 'completed') {
@@ -178,7 +222,8 @@ export class BracketAdvancementService {
       const getRoundRankWeight = (roundName: string): number => {
         const r = roundName.toLowerCase();
         if (r === 'final') return 10;
-        if (r.includes('third') || r.includes('3rd') || r.includes('bronze')) return 9;
+        if (r.includes('third') || r.includes('3rd') || r.includes('bronze'))
+          return 9;
         if (r.includes('semi')) return 8;
         if (r.includes('quarter')) return 7;
         if (r.includes('round of 16') || r.includes('1/8')) return 6;
@@ -202,41 +247,60 @@ export class BracketAdvancementService {
         }
       }
 
-      const winner = Array.from(allTeamIds).find(id => teamFinalStatus.get(id) === 'won_final');
-      const runner = Array.from(allTeamIds).find(id => teamFinalStatus.get(id) === 'lost_final');
-      const third = Array.from(allTeamIds).find(id => teamFinalStatus.get(id) === 'won_third');
-      const fourth = Array.from(allTeamIds).find(id => teamFinalStatus.get(id) === 'lost_third');
+      const winner = Array.from(allTeamIds).find(
+        (id) => teamFinalStatus.get(id) === 'won_final',
+      );
+      const runner = Array.from(allTeamIds).find(
+        (id) => teamFinalStatus.get(id) === 'lost_final',
+      );
+      const third = Array.from(allTeamIds).find(
+        (id) => teamFinalStatus.get(id) === 'won_third',
+      );
+      const fourth = Array.from(allTeamIds).find(
+        (id) => teamFinalStatus.get(id) === 'lost_third',
+      );
 
       if (winner) rankings.set(winner, 1);
       if (runner) rankings.set(runner, 2);
       if (third) rankings.set(third, 3);
       if (fourth) rankings.set(fourth, 4);
 
-      const semiLosers = Array.from(allTeamIds).filter(id => {
+      const semiLosers = Array.from(allTeamIds).filter((id) => {
         const hr = teamHighestRound.get(id)?.toLowerCase() || '';
-        return hr.includes('semi') && id !== winner && id !== runner && id !== third && id !== fourth;
+        return (
+          hr.includes('semi') &&
+          id !== winner &&
+          id !== runner &&
+          id !== third &&
+          id !== fourth
+        );
       });
       const semiPos = third ? 4 : 3;
-      semiLosers.forEach(id => rankings.set(id, semiPos));
+      semiLosers.forEach((id) => rankings.set(id, semiPos));
 
-      const quarterLosers = Array.from(allTeamIds).filter(id => {
+      const quarterLosers = Array.from(allTeamIds).filter((id) => {
         const hr = teamHighestRound.get(id)?.toLowerCase() || '';
         return hr.includes('quarter');
       });
-      quarterLosers.forEach(id => rankings.set(id, 5));
+      quarterLosers.forEach((id) => rankings.set(id, 5));
 
-      const r16Losers = Array.from(allTeamIds).filter(id => {
+      const r16Losers = Array.from(allTeamIds).filter((id) => {
         const hr = teamHighestRound.get(id)?.toLowerCase() || '';
         return hr.includes('round of 16') || hr.includes('1/8');
       });
-      r16Losers.forEach(id => rankings.set(id, 9));
+      r16Losers.forEach((id) => rankings.set(id, 9));
 
-      const groupOnlyTeams = Array.from(allTeamIds).filter(id => !teamHighestRound.has(id));
+      const groupOnlyTeams = Array.from(allTeamIds).filter(
+        (id) => !teamHighestRound.has(id),
+      );
       if (groupOnlyTeams.length > 0 && groupMatches.length > 0) {
         const winPoint = lastStage.config?.winPoint ?? 3;
         const drawPoint = lastStage.config?.drawPoint ?? 1;
 
-        const groupStats = new Map<string, { teamId: string; pts: number; gd: number; gf: number; ga: number }>();
+        const groupStats = new Map<
+          string,
+          { teamId: string; pts: number; gd: number; gf: number; ga: number }
+        >();
         for (const id of groupOnlyTeams) {
           groupStats.set(id, { teamId: id, pts: 0, gd: 0, gf: 0, ga: 0 });
         }
@@ -282,16 +346,21 @@ export class BracketAdvancementService {
 
       if (lastStage.type === 'knockout') {
         const prevStage = sortedStages[sortedStages.indexOf(lastStage) - 1];
-        if (prevStage && (prevStage.type === 'group' || prevStage.type === 'league')) {
+        if (
+          prevStage &&
+          (prevStage.type === 'group' || prevStage.type === 'league')
+        ) {
           const prevRankings = await this.getStageRankings(prevStage);
-          const groupOnlyTeamsPrev = prevRankings.filter(id => !allTeamIds.has(id));
+          const groupOnlyTeamsPrev = prevRankings.filter(
+            (id) => !allTeamIds.has(id),
+          );
 
           let nextRank = 5;
           for (const r of rankings.values()) {
             if (r >= nextRank) nextRank = r + 1;
           }
 
-          groupOnlyTeamsPrev.forEach(id => {
+          groupOnlyTeamsPrev.forEach((id) => {
             rankings.set(id, nextRank++);
           });
         }
@@ -304,14 +373,18 @@ export class BracketAdvancementService {
   async checkAndAutoCompleteCompetition(competitionId: string): Promise<void> {
     const comp = await this.competitionRepo.findOne({
       where: { id: competitionId },
-      relations: { stages: true, event: true }
+      relations: { stages: true, event: true },
     });
     if (!comp || comp.stages.length === 0) return;
 
-    const sortedStages = [...comp.stages].sort((a, b) => a.sequence - b.sequence);
+    const sortedStages = [...comp.stages].sort(
+      (a, b) => a.sequence - b.sequence,
+    );
     const lastStage = sortedStages[sortedStages.length - 1];
 
-    const matches = await this.matchRepo.find({ where: { stageId: lastStage.id } });
+    const matches = await this.matchRepo.find({
+      where: { stageId: lastStage.id },
+    });
     if (matches && matches.length > 0) {
       const allCompleted = matches.every((m: any) => m.status === 'completed');
       if (allCompleted && comp.status !== 'completed') {
@@ -319,15 +392,18 @@ export class BracketAdvancementService {
         const savedComp = await this.competitionRepo.save(comp);
         const workspaceId = comp.event.workspaceId;
 
-        const compTeams = await this.competitionTeamRepo.find({ where: { competitionId } });
-        const teamIds = compTeams.map(ct => ct.teamId);
-        const allCompetingPlayers = await this.workspacesService.getTeamsPlayerUserIds(teamIds);
+        const compTeams = await this.competitionTeamRepo.find({
+          where: { competitionId },
+        });
+        const teamIds = compTeams.map((ct) => ct.teamId);
+        const allCompetingPlayers =
+          await this.workspacesService.getTeamsPlayerUserIds(teamIds);
         await this.workspacesService.sendNotificationToMany(
           allCompetingPlayers,
           NotificationType.COMPETITION_COMPLETED,
           `Competition "${savedComp.name}" has been completed!`,
           workspaceId,
-          { competitionId, competitionName: savedComp.name }
+          { competitionId, competitionName: savedComp.name },
         );
 
         try {
@@ -340,38 +416,56 @@ export class BracketAdvancementService {
           }
 
           if (championTeamId) {
-            const championTeam = await this.teamRepo.findOne({ where: { id: championTeamId } });
+            const championTeam = await this.teamRepo.findOne({
+              where: { id: championTeamId },
+            });
             if (championTeam) {
-              const memberIds = await this.workspacesService.getWorkspaceMemberUserIds(workspaceId);
+              const memberIds =
+                await this.workspacesService.getWorkspaceMemberUserIds(
+                  workspaceId,
+                );
               await this.workspacesService.sendNotificationToMany(
                 memberIds,
                 NotificationType.COMPETITION_CHAMPION_ANNOUNCEMENT,
                 `🥇 ${championTeam.name} has won the ${savedComp.name} competition!`,
                 workspaceId,
-                { competitionId, competitionName: savedComp.name, championTeamId, championTeamName: championTeam.name }
+                {
+                  competitionId,
+                  competitionName: savedComp.name,
+                  championTeamId,
+                  championTeamName: championTeam.name,
+                },
               );
 
-              const winningPlayers = await this.workspacesService.getTeamPlayerUserIds(championTeamId);
+              const winningPlayers =
+                await this.workspacesService.getTeamPlayerUserIds(
+                  championTeamId,
+                );
               await this.workspacesService.sendNotificationToMany(
                 winningPlayers,
                 NotificationType.COMPETITION_CHAMPION,
                 `🥇 Congratulations! Your team ${championTeam.name} won ${savedComp.name}!`,
                 workspaceId,
-                { competitionId, competitionName: savedComp.name }
+                { competitionId, competitionName: savedComp.name },
               );
             }
           }
 
           if (runnerUpTeamId) {
-            const runnerUpTeam = await this.teamRepo.findOne({ where: { id: runnerUpTeamId } });
+            const runnerUpTeam = await this.teamRepo.findOne({
+              where: { id: runnerUpTeamId },
+            });
             if (runnerUpTeam) {
-              const runnerUpPlayers = await this.workspacesService.getTeamPlayerUserIds(runnerUpTeamId);
+              const runnerUpPlayers =
+                await this.workspacesService.getTeamPlayerUserIds(
+                  runnerUpTeamId,
+                );
               await this.workspacesService.sendNotificationToMany(
                 runnerUpPlayers,
                 NotificationType.COMPETITION_RUNNER_UP,
                 `🥈 Great performance! Your team ${runnerUpTeam.name} finished as runner-up in ${savedComp.name}.`,
                 workspaceId,
-                { competitionId, competitionName: savedComp.name }
+                { competitionId, competitionName: savedComp.name },
               );
             }
           }
@@ -380,9 +474,17 @@ export class BracketAdvancementService {
         }
 
         try {
-          const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+          const workspace = await this.workspaceRepo.findOne({
+            where: { id: workspaceId },
+          });
           const ownerId = workspace?.ownerId ?? '';
-          const bestPlayerData = await this.statisticsRatingsService.getCompetitionBestPlayer(workspaceId, comp.eventId, competitionId, ownerId);
+          const bestPlayerData =
+            await this.statisticsRatingsService.getCompetitionBestPlayer(
+              workspaceId,
+              comp.eventId,
+              competitionId,
+              ownerId,
+            );
           if (bestPlayerData && bestPlayerData.bestPlayer) {
             const bestPlayer = bestPlayerData.bestPlayer;
             const playerName = bestPlayer.player?.user?.username ?? 'a player';
@@ -394,16 +496,26 @@ export class BracketAdvancementService {
               NotificationType.BEST_PLAYER_OF_TOURNAMENT,
               `⭐ You've been named the Best Player of ${savedComp.name} with a rating of ${rating}!`,
               workspaceId,
-              { competitionId, competitionName: savedComp.name, rating }
+              { competitionId, competitionName: savedComp.name, rating },
             );
 
-            const memberIds = await this.workspacesService.getWorkspaceMemberUserIds(workspaceId);
+            const memberIds =
+              await this.workspacesService.getWorkspaceMemberUserIds(
+                workspaceId,
+              );
             await this.workspacesService.sendNotificationToMany(
               memberIds,
               NotificationType.BEST_PLAYER_ANNOUNCEMENT,
               `⭐ ${playerName} (${teamName}) is the Best Player of ${savedComp.name}!`,
               workspaceId,
-              { competitionId, competitionName: savedComp.name, playerId: bestPlayer.playerId, playerName, teamName, rating }
+              {
+                competitionId,
+                competitionName: savedComp.name,
+                playerId: bestPlayer.playerId,
+                playerName,
+                teamName,
+                rating,
+              },
             );
           }
         } catch (e) {
@@ -416,22 +528,29 @@ export class BracketAdvancementService {
   async advanceGroupStageWinners(stage: CompetitionStage): Promise<void> {
     const allMatches = await this.matchRepo.find({
       where: { stageId: stage.id },
-      order: { id: 'ASC', createdAt: 'ASC' }
+      order: { id: 'ASC', createdAt: 'ASC' },
     });
 
-    const groupMatches = allMatches.filter(m => {
+    const groupMatches = allMatches.filter((m) => {
       const r = (m.config as any)?.round || '';
-      return r.toLowerCase().includes('group') || r.toLowerCase().includes('league');
+      return (
+        r.toLowerCase().includes('group') || r.toLowerCase().includes('league')
+      );
     });
 
-    const knockoutMatches = allMatches.filter(m => {
+    const knockoutMatches = allMatches.filter((m) => {
       const r = (m.config as any)?.round || '';
-      return !r.toLowerCase().includes('group') && !r.toLowerCase().includes('league');
+      return (
+        !r.toLowerCase().includes('group') &&
+        !r.toLowerCase().includes('league')
+      );
     });
 
     if (groupMatches.length === 0 || knockoutMatches.length === 0) return;
 
-    const allGroupMatchesCompleted = groupMatches.every(m => m.status === 'completed');
+    const allGroupMatchesCompleted = groupMatches.every(
+      (m) => m.status === 'completed',
+    );
     if (!allGroupMatchesCompleted) return;
 
     const winPoint = stage.config?.winPoint ?? 3;
@@ -447,7 +566,10 @@ export class BracketAdvancementService {
       if (m.awayTeamId) roundTeams.get(r)!.add(m.awayTeamId);
     }
 
-    const standings = new Map<string, { teamId: string; pts: number; gd: number; gf: number }>();
+    const standings = new Map<
+      string,
+      { teamId: string; pts: number; gd: number; gf: number }
+    >();
     for (const [r, teams] of roundTeams.entries()) {
       for (const teamId of teams) {
         standings.set(`${r}-${teamId}`, { teamId, pts: 0, gd: 0, gf: 0 });
@@ -470,8 +592,8 @@ export class BracketAdvancementService {
 
       homeStats.gf += hScore;
       awayStats.gf += aScore;
-      homeStats.gd += (hScore - aScore);
-      awayStats.gd += (aScore - hScore);
+      homeStats.gd += hScore - aScore;
+      awayStats.gd += aScore - hScore;
 
       if (hScore > aScore) {
         homeStats.pts += winPoint;
@@ -499,25 +621,34 @@ export class BracketAdvancementService {
     for (const m of knockoutMatches) {
       const rName = (m.config as any)?.round;
       if (!rName) continue;
-      if (rName.toLowerCase().includes('third') || rName.toLowerCase().includes('3rd')) continue;
-      const isLeg1OrNone = (m.config as any)?.leg === undefined || (m.config as any)?.leg === 1;
+      if (
+        rName.toLowerCase().includes('third') ||
+        rName.toLowerCase().includes('3rd')
+      )
+        continue;
+      const isLeg1OrNone =
+        (m.config as any)?.leg === undefined || (m.config as any)?.leg === 1;
       if (isLeg1OrNone) {
         koRoundCounts[rName] = (koRoundCounts[rName] || 0) + 1;
       }
     }
-    const sortedKoRounds = Object.keys(koRoundCounts).sort((a, b) => koRoundCounts[b] - koRoundCounts[a]);
+    const sortedKoRounds = Object.keys(koRoundCounts).sort(
+      (a, b) => koRoundCounts[b] - koRoundCounts[a],
+    );
     if (sortedKoRounds.length === 0) return;
 
     const firstKoRoundName = sortedKoRounds[0];
-    const firstKoRoundMatches = knockoutMatches.filter(m =>
-      (m.config as any)?.round === firstKoRoundName &&
-      ((m.config as any)?.leg === undefined || (m.config as any)?.leg === 1)
+    const firstKoRoundMatches = knockoutMatches.filter(
+      (m) =>
+        (m.config as any)?.round === firstKoRoundName &&
+        ((m.config as any)?.leg === undefined || (m.config as any)?.leg === 1),
     );
 
     const isSingleGroup = stage.config?.groupKnockoutSubtype === 'single_group';
     const advancingType = stage.config?.advancingType || 'winner';
     const groupsCount = stage.config?.groupsCount ?? 2;
-    const twoLegged = (stage.config as any)?.twoLegged || (stage.config as any)?.legs === 2;
+    const twoLegged =
+      (stage.config as any)?.twoLegged || (stage.config as any)?.legs === 2;
 
     const promotedTeams: { home: string; away: string }[] = [];
 
@@ -528,9 +659,11 @@ export class BracketAdvancementService {
           promotedTeams.push({ home: sortedTeams[0], away: sortedTeams[1] });
         }
         if (sortedTeams.length >= 4) {
-          const thirdPlaceLeg1Match = knockoutMatches.find(m =>
-            (m.config as any)?.round === 'Third Place Match' &&
-            ((m.config as any)?.leg === undefined || (m.config as any)?.leg === 1)
+          const thirdPlaceLeg1Match = knockoutMatches.find(
+            (m) =>
+              (m.config as any)?.round === 'Third Place Match' &&
+              ((m.config as any)?.leg === undefined ||
+                (m.config as any)?.leg === 1),
           );
           if (thirdPlaceLeg1Match) {
             thirdPlaceLeg1Match.homeTeamId = sortedTeams[2];
@@ -538,9 +671,10 @@ export class BracketAdvancementService {
             await this.matchRepo.save(thirdPlaceLeg1Match);
 
             if (twoLegged) {
-              const thirdPlaceLeg2Match = knockoutMatches.find(m =>
-                (m.config as any)?.round === 'Third Place Match' &&
-                (m.config as any)?.leg === 2
+              const thirdPlaceLeg2Match = knockoutMatches.find(
+                (m) =>
+                  (m.config as any)?.round === 'Third Place Match' &&
+                  (m.config as any)?.leg === 2,
               );
               if (thirdPlaceLeg2Match) {
                 thirdPlaceLeg2Match.homeTeamId = sortedTeams[3];
@@ -578,9 +712,11 @@ export class BracketAdvancementService {
           const rA = getRunner(0);
           const rB = getRunner(1);
           if (rA && rB) {
-            const thirdPlaceLeg1Match = knockoutMatches.find(m =>
-              (m.config as any)?.round === 'Third Place Match' &&
-              ((m.config as any)?.leg === undefined || (m.config as any)?.leg === 1)
+            const thirdPlaceLeg1Match = knockoutMatches.find(
+              (m) =>
+                (m.config as any)?.round === 'Third Place Match' &&
+                ((m.config as any)?.leg === undefined ||
+                  (m.config as any)?.leg === 1),
             );
             if (thirdPlaceLeg1Match) {
               thirdPlaceLeg1Match.homeTeamId = rA;
@@ -588,9 +724,10 @@ export class BracketAdvancementService {
               await this.matchRepo.save(thirdPlaceLeg1Match);
 
               if (twoLegged) {
-                const thirdPlaceLeg2Match = knockoutMatches.find(m =>
-                  (m.config as any)?.round === 'Third Place Match' &&
-                  (m.config as any)?.leg === 2
+                const thirdPlaceLeg2Match = knockoutMatches.find(
+                  (m) =>
+                    (m.config as any)?.round === 'Third Place Match' &&
+                    (m.config as any)?.leg === 2,
                 );
                 if (thirdPlaceLeg2Match) {
                   thirdPlaceLeg2Match.homeTeamId = rB;
@@ -642,9 +779,10 @@ export class BracketAdvancementService {
       await this.matchRepo.save(targetMatch);
 
       if (twoLegged) {
-        const nextRoundLeg2Matches = knockoutMatches.filter(m =>
-          (m.config as any)?.round === firstKoRoundName &&
-          (m.config as any)?.leg === 2
+        const nextRoundLeg2Matches = knockoutMatches.filter(
+          (m) =>
+            (m.config as any)?.round === firstKoRoundName &&
+            (m.config as any)?.leg === 2,
         );
         const targetLeg2Match = nextRoundLeg2Matches[i];
         if (targetLeg2Match) {
@@ -658,16 +796,19 @@ export class BracketAdvancementService {
     try {
       const comp = await this.competitionRepo.findOne({
         where: { id: stage.competitionId },
-        relations: { event: true }
+        relations: { event: true },
       });
       if (comp) {
         const workspaceId = comp.event?.workspaceId || null;
-        const qualifiedTeamIds = [...new Set(promotedTeams.flatMap((p) => [p.home, p.away]))];
+        const qualifiedTeamIds = [
+          ...new Set(promotedTeams.flatMap((p) => [p.home, p.away])),
+        ];
 
         for (const tId of qualifiedTeamIds) {
           const team = await this.teamRepo.findOne({ where: { id: tId } });
           if (team) {
-            const players = await this.workspacesService.getTeamPlayerUserIds(tId);
+            const players =
+              await this.workspacesService.getTeamPlayerUserIds(tId);
             await this.workspacesService.sendNotificationToMany(
               players,
               NotificationType.TEAM_QUALIFIED_FROM_GROUP,
@@ -678,14 +819,19 @@ export class BracketAdvancementService {
           }
         }
 
-        const allCompTeams = await this.competitionTeamRepo.find({ where: { competitionId: stage.competitionId } });
+        const allCompTeams = await this.competitionTeamRepo.find({
+          where: { competitionId: stage.competitionId },
+        });
         const enrolledTeamIds = allCompTeams.map((ct) => ct.teamId);
-        const eliminatedTeamIds = enrolledTeamIds.filter((id) => !qualifiedTeamIds.includes(id));
+        const eliminatedTeamIds = enrolledTeamIds.filter(
+          (id) => !qualifiedTeamIds.includes(id),
+        );
 
         for (const tId of eliminatedTeamIds) {
           const team = await this.teamRepo.findOne({ where: { id: tId } });
           if (team) {
-            const players = await this.workspacesService.getTeamPlayerUserIds(tId);
+            const players =
+              await this.workspacesService.getTeamPlayerUserIds(tId);
             await this.workspacesService.sendNotificationToMany(
               players,
               NotificationType.TEAM_ELIMINATED,
@@ -715,7 +861,10 @@ export class BracketAdvancementService {
       if (m.awayTeamId) teamIds.add(m.awayTeamId);
     }
 
-    const standings = new Map<string, { teamId: string; pts: number; gd: number; gf: number }>();
+    const standings = new Map<
+      string,
+      { teamId: string; pts: number; gd: number; gf: number }
+    >();
     for (const teamId of teamIds) {
       standings.set(teamId, { teamId, pts: 0, gd: 0, gf: 0 });
     }
@@ -732,8 +881,8 @@ export class BracketAdvancementService {
 
       homeStats.gf += hScore;
       awayStats.gf += aScore;
-      homeStats.gd += (hScore - aScore);
-      awayStats.gd += (aScore - hScore);
+      homeStats.gd += hScore - aScore;
+      awayStats.gd += aScore - hScore;
 
       if (hScore > aScore) {
         homeStats.pts += winPoint;
@@ -754,7 +903,10 @@ export class BracketAdvancementService {
     });
   }
 
-  async generateKnockoutStageMatches(stage: CompetitionStage, teamIds: string[]): Promise<void> {
+  async generateKnockoutStageMatches(
+    stage: CompetitionStage,
+    teamIds: string[],
+  ): Promise<void> {
     const twoLegged = stage.config?.twoLegged || stage.config?.legs === 2;
     const prevStages = await this.stageRepo.find({
       where: { competitionId: stage.competitionId },
@@ -765,18 +917,39 @@ export class BracketAdvancementService {
     let koTeamsCount = teamIds.length;
     if (prevStage) {
       if (prevStage.type === 'group' || prevStage.type === 'league') {
-        koTeamsCount = prevStage.config?.advancingCount ?? (prevStage.config?.groupsCount ? prevStage.config.groupsCount * 2 : 4);
+        koTeamsCount =
+          prevStage.config?.advancingCount ??
+          (prevStage.config?.groupsCount
+            ? prevStage.config.groupsCount * 2
+            : 4);
       }
     }
 
-    const bracketSize = Math.pow(2, Math.ceil(Math.log2(Math.max(koTeamsCount, 2))));
+    const bracketSize = Math.pow(
+      2,
+      Math.ceil(Math.log2(Math.max(koTeamsCount, 2))),
+    );
     const advancingTeams = teamIds.slice(0, bracketSize);
 
-    const padded: (string | null)[] = [...advancingTeams, ...Array(bracketSize - advancingTeams.length).fill(null)];
+    const padded: (string | null)[] = [
+      ...advancingTeams,
+      ...Array(bracketSize - advancingTeams.length).fill(null),
+    ];
 
-    const fixtures: Array<{ homeTeamId: string | null; awayTeamId: string | null; config: any }> = [];
+    const fixtures: Array<{
+      homeTeamId: string | null;
+      awayTeamId: string | null;
+      config: any;
+    }> = [];
 
-    const roundLabel = bracketSize === 2 ? 'Final' : bracketSize === 4 ? 'Semi-Final' : bracketSize === 8 ? 'Quarter-Final' : `Round of ${bracketSize}`;
+    const roundLabel =
+      bracketSize === 2
+        ? 'Final'
+        : bracketSize === 4
+          ? 'Semi-Final'
+          : bracketSize === 8
+            ? 'Quarter-Final'
+            : `Round of ${bracketSize}`;
 
     const firstRoundPairs: [string | null, string | null][] = [];
     const half = bracketSize / 2;
@@ -791,7 +964,9 @@ export class BracketAdvancementService {
       fixtures.push({
         homeTeamId: home,
         awayTeamId: away,
-        config: twoLegged ? { round: roundLabel, leg: 1 } : { round: roundLabel },
+        config: twoLegged
+          ? { round: roundLabel, leg: 1 }
+          : { round: roundLabel },
       });
       if (twoLegged && home !== null && away !== null) {
         fixtures.push({
@@ -804,13 +979,22 @@ export class BracketAdvancementService {
 
     let remainingTeams = bracketSize / 2;
     while (remainingTeams >= 2) {
-      const subRoundLabel = remainingTeams === 2 ? 'Final' : remainingTeams === 4 ? 'Semi-Final' : remainingTeams === 8 ? 'Quarter-Final' : `Round of ${remainingTeams * 2}`;
+      const subRoundLabel =
+        remainingTeams === 2
+          ? 'Final'
+          : remainingTeams === 4
+            ? 'Semi-Final'
+            : remainingTeams === 8
+              ? 'Quarter-Final'
+              : `Round of ${remainingTeams * 2}`;
       const matchesInRound = remainingTeams / 2;
       for (let m = 0; m < matchesInRound; m++) {
         fixtures.push({
           homeTeamId: null,
           awayTeamId: null,
-          config: twoLegged ? { round: subRoundLabel, leg: 1 } : { round: subRoundLabel },
+          config: twoLegged
+            ? { round: subRoundLabel, leg: 1 }
+            : { round: subRoundLabel },
         });
         if (twoLegged) {
           fixtures.push({
@@ -821,12 +1005,20 @@ export class BracketAdvancementService {
         }
       }
       if (remainingTeams === 2) {
-        const home3rd = bracketSize === 2 && advancingTeams.length >= 4 ? advancingTeams[2] : null;
-        const away3rd = bracketSize === 2 && advancingTeams.length >= 4 ? advancingTeams[3] : null;
+        const home3rd =
+          bracketSize === 2 && advancingTeams.length >= 4
+            ? advancingTeams[2]
+            : null;
+        const away3rd =
+          bracketSize === 2 && advancingTeams.length >= 4
+            ? advancingTeams[3]
+            : null;
         fixtures.push({
           homeTeamId: home3rd,
           awayTeamId: away3rd,
-          config: twoLegged ? { round: 'Third Place Match', leg: 1 } : { round: 'Third Place Match' },
+          config: twoLegged
+            ? { round: 'Third Place Match', leg: 1 }
+            : { round: 'Third Place Match' },
         });
         if (twoLegged) {
           fixtures.push({
@@ -852,7 +1044,9 @@ export class BracketAdvancementService {
     }
   }
 
-  async advanceTeamsBetweenStages(currentStage: CompetitionStage): Promise<void> {
+  async advanceTeamsBetweenStages(
+    currentStage: CompetitionStage,
+  ): Promise<void> {
     const stages = await this.stageRepo.find({
       where: { competitionId: currentStage.competitionId },
       order: { sequence: 'ASC', createdAt: 'ASC' },
@@ -894,20 +1088,28 @@ export class BracketAdvancementService {
     for (const m of nextMatches) {
       const rName = (m.config as any)?.round;
       if (!rName) continue;
-      if (rName.toLowerCase().includes('third') || rName.toLowerCase().includes('3rd')) continue;
-      const isLeg1OrNone = (m.config as any)?.leg === undefined || (m.config as any)?.leg === 1;
+      if (
+        rName.toLowerCase().includes('third') ||
+        rName.toLowerCase().includes('3rd')
+      )
+        continue;
+      const isLeg1OrNone =
+        (m.config as any)?.leg === undefined || (m.config as any)?.leg === 1;
       if (isLeg1OrNone) {
         roundCounts[rName] = (roundCounts[rName] || 0) + 1;
       }
     }
 
-    const sortedRounds = Object.keys(roundCounts).sort((a, b) => roundCounts[b] - roundCounts[a]);
+    const sortedRounds = Object.keys(roundCounts).sort(
+      (a, b) => roundCounts[b] - roundCounts[a],
+    );
     if (sortedRounds.length === 0) return;
 
     const firstKoRoundName = sortedRounds[0];
-    const firstKoRoundMatches = nextMatches.filter(m =>
-      (m.config as any)?.round === firstKoRoundName &&
-      ((m.config as any)?.leg === undefined || (m.config as any)?.leg === 1)
+    const firstKoRoundMatches = nextMatches.filter(
+      (m) =>
+        (m.config as any)?.round === firstKoRoundName &&
+        ((m.config as any)?.leg === undefined || (m.config as any)?.leg === 1),
     );
 
     const matchesCount = firstKoRoundMatches.length;
@@ -915,7 +1117,9 @@ export class BracketAdvancementService {
 
     const advancingTeams = sortedTeams.slice(0, teamsCountNeeded);
 
-    const twoLegged = (nextStage.config as any)?.twoLegged || (nextStage.config as any)?.legs === 2;
+    const twoLegged =
+      (nextStage.config as any)?.twoLegged ||
+      (nextStage.config as any)?.legs === 2;
 
     for (let i = 0; i < matchesCount; i++) {
       const targetMatch = firstKoRoundMatches[i];
@@ -929,9 +1133,10 @@ export class BracketAdvancementService {
       await this.matchRepo.save(targetMatch);
 
       if (twoLegged) {
-        const nextRoundLeg2Matches = nextMatches.filter(m =>
-          (m.config as any)?.round === firstKoRoundName &&
-          (m.config as any)?.leg === 2
+        const nextRoundLeg2Matches = nextMatches.filter(
+          (m) =>
+            (m.config as any)?.round === firstKoRoundName &&
+            (m.config as any)?.leg === 2,
         );
         const targetLeg2Match = nextRoundLeg2Matches[i];
         if (targetLeg2Match) {
@@ -943,14 +1148,19 @@ export class BracketAdvancementService {
     }
 
     if (matchesCount === 1 && sortedTeams.length >= 4) {
-      const thirdPlaceMatches = nextMatches.filter(m => {
+      const thirdPlaceMatches = nextMatches.filter((m) => {
         const r = (m.config as any)?.round || '';
         const rLower = r.toLowerCase();
-        return rLower.includes('third') || rLower.includes('3rd') || rLower.includes('loser');
+        return (
+          rLower.includes('third') ||
+          rLower.includes('3rd') ||
+          rLower.includes('loser')
+        );
       });
 
-      const thirdPlaceLeg1Matches = thirdPlaceMatches.filter(m =>
-        (m.config as any)?.leg === undefined || (m.config as any)?.leg === 1
+      const thirdPlaceLeg1Matches = thirdPlaceMatches.filter(
+        (m) =>
+          (m.config as any)?.leg === undefined || (m.config as any)?.leg === 1,
       );
 
       for (let i = 0; i < thirdPlaceLeg1Matches.length; i++) {
@@ -965,8 +1175,8 @@ export class BracketAdvancementService {
         await this.matchRepo.save(targetMatch);
 
         if (twoLegged) {
-          const nextRoundLeg2Matches = thirdPlaceMatches.filter(m =>
-            (m.config as any)?.leg === 2
+          const nextRoundLeg2Matches = thirdPlaceMatches.filter(
+            (m) => (m.config as any)?.leg === 2,
           );
           const targetLeg2Match = nextRoundLeg2Matches[i];
           if (targetLeg2Match) {
@@ -979,30 +1189,46 @@ export class BracketAdvancementService {
     }
   }
 
-  async advanceKnockoutWinner(completedMatch: Match, stage: CompetitionStage): Promise<void> {
+  async advanceKnockoutWinner(
+    completedMatch: Match,
+    stage: CompetitionStage,
+  ): Promise<void> {
     const roundName = (completedMatch.config as any)?.round;
-    if (!roundName || roundName.toLowerCase() === 'final' || roundName.toLowerCase().includes('third') || roundName.toLowerCase().includes('3rd')) return;
+    if (
+      !roundName ||
+      roundName.toLowerCase() === 'final' ||
+      roundName.toLowerCase().includes('third') ||
+      roundName.toLowerCase().includes('3rd')
+    )
+      return;
 
     const roundLower = roundName.toLowerCase();
     if (roundLower.includes('group') || roundLower.includes('league')) return;
 
     const allMatches = await this.matchRepo.find({
       where: { stageId: stage.id },
-      order: { id: 'ASC', createdAt: 'ASC' }
+      order: { id: 'ASC', createdAt: 'ASC' },
     });
 
     const roundCounts: { [round: string]: number } = {};
     for (const m of allMatches) {
       const rName = (m.config as any)?.round;
       if (!rName) continue;
-      if (rName.toLowerCase().includes('third') || rName.toLowerCase().includes('3rd')) continue;
-      const isLeg1OrNone = (m.config as any)?.leg === undefined || (m.config as any)?.leg === 1;
+      if (
+        rName.toLowerCase().includes('third') ||
+        rName.toLowerCase().includes('3rd')
+      )
+        continue;
+      const isLeg1OrNone =
+        (m.config as any)?.leg === undefined || (m.config as any)?.leg === 1;
       if (isLeg1OrNone) {
         roundCounts[rName] = (roundCounts[rName] || 0) + 1;
       }
     }
 
-    const sortedRounds = Object.keys(roundCounts).sort((a, b) => roundCounts[b] - roundCounts[a]);
+    const sortedRounds = Object.keys(roundCounts).sort(
+      (a, b) => roundCounts[b] - roundCounts[a],
+    );
     const currRoundIdx = sortedRounds.indexOf(roundName);
     if (currRoundIdx === -1 || currRoundIdx === sortedRounds.length - 1) return;
 
@@ -1017,15 +1243,18 @@ export class BracketAdvancementService {
     }
 
     if ((completedMatch.config as any)?.leg === 2) {
-      const leg1 = allMatches.find(m =>
-        (m.config as any)?.round === roundName &&
-        (m.config as any)?.leg === 1 &&
-        m.homeTeamId === completedMatch.awayTeamId &&
-        m.awayTeamId === completedMatch.homeTeamId
+      const leg1 = allMatches.find(
+        (m) =>
+          (m.config as any)?.round === roundName &&
+          (m.config as any)?.leg === 1 &&
+          m.homeTeamId === completedMatch.awayTeamId &&
+          m.awayTeamId === completedMatch.homeTeamId,
       );
       if (leg1) {
-        const teamAScore = (leg1.homeScore ?? 0) + (completedMatch.awayScore ?? 0);
-        const teamBScore = (leg1.awayScore ?? 0) + (completedMatch.homeScore ?? 0);
+        const teamAScore =
+          (leg1.homeScore ?? 0) + (completedMatch.awayScore ?? 0);
+        const teamBScore =
+          (leg1.awayScore ?? 0) + (completedMatch.homeScore ?? 0);
         if (teamAScore > teamBScore) {
           winnerId = leg1.homeTeamId;
         } else if (teamBScore > teamAScore) {
@@ -1039,7 +1268,10 @@ export class BracketAdvancementService {
           } else if (shAway > shHome) {
             winnerId = completedMatch.awayTeamId;
           } else {
-            winnerId = homeScore > awayScore ? completedMatch.homeTeamId : completedMatch.awayTeamId;
+            winnerId =
+              homeScore > awayScore
+                ? completedMatch.homeTeamId
+                : completedMatch.awayTeamId;
           }
         }
       } else {
@@ -1051,7 +1283,10 @@ export class BracketAdvancementService {
         } else if (shAway > shHome) {
           winnerId = completedMatch.awayTeamId;
         } else {
-          winnerId = homeScore > awayScore ? completedMatch.homeTeamId : completedMatch.awayTeamId;
+          winnerId =
+            homeScore > awayScore
+              ? completedMatch.homeTeamId
+              : completedMatch.awayTeamId;
         }
       }
     } else {
@@ -1078,19 +1313,24 @@ export class BracketAdvancementService {
 
     if (!winnerId) return;
 
-    const currRoundMatches = allMatches.filter(m =>
-      (m.config as any)?.round === roundName &&
-      ((m.config as any)?.leg === undefined || (m.config as any)?.leg === 1)
+    const currRoundMatches = allMatches.filter(
+      (m) =>
+        (m.config as any)?.round === roundName &&
+        ((m.config as any)?.leg === undefined || (m.config as any)?.leg === 1),
     );
-    const matchIndex = currRoundMatches.findIndex(m =>
-      m.id === completedMatch.id ||
-      ((completedMatch.config as any)?.leg === 2 && m.homeTeamId === completedMatch.awayTeamId && m.awayTeamId === completedMatch.homeTeamId)
+    const matchIndex = currRoundMatches.findIndex(
+      (m) =>
+        m.id === completedMatch.id ||
+        ((completedMatch.config as any)?.leg === 2 &&
+          m.homeTeamId === completedMatch.awayTeamId &&
+          m.awayTeamId === completedMatch.homeTeamId),
     );
     if (matchIndex === -1) return;
 
-    const nextRoundMatches = allMatches.filter(m =>
-      (m.config as any)?.round === nextRoundName &&
-      ((m.config as any)?.leg === undefined || (m.config as any)?.leg === 1)
+    const nextRoundMatches = allMatches.filter(
+      (m) =>
+        (m.config as any)?.round === nextRoundName &&
+        ((m.config as any)?.leg === undefined || (m.config as any)?.leg === 1),
     );
 
     const nextMatchIndex = Math.floor(matchIndex / 2);
@@ -1106,11 +1346,13 @@ export class BracketAdvancementService {
     }
     await this.matchRepo.save(targetLeg1Match);
 
-    const twoLegged = (stage.config as any)?.twoLegged || (stage.config as any)?.legs === 2;
+    const twoLegged =
+      (stage.config as any)?.twoLegged || (stage.config as any)?.legs === 2;
     if (twoLegged) {
-      const nextRoundLeg2Matches = allMatches.filter(m =>
-        (m.config as any)?.round === nextRoundName &&
-        (m.config as any)?.leg === 2
+      const nextRoundLeg2Matches = allMatches.filter(
+        (m) =>
+          (m.config as any)?.round === nextRoundName &&
+          (m.config as any)?.leg === 2,
       );
       const targetLeg2MatchSec = nextRoundLeg2Matches[nextMatchIndex];
       if (targetLeg2MatchSec) {
@@ -1131,9 +1373,11 @@ export class BracketAdvancementService {
     }
 
     if (loserId && roundName.toLowerCase() === 'semi-final') {
-      const thirdPlaceMatches = allMatches.filter(m =>
-        (m.config as any)?.round === 'Third Place Match' &&
-        ((m.config as any)?.leg === undefined || (m.config as any)?.leg === 1)
+      const thirdPlaceMatches = allMatches.filter(
+        (m) =>
+          (m.config as any)?.round === 'Third Place Match' &&
+          ((m.config as any)?.leg === undefined ||
+            (m.config as any)?.leg === 1),
       );
       const targetThirdPlaceMatch = thirdPlaceMatches[0];
       if (targetThirdPlaceMatch) {
@@ -1145,9 +1389,10 @@ export class BracketAdvancementService {
         await this.matchRepo.save(targetThirdPlaceMatch);
 
         if (twoLegged) {
-          const thirdPlaceLeg2Matches = allMatches.filter(m =>
-            (m.config as any)?.round === 'Third Place Match' &&
-            (m.config as any)?.leg === 2
+          const thirdPlaceLeg2Matches = allMatches.filter(
+            (m) =>
+              (m.config as any)?.round === 'Third Place Match' &&
+              (m.config as any)?.leg === 2,
           );
           const targetThirdPlaceLeg2Match = thirdPlaceLeg2Matches[0];
           if (targetThirdPlaceLeg2Match) {
@@ -1165,24 +1410,34 @@ export class BracketAdvancementService {
     try {
       const comp = await this.competitionRepo.findOne({
         where: { id: stage.competitionId },
-        relations: { event: true }
+        relations: { event: true },
       });
       if (comp) {
         const workspaceId = comp.event?.workspaceId || null;
         if (winnerId) {
-          const winnerTeam = await this.teamRepo.findOne({ where: { id: winnerId } });
-          const winningPlayers = await this.workspacesService.getTeamPlayerUserIds(winnerId);
+          const winnerTeam = await this.teamRepo.findOne({
+            where: { id: winnerId },
+          });
+          const winningPlayers =
+            await this.workspacesService.getTeamPlayerUserIds(winnerId);
           await this.workspacesService.sendNotificationToMany(
             winningPlayers,
             NotificationType.TEAM_ADVANCED,
             `🎯 ${winnerTeam?.name ?? 'Your team'} has advanced to the ${nextRoundName} in ${comp.name}!`,
             workspaceId,
-            { competitionId: comp.id, competitionName: comp.name, nextRound: nextRoundName },
+            {
+              competitionId: comp.id,
+              competitionName: comp.name,
+              nextRound: nextRoundName,
+            },
           );
         }
         if (loserId) {
-          const loserTeam = await this.teamRepo.findOne({ where: { id: loserId } });
-          const losingPlayers = await this.workspacesService.getTeamPlayerUserIds(loserId);
+          const loserTeam = await this.teamRepo.findOne({
+            where: { id: loserId },
+          });
+          const losingPlayers =
+            await this.workspacesService.getTeamPlayerUserIds(loserId);
           await this.workspacesService.sendNotificationToMany(
             losingPlayers,
             NotificationType.TEAM_ELIMINATED,

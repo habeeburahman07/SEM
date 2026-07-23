@@ -43,7 +43,10 @@ export class RolesPermissionsService {
       .slice(0, 100);
   }
 
-  async findRoleBySlug(slug: string, workspaceId: string | null): Promise<Role> {
+  async findRoleBySlug(
+    slug: string,
+    workspaceId: string | null,
+  ): Promise<Role> {
     let role = null;
     if (workspaceId) {
       role = await this.roleRepo.findOne({ where: { slug, workspaceId } });
@@ -59,10 +62,7 @@ export class RolesPermissionsService {
 
   async getRoles(workspaceId: string): Promise<Role[]> {
     return this.roleRepo.find({
-      where: [
-        { isSystem: true },
-        { workspaceId },
-      ],
+      where: [{ isSystem: true }, { workspaceId }],
       relations: { permissions: true },
       order: { isSystem: 'DESC', name: 'ASC' },
     });
@@ -79,7 +79,9 @@ export class RolesPermissionsService {
       ],
     });
     if (existing) {
-      throw new ConflictException(`Role with name "${dto.name}" already exists`);
+      throw new ConflictException(
+        `Role with name "${dto.name}" already exists`,
+      );
     }
 
     const role = this.roleRepo.create({
@@ -93,7 +95,9 @@ export class RolesPermissionsService {
   }
 
   async removeRole(workspaceId: string, roleId: string): Promise<void> {
-    const role = await this.roleRepo.findOne({ where: { id: roleId, workspaceId } });
+    const role = await this.roleRepo.findOne({
+      where: { id: roleId, workspaceId },
+    });
     if (!role) {
       throw new NotFoundException('Role not found or is a system role');
     }
@@ -101,10 +105,13 @@ export class RolesPermissionsService {
     // Check if any member has this role assigned
     const assigned = await this.memberRepo.findOne({ where: { roleId } });
     if (assigned) {
-      throw new ForbiddenException('Cannot delete role as it is assigned to members');
+      throw new ForbiddenException(
+        'Cannot delete role as it is assigned to members',
+      );
     }
 
-    await this.roleRepo.remove(role);
+    role.deletedAt = new Date();
+    await this.roleRepo.save(role);
   }
 
   // ─── Global System Roles Management ────────────────────────────────────────
@@ -123,7 +130,9 @@ export class RolesPermissionsService {
       where: { slug, workspaceId: IsNull() },
     });
     if (existing) {
-      throw new ConflictException(`Global role with name "${dto.name}" already exists`);
+      throw new ConflictException(
+        `Global role with name "${dto.name}" already exists`,
+      );
     }
 
     const role = this.roleRepo.create({
@@ -137,7 +146,9 @@ export class RolesPermissionsService {
   }
 
   async updateGlobalRole(roleId: string, dto: UpdateRoleDto): Promise<Role> {
-    const role = await this.roleRepo.findOne({ where: { id: roleId, workspaceId: IsNull() } });
+    const role = await this.roleRepo.findOne({
+      where: { id: roleId, workspaceId: IsNull() },
+    });
     if (!role) {
       throw new NotFoundException('Global role not found');
     }
@@ -148,7 +159,9 @@ export class RolesPermissionsService {
         where: { slug, workspaceId: IsNull() },
       });
       if (existing && existing.id !== roleId) {
-        throw new ConflictException(`Global role with name "${dto.name}" already exists`);
+        throw new ConflictException(
+          `Global role with name "${dto.name}" already exists`,
+        );
       }
       role.name = dto.name;
       role.slug = slug;
@@ -162,7 +175,9 @@ export class RolesPermissionsService {
   }
 
   async removeGlobalRole(roleId: string): Promise<void> {
-    const role = await this.roleRepo.findOne({ where: { id: roleId, workspaceId: IsNull() } });
+    const role = await this.roleRepo.findOne({
+      where: { id: roleId, workspaceId: IsNull() },
+    });
     if (!role) {
       throw new NotFoundException('Global role not found');
     }
@@ -170,10 +185,13 @@ export class RolesPermissionsService {
     // Check if any member has this role assigned
     const assigned = await this.memberRepo.findOne({ where: { roleId } });
     if (assigned) {
-      throw new ForbiddenException('Cannot delete role as it is assigned to members');
+      throw new ForbiddenException(
+        'Cannot delete role as it is assigned to members',
+      );
     }
 
-    await this.roleRepo.remove(role);
+    role.deletedAt = new Date();
+    await this.roleRepo.save(role);
   }
 
   // ─── Global System Permissions Management ──────────────────────────────────
@@ -188,7 +206,9 @@ export class RolesPermissionsService {
     const slug = dto.slug.trim().toLowerCase().replace(/\s+/g, '.');
     const existing = await this.permissionRepo.findOne({ where: { slug } });
     if (existing) {
-      throw new ConflictException(`Permission with key/slug "${slug}" already exists`);
+      throw new ConflictException(
+        `Permission with key/slug "${slug}" already exists`,
+      );
     }
 
     const permission = this.permissionRepo.create({
@@ -200,8 +220,13 @@ export class RolesPermissionsService {
     return this.permissionRepo.save(permission);
   }
 
-  async updatePermission(permissionId: string, dto: UpdatePermissionDto): Promise<Permission> {
-    const permission = await this.permissionRepo.findOne({ where: { id: permissionId } });
+  async updatePermission(
+    permissionId: string,
+    dto: UpdatePermissionDto,
+  ): Promise<Permission> {
+    const permission = await this.permissionRepo.findOne({
+      where: { id: permissionId },
+    });
     if (!permission) {
       throw new NotFoundException('Permission not found');
     }
@@ -210,27 +235,36 @@ export class RolesPermissionsService {
       const slug = dto.slug.trim().toLowerCase().replace(/\s+/g, '.');
       const existing = await this.permissionRepo.findOne({ where: { slug } });
       if (existing && existing.id !== permissionId) {
-        throw new ConflictException(`Permission with key/slug "${slug}" already exists`);
+        throw new ConflictException(
+          `Permission with key/slug "${slug}" already exists`,
+        );
       }
       permission.slug = slug;
     }
 
     if (dto.name !== undefined) permission.name = dto.name;
-    if (dto.description !== undefined) permission.description = dto.description ?? null;
+    if (dto.description !== undefined)
+      permission.description = dto.description ?? null;
 
     return this.permissionRepo.save(permission);
   }
 
   async deletePermission(permissionId: string): Promise<void> {
-    const permission = await this.permissionRepo.findOne({ where: { id: permissionId } });
+    const permission = await this.permissionRepo.findOne({
+      where: { id: permissionId },
+    });
     if (!permission) {
       throw new NotFoundException('Permission not found');
     }
 
-    await this.permissionRepo.remove(permission);
+    permission.deletedAt = new Date();
+    await this.permissionRepo.save(permission);
   }
 
-  async updateRolePermissions(roleId: string, permissionIds: string[]): Promise<Role> {
+  async updateRolePermissions(
+    roleId: string,
+    permissionIds: string[],
+  ): Promise<Role> {
     const role = await this.roleRepo.findOne({
       where: { id: roleId },
       relations: { permissions: true },
@@ -243,7 +277,7 @@ export class RolesPermissionsService {
       role.permissions = [];
     } else {
       const permissions = await this.permissionRepo.find({
-        where: permissionIds.map(id => ({ id })),
+        where: permissionIds.map((id) => ({ id })),
       });
       role.permissions = permissions;
     }
@@ -259,9 +293,13 @@ export class RolesPermissionsService {
 
   async createSport(dto: CreateSportDto): Promise<Sport> {
     const code = dto.code.trim().toLowerCase().replace(/\s+/g, '_');
-    const existingName = await this.sportRepo.findOne({ where: { name: dto.name } });
+    const existingName = await this.sportRepo.findOne({
+      where: { name: dto.name },
+    });
     if (existingName) {
-      throw new ConflictException(`Sport with name "${dto.name}" already exists`);
+      throw new ConflictException(
+        `Sport with name "${dto.name}" already exists`,
+      );
     }
 
     const existingCode = await this.sportRepo.findOne({ where: { code } });
@@ -285,9 +323,13 @@ export class RolesPermissionsService {
     }
 
     if (dto.name && dto.name !== sport.name) {
-      const existingName = await this.sportRepo.findOne({ where: { name: dto.name } });
+      const existingName = await this.sportRepo.findOne({
+        where: { name: dto.name },
+      });
       if (existingName && existingName.id !== sportId) {
-        throw new ConflictException(`Sport with name "${dto.name}" already exists`);
+        throw new ConflictException(
+          `Sport with name "${dto.name}" already exists`,
+        );
       }
       sport.name = dto.name;
     }
@@ -315,11 +357,16 @@ export class RolesPermissionsService {
     }
 
     // Check if sport is used in any competition
-    const competition = await this.competitionRepo.findOne({ where: { sportId } });
+    const competition = await this.competitionRepo.findOne({
+      where: { sportId },
+    });
     if (competition) {
-      throw new ForbiddenException('Cannot delete sport as it is associated with existing competitions');
+      throw new ForbiddenException(
+        'Cannot delete sport as it is associated with existing competitions',
+      );
     }
 
-    await this.sportRepo.remove(sport);
+    sport.deletedAt = new Date();
+    await this.sportRepo.save(sport);
   }
 }

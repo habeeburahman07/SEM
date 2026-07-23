@@ -14,9 +14,9 @@ import { AuditableEntity } from '../../common/auditable.entity';
 
 @Entity('players')
 @Unique(['teamId', 'userId'])
-@Index('idx_players_workspace_id', ['workspaceId'])      // FK: all players in a workspace
-@Index('idx_players_team_id', ['teamId'])                // FK: all players in a team
-@Index('idx_players_user_id', ['userId'])                // FK: player profile for a user
+@Index('idx_players_workspace_id', ['workspaceId']) // FK: all players in a workspace
+@Index('idx_players_team_id', ['teamId']) // FK: all players in a team
+@Index('idx_players_user_id', ['userId']) // FK: player profile for a user
 export class Player extends AuditableEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -28,7 +28,12 @@ export class Player extends AuditableEntity {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column({ name: 'jersey_number', type: 'varchar', length: 20, nullable: true })
+  @Column({
+    name: 'jersey_number',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+  })
   jerseyNumber: string | null;
 
   @Column({ name: 'workspace_id', type: 'uuid' })

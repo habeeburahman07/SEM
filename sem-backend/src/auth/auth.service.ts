@@ -54,7 +54,10 @@ export class AuthService {
     };
 
     const accessToken = await this.jwtService.signAsync(payload, {
-      secret: this.configService.get<string>('JWT_SECRET', 'super-secret-key-12345'),
+      secret: this.configService.get<string>(
+        'JWT_SECRET',
+        'super-secret-key-12345',
+      ),
       expiresIn: this.configService.get<string>('JWT_EXPIRATION', '15m') as any,
     });
 
@@ -156,7 +159,10 @@ export class AuthService {
 
   async logout(rawRefreshToken: string): Promise<void> {
     const hash = this.hashToken(rawRefreshToken);
-    await this.refreshTokenRepo.update({ tokenHash: hash }, { isRevoked: true });
+    await this.refreshTokenRepo.update(
+      { tokenHash: hash },
+      { isRevoked: true },
+    );
   }
 
   async logoutAll(userId: string): Promise<void> {

@@ -13,9 +13,9 @@ import { CompetitionStage } from './competition-stage.entity';
 import { AuditableEntity } from '../../common/auditable.entity';
 
 @Entity('competitions')
-@Index('idx_competitions_event_id', ['eventId'])                          // FK: all competitions for an event
-@Index('idx_competitions_sport_id', ['sportId'])                          // FK: competitions by sport
-@Index('idx_competitions_event_status', ['eventId', 'status'])            // Composite: filter competitions by status within event
+@Index('idx_competitions_event_id', ['eventId']) // FK: all competitions for an event
+@Index('idx_competitions_sport_id', ['sportId']) // FK: competitions by sport
+@Index('idx_competitions_event_status', ['eventId', 'status']) // Composite: filter competitions by status within event
 export class Competition extends AuditableEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -41,8 +41,14 @@ export class Competition extends AuditableEntity {
   status: string; // 'upcoming' | 'ongoing' | 'completed' | 'cancelled'
 
   @Column({ name: 'points_config', type: 'jsonb', nullable: true })
-  pointsConfig: Array<{ position: number; label: string; points: number }> | null;
+  pointsConfig: Array<{
+    position: number;
+    label: string;
+    points: number;
+  }> | null;
 
-  @OneToMany(() => CompetitionStage, (stage) => stage.competition, { cascade: true })
+  @OneToMany(() => CompetitionStage, (stage) => stage.competition, {
+    cascade: true,
+  })
   stages: CompetitionStage[];
 }

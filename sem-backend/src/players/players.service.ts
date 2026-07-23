@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Player } from '../workspaces/entities/player.entity';
@@ -39,9 +43,19 @@ export class PlayersService {
     });
   }
 
-  async createPlayer(workspaceId: string, dto: CreatePlayerDto, userId: string): Promise<Player> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'player.manage');
-    const team = await this.teamRepo.findOne({ where: { id: dto.teamId, workspaceId } });
+  async createPlayer(
+    workspaceId: string,
+    dto: CreatePlayerDto,
+    userId: string,
+  ): Promise<Player> {
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'player.manage',
+    );
+    const team = await this.teamRepo.findOne({
+      where: { id: dto.teamId, workspaceId },
+    });
     if (!team) {
       throw new NotFoundException('Team not found in this workspace');
     }
@@ -51,9 +65,13 @@ export class PlayersService {
       throw new NotFoundException('User not found');
     }
 
-    const existing = await this.playerRepo.findOne({ where: { teamId: dto.teamId, userId: dto.userId } });
+    const existing = await this.playerRepo.findOne({
+      where: { teamId: dto.teamId, userId: dto.userId },
+    });
     if (existing) {
-      throw new ConflictException('This user is already registered as a player in this team');
+      throw new ConflictException(
+        'This user is already registered as a player in this team',
+      );
     }
 
     const player = this.playerRepo.create({
@@ -67,7 +85,9 @@ export class PlayersService {
     saved.user = user;
 
     // Notify the player
-    const jerseyText = dto.jerseyNumber ? ` with jersey #${dto.jerseyNumber}` : '';
+    const jerseyText = dto.jerseyNumber
+      ? ` with jersey #${dto.jerseyNumber}`
+      : '';
     await this.workspacesService.sendNotification(
       dto.userId,
       NotificationType.PLAYER_ADDED_TO_TEAM,
@@ -85,8 +105,15 @@ export class PlayersService {
     dto: UpdatePlayerDto,
     userId: string,
   ): Promise<Player> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'player.manage');
-    const player = await this.playerRepo.findOne({ where: { id: playerId, workspaceId }, relations: { team: true, user: true } });
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'player.manage',
+    );
+    const player = await this.playerRepo.findOne({
+      where: { id: playerId, workspaceId },
+      relations: { team: true, user: true },
+    });
     if (!player) {
       throw new NotFoundException('Player not found in this workspace');
     }
@@ -95,14 +122,20 @@ export class PlayersService {
     const isTransfer = dto.teamId !== undefined && dto.teamId !== player.teamId;
 
     if (dto.teamId !== undefined) {
-      const team = await this.teamRepo.findOne({ where: { id: dto.teamId, workspaceId } });
+      const team = await this.teamRepo.findOne({
+        where: { id: dto.teamId, workspaceId },
+      });
       if (!team) {
         throw new NotFoundException('Team not found in this workspace');
       }
 
-      const existing = await this.playerRepo.findOne({ where: { teamId: dto.teamId, userId: player.userId } });
+      const existing = await this.playerRepo.findOne({
+        where: { teamId: dto.teamId, userId: player.userId },
+      });
       if (existing && existing.id !== player.id) {
-        throw new ConflictException('This user is already registered as a player in the target team');
+        throw new ConflictException(
+          'This user is already registered as a player in the target team',
+        );
       }
 
       player.teamId = dto.teamId;
@@ -128,9 +161,19 @@ export class PlayersService {
     return saved;
   }
 
-  async removePlayer(workspaceId: string, playerId: string, userId: string): Promise<void> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'player.manage');
-    const player = await this.playerRepo.findOne({ where: { id: playerId, workspaceId } });
+  async removePlayer(
+    workspaceId: string,
+    playerId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'player.manage',
+    );
+    const player = await this.playerRepo.findOne({
+      where: { id: playerId, workspaceId },
+    });
     if (!player) {
       throw new NotFoundException('Player not found in this workspace');
     }
@@ -145,7 +188,8 @@ export class PlayersService {
       { teamName: team?.name },
     );
 
-    await this.playerRepo.remove(player);
+    player.deletedAt = new Date();
+    await this.playerRepo.save(player);
   }
 
   async getPlayerStats(workspaceId: string, playerId: string, userId: string) {
@@ -153,7 +197,7 @@ export class PlayersService {
 
     const player = await this.playerRepo.findOne({
       where: { id: playerId, workspaceId },
-      relations: { user: true, team: true }
+      relations: { user: true, team: true },
     });
     if (!player) {
       throw new NotFoundException('Player not found');
@@ -164,12 +208,12 @@ export class PlayersService {
       where: { teamId: player.teamId },
       relations: {
         competition: {
-          sport: true
-        }
-      }
+          sport: true,
+        },
+      },
     });
 
-    const competitionIds = compTeams.map(ct => ct.competitionId);
+    const competitionIds = compTeams.map((ct) => ct.competitionId);
 
     // 2. Fetch all completed match-player entries for this player
     const completedMatchPlayers = await this.matchPlayerRepo.find({
@@ -178,20 +222,20 @@ export class PlayersService {
         match: {
           stage: {
             competition: {
-              sport: true
-            }
-          }
-        }
-      }
+              sport: true,
+            },
+          },
+        },
+      },
     });
 
-    const matchIds = completedMatchPlayers.map(mp => mp.matchId);
+    const matchIds = completedMatchPlayers.map((mp) => mp.matchId);
 
     // 3. Find the maximum rating in each match to see if player was MVP
     const maxRatings = new Map<string, number>();
     if (matchIds.length > 0) {
       const allMatchPlayersInMatches = await this.matchPlayerRepo.find({
-        where: { matchId: In(matchIds), isPlaying: true }
+        where: { matchId: In(matchIds), isPlaying: true },
       });
       for (const amp of allMatchPlayersInMatches) {
         if (amp.rating !== null) {
@@ -204,7 +248,7 @@ export class PlayersService {
       }
     }
 
-    let allTimeGames = completedMatchPlayers.length;
+    const allTimeGames = completedMatchPlayers.length;
     let allTimeGoals = 0;
     let allTimeAssists = 0;
     let allTimeRuns = 0;
@@ -235,11 +279,23 @@ export class PlayersService {
       if (sport === 'football') {
         const events = liveData.events || [];
         for (const ev of events) {
-          if (ev.type === 'goal' && ev.goalType !== 'own_goal' && (ev.playerUserId === player.userId || ev.playerId === player.id)) {
+          if (
+            ev.type === 'goal' &&
+            ev.goalType !== 'own_goal' &&
+            (ev.playerUserId === player.userId || ev.playerId === player.id)
+          ) {
             allTimeGoals++;
           }
-          const isSelfAssist = (ev.assistPlayerUserId === player.userId) || (ev.assistPlayerId === player.id);
-          if (ev.type === 'goal' && ev.goalType !== 'own_goal' && isSelfAssist && (ev.playerUserId !== player.userId && ev.playerId !== player.id)) {
+          const isSelfAssist =
+            ev.assistPlayerUserId === player.userId ||
+            ev.assistPlayerId === player.id;
+          if (
+            ev.type === 'goal' &&
+            ev.goalType !== 'own_goal' &&
+            isSelfAssist &&
+            ev.playerUserId !== player.userId &&
+            ev.playerId !== player.id
+          ) {
             allTimeAssists++;
           } else if (ev.type === 'assist' && isSelfAssist) {
             allTimeAssists++;
@@ -275,13 +331,18 @@ export class PlayersService {
       }
     }
 
-    const allTimeAvgRating = ratedGamesCount > 0 ? Math.round((totalRatingSum / ratedGamesCount) * 100) / 100 : 0;
+    const allTimeAvgRating =
+      ratedGamesCount > 0
+        ? Math.round((totalRatingSum / ratedGamesCount) * 100) / 100
+        : 0;
 
     // Statistics by Competition
     const competitionsStatsList: any[] = [];
     for (const ct of compTeams) {
       const comp = ct.competition;
-      const compMatchPlayers = completedMatchPlayers.filter(cmp => cmp.match?.stage?.competitionId === comp.id);
+      const compMatchPlayers = completedMatchPlayers.filter(
+        (cmp) => cmp.match?.stage?.competitionId === comp.id,
+      );
 
       let compGoals = 0;
       let compAssists = 0;
@@ -310,11 +371,23 @@ export class PlayersService {
         if (comp.sport?.code === 'football') {
           const events = liveData.events || [];
           for (const ev of events) {
-            if (ev.type === 'goal' && ev.goalType !== 'own_goal' && (ev.playerUserId === player.userId || ev.playerId === player.id)) {
+            if (
+              ev.type === 'goal' &&
+              ev.goalType !== 'own_goal' &&
+              (ev.playerUserId === player.userId || ev.playerId === player.id)
+            ) {
               compGoals++;
             }
-            const isSelfAssist = (ev.assistPlayerUserId === player.userId) || (ev.assistPlayerId === player.id);
-            if (ev.type === 'goal' && ev.goalType !== 'own_goal' && isSelfAssist && (ev.playerUserId !== player.userId && ev.playerId !== player.id)) {
+            const isSelfAssist =
+              ev.assistPlayerUserId === player.userId ||
+              ev.assistPlayerId === player.id;
+            if (
+              ev.type === 'goal' &&
+              ev.goalType !== 'own_goal' &&
+              isSelfAssist &&
+              ev.playerUserId !== player.userId &&
+              ev.playerId !== player.id
+            ) {
               compAssists++;
             } else if (ev.type === 'assist' && isSelfAssist) {
               compAssists++;
@@ -362,7 +435,10 @@ export class PlayersService {
         ralliesWon: compRalliesWon,
         ralliesLost: compRalliesLost,
         mvps: compMvps,
-        avgRating: compRatedCount > 0 ? Math.round((compRatingSum / compRatedCount) * 100) / 100 : 0
+        avgRating:
+          compRatedCount > 0
+            ? Math.round((compRatingSum / compRatedCount) * 100) / 100
+            : 0,
       });
     }
 
@@ -375,13 +451,13 @@ export class PlayersService {
           name: player.team?.name,
           logoUrl: player.team?.logoUrl,
           primaryColor: player.team?.primaryColor,
-          secondaryColor: player.team?.secondaryColor
+          secondaryColor: player.team?.secondaryColor,
         },
         user: {
           id: player.user?.id,
           username: player.user?.username,
-          avatarUrl: player.user?.avatarUrl
-        }
+          avatarUrl: player.user?.avatarUrl,
+        },
       },
       allTime: {
         participations: competitionIds.length,
@@ -393,9 +469,9 @@ export class PlayersService {
         ralliesWon: allTimeRalliesWon,
         ralliesLost: allTimeRalliesLost,
         mvps: allTimeMvps,
-        avgRating: allTimeAvgRating
+        avgRating: allTimeAvgRating,
       },
-      competitions: competitionsStatsList
+      competitions: competitionsStatsList,
     };
   }
 }

@@ -18,10 +18,16 @@ async function bootstrap() {
   const redisHost = process.env.REDIS_HOST;
   if (redisHost) {
     const { RedisIoAdapter } = require('./common/redis-io.adapter');
-    const redisPort = process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT, 10) : 6379;
+    const redisPort = process.env.REDIS_PORT
+      ? parseInt(process.env.REDIS_PORT, 10)
+      : 6379;
     const redisPassword = process.env.REDIS_PASSWORD;
     const redisIoAdapter = new RedisIoAdapter(app);
-    const connected = await redisIoAdapter.connectToRedis(redisHost, redisPort, redisPassword);
+    const connected = await redisIoAdapter.connectToRedis(
+      redisHost,
+      redisPort,
+      redisPassword,
+    );
     if (connected) {
       app.useWebSocketAdapter(redisIoAdapter);
     }
@@ -61,15 +67,15 @@ async function bootstrap() {
       .setTitle('SEM — Sports Event Manager API')
       .setDescription(
         '## Sports Event Manager\n\n' +
-        'Full-stack platform for managing sports events, workspaces, competitions, teams, and players.\n\n' +
-        '### Authentication\n' +
-        'Most endpoints require a **Bearer JWT** access token. Obtain one via `POST /api/auth/login`.\n\n' +
-        '### Role hierarchy\n' +
-        '- **Super-admin** — platform-wide admin (controls reliability, backups, logs)\n' +
-        '- **Workspace Owner / Administrator / Moderator** — workspace-scoped roles\n\n' +
-        '### Reliability endpoints\n' +
-        'Health, metrics, logs, backups and circuit breakers are grouped under the ' +
-        '`Health & Monitoring`, `Admin — Logs`, `Admin — Backups`, and `Admin — Recovery` tags.',
+          'Full-stack platform for managing sports events, workspaces, competitions, teams, and players.\n\n' +
+          '### Authentication\n' +
+          'Most endpoints require a **Bearer JWT** access token. Obtain one via `POST /api/auth/login`.\n\n' +
+          '### Role hierarchy\n' +
+          '- **Super-admin** — platform-wide admin (controls reliability, backups, logs)\n' +
+          '- **Workspace Owner / Administrator / Moderator** — workspace-scoped roles\n\n' +
+          '### Reliability endpoints\n' +
+          'Health, metrics, logs, backups and circuit breakers are grouped under the ' +
+          '`Health & Monitoring`, `Admin — Logs`, `Admin — Backups`, and `Admin — Recovery` tags.',
       )
       .setVersion('1.0')
       .setContact('SEM Team', '', '')
@@ -79,7 +85,8 @@ async function bootstrap() {
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'JWT',
-          description: 'Paste your access token here (obtained from POST /api/auth/login)',
+          description:
+            'Paste your access token here (obtained from POST /api/auth/login)',
         },
         'bearer',
       )
@@ -92,20 +99,29 @@ async function bootstrap() {
       .addTag('events', 'Events within workspaces')
       .addTag('venues', 'Venue management')
       .addTag('upload', 'File and image upload')
-      .addTag('Health & Monitoring', 'Liveness probes, readiness checks, and system metrics')
+      .addTag(
+        'Health & Monitoring',
+        'Liveness probes, readiness checks, and system metrics',
+      )
       .addTag('Admin — Logs', 'Structured error log access (Super-admin only)')
-      .addTag('Admin — Backups', 'Database backup management (Super-admin only)')
-      .addTag('Admin — Recovery', 'Circuit breaker management (Super-admin only)')
+      .addTag(
+        'Admin — Backups',
+        'Database backup management (Super-admin only)',
+      )
+      .addTag(
+        'Admin — Recovery',
+        'Circuit breaker management (Super-admin only)',
+      )
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document, {
       swaggerOptions: {
-        persistAuthorization: true,     // keep token across page refreshes
-        displayRequestDuration: true,   // show ms per request
-        docExpansion: 'none',           // collapse all sections by default
-        filter: true,                   // enable search box
-        tryItOutEnabled: true,          // open "Try it out" by default
+        persistAuthorization: true, // keep token across page refreshes
+        displayRequestDuration: true, // show ms per request
+        docExpansion: 'none', // collapse all sections by default
+        filter: true, // enable search box
+        tryItOutEnabled: true, // open "Try it out" by default
       },
       customSiteTitle: 'SEM API Docs',
     });
@@ -113,7 +129,9 @@ async function bootstrap() {
 
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}/api`);
-  console.log(`Health check:              http://localhost:${port}/api/health/live`);
+  console.log(
+    `Health check:              http://localhost:${port}/api/health/live`,
+  );
   if (process.env.NODE_ENV !== 'production') {
     console.log(`Swagger documentation:     http://localhost:${port}/api/docs`);
   }

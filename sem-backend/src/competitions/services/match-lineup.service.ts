@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Team } from '../../workspaces/entities/team.entity';
@@ -43,7 +47,11 @@ export class MatchLineupService {
     dto: CreateMatchDto,
     userId: string,
   ): Promise<Match> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'competition.manage');
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'competition.manage',
+    );
 
     const comp = await this.competitionRepo.findOne({
       where: { id: competitionId },
@@ -56,7 +64,11 @@ export class MatchLineupService {
     const sportCode = comp.sport?.code ?? 'football';
     const engine = this.sportEngineRegistry.getEngine(sportCode);
     const config = engine.getDefaultConfig(dto.config);
-    const liveData = engine.getInitialLiveData(dto.homeTeamId, dto.awayTeamId, config);
+    const liveData = engine.getInitialLiveData(
+      dto.homeTeamId,
+      dto.awayTeamId,
+      config,
+    );
 
     const match = this.matchRepo.create({
       stageId,
@@ -77,15 +89,25 @@ export class MatchLineupService {
     }))!;
 
     if (populated.homeTeamId && populated.awayTeamId) {
-      const homePlayers = await this.workspacesService.getTeamPlayerUserIds(populated.homeTeamId);
-      const awayPlayers = await this.workspacesService.getTeamPlayerUserIds(populated.awayTeamId);
+      const homePlayers = await this.workspacesService.getTeamPlayerUserIds(
+        populated.homeTeamId,
+      );
+      const awayPlayers = await this.workspacesService.getTeamPlayerUserIds(
+        populated.awayTeamId,
+      );
       const allPlayers = [...homePlayers, ...awayPlayers];
       await this.workspacesService.sendNotificationToMany(
         allPlayers,
         NotificationType.MATCH_SCHEDULED,
         `New match scheduled: ${populated.homeTeam?.name ?? 'Home'} vs ${populated.awayTeam?.name ?? 'Away'} in ${comp.name}.`,
         workspaceId,
-        { matchId: populated.id, competitionId, competitionName: comp.name, homeTeamName: populated.homeTeam?.name, awayTeamName: populated.awayTeam?.name },
+        {
+          matchId: populated.id,
+          competitionId,
+          competitionName: comp.name,
+          homeTeamName: populated.homeTeam?.name,
+          awayTeamName: populated.awayTeam?.name,
+        },
       );
     }
 
@@ -100,12 +122,19 @@ export class MatchLineupService {
     matchId: string,
     userId: string,
   ): Promise<void> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'competition.manage');
-    const match = await this.matchRepo.findOne({ where: { id: matchId, stageId } });
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'competition.manage',
+    );
+    const match = await this.matchRepo.findOne({
+      where: { id: matchId, stageId },
+    });
     if (!match) {
       throw new NotFoundException(`Match "${matchId}" not found in stage`);
     }
-    await this.matchRepo.remove(match);
+    match.deletedAt = new Date();
+    await this.matchRepo.save(match);
   }
 
   async getMatchLineup(
@@ -142,11 +171,25 @@ export class MatchLineupService {
     competitionId: string,
     stageId: string,
     matchId: string,
-    lineups: { playerId: string; isPlaying: boolean; teamId: string; isGoalkeeper?: boolean }[],
+    lineups: {
+      playerId: string;
+      isPlaying: boolean;
+      teamId: string;
+      isGoalkeeper?: boolean;
+    }[],
     userId: string,
   ): Promise<MatchPlayer[]> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'match.score');
-    await this.validateStageContext(workspaceId, eventId, competitionId, stageId);
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'match.score',
+    );
+    await this.validateStageContext(
+      workspaceId,
+      eventId,
+      competitionId,
+      stageId,
+    );
 
     const match = await this.matchRepo.findOne({
       where: { id: matchId, stageId },
@@ -164,7 +207,9 @@ export class MatchLineupService {
         where: { id: In(teamIds), workspaceId },
       });
       if (teamsCount !== teamIds.length) {
-        throw new ForbiddenException('One or more teams do not belong to this workspace');
+        throw new ForbiddenException(
+          'One or more teams do not belong to this workspace',
+        );
       }
     }
 
@@ -173,7 +218,9 @@ export class MatchLineupService {
         where: { id: In(playerIds), workspaceId },
       });
       if (playersCount !== playerIds.length) {
-        throw new ForbiddenException('One or more players do not belong to this workspace');
+        throw new ForbiddenException(
+          'One or more players do not belong to this workspace',
+        );
       }
     }
 
@@ -217,7 +264,8 @@ export class MatchLineupService {
       }
     }
     if (toDelete.length > 0) {
-      await this.matchPlayerRepo.remove(toDelete);
+      toDelete.forEach((mp) => (mp.deletedAt = new Date()));
+      await this.matchPlayerRepo.save(toDelete);
     }
 
     const result = await this.matchPlayerRepo.find({
@@ -232,9 +280,9 @@ export class MatchLineupService {
 
     const matchDetails = await this.matchRepo.findOne({
       where: { id: matchId },
-      relations: { homeTeam: true, awayTeam: true }
+      relations: { homeTeam: true, awayTeam: true },
     });
-    const selectedPlayers = result.filter(mp => mp.isPlaying);
+    const selectedPlayers = result.filter((mp) => mp.isPlaying);
     for (const sp of selectedPlayers) {
       if (sp.player?.userId) {
         await this.workspacesService.sendNotification(
@@ -242,7 +290,11 @@ export class MatchLineupService {
           NotificationType.MATCH_LINEUP_SET,
           `You've been selected in the lineup for ${matchDetails?.homeTeam?.name ?? 'Home'} vs ${matchDetails?.awayTeam?.name ?? 'Away'}.`,
           workspaceId,
-          { matchId, homeTeamName: matchDetails?.homeTeam?.name, awayTeamName: matchDetails?.awayTeam?.name }
+          {
+            matchId,
+            homeTeamName: matchDetails?.homeTeam?.name,
+            awayTeamName: matchDetails?.awayTeam?.name,
+          },
         );
       }
     }
@@ -256,20 +308,30 @@ export class MatchLineupService {
     competitionId: string,
     stageId: string,
   ): Promise<CompetitionStage> {
-    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    const event = await this.eventRepo.findOne({
+      where: { id: eventId, workspaceId },
+    });
     if (!event) {
-      throw new NotFoundException(`Event "${eventId}" not found in this workspace`);
+      throw new NotFoundException(
+        `Event "${eventId}" not found in this workspace`,
+      );
     }
     const competition = await this.competitionRepo.findOne({
       where: { id: competitionId, eventId },
       relations: { sport: true },
     });
     if (!competition) {
-      throw new NotFoundException(`Competition "${competitionId}" not found in this event`);
+      throw new NotFoundException(
+        `Competition "${competitionId}" not found in this event`,
+      );
     }
-    const stage = await this.stageRepo.findOne({ where: { id: stageId, competitionId } });
+    const stage = await this.stageRepo.findOne({
+      where: { id: stageId, competitionId },
+    });
     if (!stage) {
-      throw new NotFoundException(`Stage "${stageId}" not found in this competition`);
+      throw new NotFoundException(
+        `Stage "${stageId}" not found in this competition`,
+      );
     }
     return stage;
   }
@@ -282,18 +344,25 @@ export class MatchLineupService {
     userId: string,
   ): Promise<Match[]> {
     await this.workspacesService.ensureMember(workspaceId, userId);
-    const stage = await this.validateStageContext(workspaceId, eventId, competitionId, stageId);
+    const stage = await this.validateStageContext(
+      workspaceId,
+      eventId,
+      competitionId,
+      stageId,
+    );
 
     try {
       if (stage.type === 'knockout') {
         const stages = await this.stageRepo.find({
           where: { competitionId },
-          order: { sequence: 'ASC', createdAt: 'ASC' }
+          order: { sequence: 'ASC', createdAt: 'ASC' },
         });
-        const idx = stages.findIndex(s => s.id === stageId);
+        const idx = stages.findIndex((s) => s.id === stageId);
         if (idx > 0) {
           const prevStage = stages[idx - 1];
-          await this.bracketAdvancementService.advanceTeamsBetweenStages(prevStage);
+          await this.bracketAdvancementService.advanceTeamsBetweenStages(
+            prevStage,
+          );
         }
       } else if (stage.type === 'group_knockout') {
         await this.bracketAdvancementService.advanceGroupStageWinners(stage);
@@ -308,9 +377,9 @@ export class MatchLineupService {
       order: { createdAt: 'ASC' },
     });
 
-    const completedMatches = matches.filter(m => m.status === 'completed');
+    const completedMatches = matches.filter((m) => m.status === 'completed');
     if (completedMatches.length > 0) {
-      const matchIds = completedMatches.map(m => m.id);
+      const matchIds = completedMatches.map((m) => m.id);
       const matchPlayers = await this.matchPlayerRepo.find({
         where: { matchId: In(matchIds), isPlaying: true },
         relations: { player: { user: true }, team: true },
@@ -339,7 +408,10 @@ export class MatchLineupService {
           }
         }
         if (mvpMp && maxRating >= 5.0) {
-          const playerName = mvpMp.player?.user?.username ?? mvpMp.player?.jerseyNumber?.toString() ?? 'Player';
+          const playerName =
+            mvpMp.player?.user?.username ??
+            mvpMp.player?.jerseyNumber?.toString() ??
+            'Player';
           (m as any).mvp = {
             playerId: mvpMp.playerId,
             playerName,
@@ -351,9 +423,9 @@ export class MatchLineupService {
     }
 
     const statusWeight = {
-      'live': 1,
-      'scheduled': 2,
-      'completed': 3,
+      live: 1,
+      scheduled: 2,
+      completed: 3,
     };
 
     return matches.sort((a, b) => {
@@ -375,8 +447,17 @@ export class MatchLineupService {
     dto: UpdateMatchDto,
     userId: string,
   ): Promise<Match> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'match.score');
-    const stage = await this.validateStageContext(workspaceId, eventId, competitionId, stageId);
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'match.score',
+    );
+    const stage = await this.validateStageContext(
+      workspaceId,
+      eventId,
+      competitionId,
+      stageId,
+    );
 
     const match = await this.matchRepo.findOne({
       where: { id: matchId, stageId },
@@ -407,8 +488,12 @@ export class MatchLineupService {
     }))!;
 
     if (dto.status !== undefined && dto.status !== oldStatus) {
-      const homePlayers = await this.workspacesService.getTeamPlayerUserIds(populated.homeTeamId!);
-      const awayPlayers = await this.workspacesService.getTeamPlayerUserIds(populated.awayTeamId!);
+      const homePlayers = await this.workspacesService.getTeamPlayerUserIds(
+        populated.homeTeamId!,
+      );
+      const awayPlayers = await this.workspacesService.getTeamPlayerUserIds(
+        populated.awayTeamId!,
+      );
       const allPlayers = [...homePlayers, ...awayPlayers];
 
       if (dto.status === 'live') {
@@ -417,7 +502,11 @@ export class MatchLineupService {
           NotificationType.MATCH_STARTED,
           `Match has started: ${populated.homeTeam?.name ?? 'Home'} vs ${populated.awayTeam?.name ?? 'Away'}.`,
           workspaceId,
-          { matchId: populated.id, homeTeamName: populated.homeTeam?.name, awayTeamName: populated.awayTeam?.name },
+          {
+            matchId: populated.id,
+            homeTeamName: populated.homeTeam?.name,
+            awayTeamName: populated.awayTeam?.name,
+          },
         );
       } else if (dto.status === 'completed') {
         await this.workspacesService.sendNotificationToMany(
@@ -425,18 +514,29 @@ export class MatchLineupService {
           NotificationType.MATCH_COMPLETED,
           `Match completed: ${populated.homeTeam?.name ?? 'Home'} (${populated.homeScore}) vs ${populated.awayTeam?.name ?? 'Away'} (${populated.awayScore}).`,
           workspaceId,
-          { matchId: populated.id, homeScore: populated.homeScore, awayScore: populated.awayScore, homeTeamName: populated.homeTeam?.name, awayTeamName: populated.awayTeam?.name },
+          {
+            matchId: populated.id,
+            homeScore: populated.homeScore,
+            awayScore: populated.awayScore,
+            homeTeamName: populated.homeTeam?.name,
+            awayTeamName: populated.awayTeam?.name,
+          },
         );
 
         await this.statisticsRatingsService.autoRateMatchPlayers(saved);
 
         if (stage.type === 'knockout') {
-          await this.bracketAdvancementService.advanceKnockoutWinner(saved, stage);
+          await this.bracketAdvancementService.advanceKnockoutWinner(
+            saved,
+            stage,
+          );
         } else if (stage.type === 'group_knockout') {
           await this.bracketAdvancementService.advanceGroupStageWinners(stage);
         }
 
-        await this.bracketAdvancementService.checkAndAutoCompleteCompetition(competitionId);
+        await this.bracketAdvancementService.checkAndAutoCompleteCompetition(
+          competitionId,
+        );
       }
     }
 

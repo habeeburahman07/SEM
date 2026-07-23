@@ -33,7 +33,9 @@ class BackupLogResponse {
   @ApiProperty({ example: 'sem_daily_2026-07-23T02-00-00-000Z.sql.gz' })
   filename: string;
 
-  @ApiProperty({ example: '/app/backups/sem_daily_2026-07-23T02-00-00-000Z.sql.gz' })
+  @ApiProperty({
+    example: '/app/backups/sem_daily_2026-07-23T02-00-00-000Z.sql.gz',
+  })
   filePath: string;
 
   @ApiProperty({ enum: BackupStatus, example: BackupStatus.SUCCESS })
@@ -136,7 +138,8 @@ export class BackupAdminController {
   })
   @ApiResponse({
     status: 201,
-    description: 'Backup initiated — returns the log record with status `running`',
+    description:
+      'Backup initiated — returns the log record with status `running`',
     type: TriggerBackupResponse,
   })
   @ApiResponse({ status: 401, description: 'Missing or invalid JWT' })

@@ -9,7 +9,11 @@ export class FootballEngine implements SportEngine {
     return config;
   }
 
-  getInitialLiveData(homeTeamId: string, awayTeamId: string, config?: Record<string, any>): Record<string, any> {
+  getInitialLiveData(
+    homeTeamId: string,
+    awayTeamId: string,
+    config?: Record<string, any>,
+  ): Record<string, any> {
     return {
       elapsedSeconds: 0,
       timerRunning: false,
@@ -23,7 +27,7 @@ export class FootballEngine implements SportEngine {
     winnerTeamId: string | null,
     loserTeamId: string | null,
   ): any[] {
-    const liveData = match.liveData as any;
+    const liveData = match.liveData;
     if (!liveData || !Array.isArray(liveData.events)) return [];
 
     const playingStarters = matchPlayers.filter((mp) => mp.isPlaying);
@@ -38,7 +42,13 @@ export class FootballEngine implements SportEngine {
     };
     const tallies = new Map<string, PlayerTally>();
     for (const mp of playingStarters) {
-      tallies.set(mp.playerId, { goals: 0, assists: 0, ownGoals: 0, yellowCards: 0, redCards: 0 });
+      tallies.set(mp.playerId, {
+        goals: 0,
+        assists: 0,
+        ownGoals: 0,
+        yellowCards: 0,
+        redCards: 0,
+      });
     }
 
     for (const event of liveData.events as any[]) {
@@ -48,11 +58,15 @@ export class FootballEngine implements SportEngine {
       if (event.playerId) {
         scorerPlayerId = event.playerId;
       } else if (event.playerUserId) {
-        scorerPlayerId = matchPlayers.find((mp) => mp.player?.userId === event.playerUserId)?.playerId;
+        scorerPlayerId = matchPlayers.find(
+          (mp) => mp.player?.userId === event.playerUserId,
+        )?.playerId;
       }
 
       if (event.assistPlayerUserId) {
-        assistPlayerId = matchPlayers.find((mp) => mp.player?.userId === event.assistPlayerUserId)?.playerId;
+        assistPlayerId = matchPlayers.find(
+          (mp) => mp.player?.userId === event.assistPlayerUserId,
+        )?.playerId;
       } else if (event.assistPlayerId) {
         assistPlayerId = event.assistPlayerId;
       }
@@ -89,7 +103,10 @@ export class FootballEngine implements SportEngine {
           if (t) {
             if (event.cardType === 'yellow') {
               t.yellowCards++;
-            } else if (event.cardType === 'red' || event.cardType === 'second_yellow') {
+            } else if (
+              event.cardType === 'red' ||
+              event.cardType === 'second_yellow'
+            ) {
               t.redCards++;
             }
           }
@@ -115,7 +132,13 @@ export class FootballEngine implements SportEngine {
     for (const mp of playingStarters) {
       if (mp.rating !== null) continue;
 
-      const tally = tallies.get(mp.playerId) ?? { goals: 0, assists: 0, ownGoals: 0, yellowCards: 0, redCards: 0 };
+      const tally = tallies.get(mp.playerId) ?? {
+        goals: 0,
+        assists: 0,
+        ownGoals: 0,
+        yellowCards: 0,
+        redCards: 0,
+      };
       let rating = 5.0;
 
       const goalBonus = mp.isGoalkeeper ? 0.3 : 0.5;
@@ -130,7 +153,8 @@ export class FootballEngine implements SportEngine {
       }
 
       if (mp.isGoalkeeper) {
-        const goalsConceded = mp.teamId === match.homeTeamId ? homeGoalsAgainst : awayGoalsAgainst;
+        const goalsConceded =
+          mp.teamId === match.homeTeamId ? homeGoalsAgainst : awayGoalsAgainst;
         if (goalsConceded === 0) {
           rating += 0.5;
         }
@@ -155,15 +179,40 @@ export class FootballEngine implements SportEngine {
     },
   ): Record<string, any> {
     const { userUserIdMap } = context;
-    const scorers = new Map<string, { playerId: string; playerName: string; teamName: string; goals: number }>();
-    const assists = new Map<string, { playerId: string; playerName: string; teamName: string; assists: number }>();
-    const yellowCards = new Map<string, { playerId: string; playerName: string; teamName: string; cards: number }>();
-    const redCards = new Map<string, { playerId: string; playerName: string; teamName: string; cards: number }>();
+    const scorers = new Map<
+      string,
+      { playerId: string; playerName: string; teamName: string; goals: number }
+    >();
+    const assists = new Map<
+      string,
+      {
+        playerId: string;
+        playerName: string;
+        teamName: string;
+        assists: number;
+      }
+    >();
+    const yellowCards = new Map<
+      string,
+      { playerId: string; playerName: string; teamName: string; cards: number }
+    >();
+    const redCards = new Map<
+      string,
+      { playerId: string; playerName: string; teamName: string; cards: number }
+    >();
 
-    const getOrCreateTally = (map: Map<string, any>, pUserId: string, initialValueKey: string) => {
+    const getOrCreateTally = (
+      map: Map<string, any>,
+      pUserId: string,
+      initialValueKey: string,
+    ) => {
       let entry = map.get(pUserId);
       if (!entry) {
-        const info = userUserIdMap.get(pUserId) ?? { playerId: pUserId, playerName: 'Unknown', teamName: 'Unknown' };
+        const info = userUserIdMap.get(pUserId) ?? {
+          playerId: pUserId,
+          playerName: 'Unknown',
+          teamName: 'Unknown',
+        };
         entry = { ...info, [initialValueKey]: 0 };
         map.set(pUserId, entry);
       }
@@ -171,7 +220,7 @@ export class FootballEngine implements SportEngine {
     };
 
     for (const m of completedMatches) {
-      const events = (m.liveData as any)?.events;
+      const events = m.liveData?.events;
       if (!Array.isArray(events)) continue;
 
       for (const ev of events) {
@@ -185,7 +234,11 @@ export class FootballEngine implements SportEngine {
 
             const assistUserId = ev.assistPlayerUserId;
             if (assistUserId) {
-              const assister = getOrCreateTally(assists, assistUserId, 'assists');
+              const assister = getOrCreateTally(
+                assists,
+                assistUserId,
+                'assists',
+              );
               assister.assists++;
             }
           }
@@ -202,10 +255,18 @@ export class FootballEngine implements SportEngine {
     }
 
     return {
-      topScorers: Array.from(scorers.values()).sort((a, b) => b.goals - a.goals).slice(0, 10),
-      topAssists: Array.from(assists.values()).sort((a, b) => b.assists - a.assists).slice(0, 10),
-      mostYellowCards: Array.from(yellowCards.values()).sort((a, b) => b.cards - a.cards).slice(0, 10),
-      mostRedCards: Array.from(redCards.values()).sort((a, b) => b.cards - a.cards).slice(0, 10),
+      topScorers: Array.from(scorers.values())
+        .sort((a, b) => b.goals - a.goals)
+        .slice(0, 10),
+      topAssists: Array.from(assists.values())
+        .sort((a, b) => b.assists - a.assists)
+        .slice(0, 10),
+      mostYellowCards: Array.from(yellowCards.values())
+        .sort((a, b) => b.cards - a.cards)
+        .slice(0, 10),
+      mostRedCards: Array.from(redCards.values())
+        .sort((a, b) => b.cards - a.cards)
+        .slice(0, 10),
     };
   }
 }

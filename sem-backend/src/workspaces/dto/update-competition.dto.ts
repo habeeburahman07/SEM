@@ -1,4 +1,12 @@
-import { IsOptional, IsString, IsUUID, MaxLength, MinLength, IsArray, ValidateNested } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+  IsArray,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { PointsConfigEntryDto } from './create-competition.dto';
 

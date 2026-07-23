@@ -6,7 +6,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
-import { WorkspaceMember, WorkspaceRole, MANAGEMENT_ROLES } from '../entities/workspace-member.entity';
+import {
+  WorkspaceMember,
+  WorkspaceRole,
+  MANAGEMENT_ROLES,
+} from '../entities/workspace-member.entity';
 import { Workspace } from '../entities/workspace.entity';
 import { Player } from '../entities/player.entity';
 import { UsersService } from '../../users/users.service';
@@ -31,7 +35,10 @@ export class WorkspaceMembersService {
     private readonly rolesPermissionsService: RolesPermissionsService,
   ) {}
 
-  async getMembers(workspaceId: string, userId: string): Promise<WorkspaceMember[]> {
+  async getMembers(
+    workspaceId: string,
+    userId: string,
+  ): Promise<WorkspaceMember[]> {
     await this.ensureMember(workspaceId, userId);
     return this.memberRepo.find({
       where: { workspaceId, status: 'joined' },
@@ -62,7 +69,10 @@ export class WorkspaceMembersService {
       throw new ConflictException('User is already a member of this workspace');
     }
 
-    const role = await this.rolesPermissionsService.findRoleBySlug(dto.role, workspaceId);
+    const role = await this.rolesPermissionsService.findRoleBySlug(
+      dto.role,
+      workspaceId,
+    );
     if (role.slug === WorkspaceRole.OWNER) {
       throw new ForbiddenException('Cannot invite a user as Owner');
     }
@@ -79,7 +89,9 @@ export class WorkspaceMembersService {
     saved.role = role;
 
     // Notify invited user
-    const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+    const workspace = await this.workspaceRepo.findOne({
+      where: { id: workspaceId },
+    });
     await this.notificationsService.sendNotification(
       user.id,
       NotificationType.MEMBER_INVITED,
@@ -106,7 +118,11 @@ export class WorkspaceMembersService {
         let user = await this.usersService.findOneByUsername(item.username);
         let isNew = false;
         if (!user) {
-          user = await this.usersService.create(item.username, dto.password, true);
+          user = await this.usersService.create(
+            item.username,
+            dto.password,
+            true,
+          );
           isNew = true;
         }
 
@@ -123,7 +139,10 @@ export class WorkspaceMembersService {
         }
 
         const roleSlug = item.role || 'viewer';
-        const role = await this.rolesPermissionsService.findRoleBySlug(roleSlug, workspaceId);
+        const role = await this.rolesPermissionsService.findRoleBySlug(
+          roleSlug,
+          workspaceId,
+        );
         if (role.slug === WorkspaceRole.OWNER) {
           failed.push({
             username: item.username,
@@ -155,7 +174,9 @@ export class WorkspaceMembersService {
       }
     }
 
-    const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+    const workspace = await this.workspaceRepo.findOne({
+      where: { id: workspaceId },
+    });
     const wsName = workspace?.name ?? 'the workspace';
     for (const item of success) {
       const user = await this.usersService.findOneByUsername(item.username);
@@ -195,7 +216,9 @@ export class WorkspaceMembersService {
     workspaceId: string,
     userId: string,
   ): Promise<WorkspaceMember> {
-    const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+    const workspace = await this.workspaceRepo.findOne({
+      where: { id: workspaceId },
+    });
     if (!workspace) {
       throw new NotFoundException('Workspace not found');
     }
@@ -212,7 +235,10 @@ export class WorkspaceMembersService {
       return existing;
     }
 
-    const role = await this.rolesPermissionsService.findRoleBySlug('viewer', workspaceId);
+    const role = await this.rolesPermissionsService.findRoleBySlug(
+      'viewer',
+      workspaceId,
+    );
 
     const member = this.memberRepo.create({
       workspaceId,
@@ -246,13 +272,18 @@ export class WorkspaceMembersService {
     });
   }
 
-  async acceptInvitation(workspaceId: string, userId: string): Promise<WorkspaceMember> {
+  async acceptInvitation(
+    workspaceId: string,
+    userId: string,
+  ): Promise<WorkspaceMember> {
     const member = await this.memberRepo.findOne({
       where: { workspaceId, userId, status: 'pending' },
       relations: { user: true, role: true, workspace: true },
     });
     if (!member) {
-      throw new NotFoundException('Invitation not found or already accepted/rejected');
+      throw new NotFoundException(
+        'Invitation not found or already accepted/rejected',
+      );
     }
     member.status = 'joined';
     const saved = await this.memberRepo.save(member);
@@ -271,7 +302,10 @@ export class WorkspaceMembersService {
         NotificationType.INVITATION_ACCEPTED,
         `${member.user.username} accepted your invitation to the ${member.workspace.name} workspace.`,
         workspaceId,
-        { username: member.user.username, workspaceName: member.workspace.name },
+        {
+          username: member.user.username,
+          workspaceName: member.workspace.name,
+        },
       );
     }
 
@@ -284,7 +318,9 @@ export class WorkspaceMembersService {
       relations: { user: true, workspace: true },
     });
     if (!member) {
-      throw new NotFoundException('Invitation not found or already accepted/rejected');
+      throw new NotFoundException(
+        'Invitation not found or already accepted/rejected',
+      );
     }
 
     if (member.invitedById) {
@@ -293,11 +329,15 @@ export class WorkspaceMembersService {
         NotificationType.INVITATION_REJECTED,
         `${member.user.username} rejected your invitation to the ${member.workspace.name} workspace.`,
         workspaceId,
-        { username: member.user.username, workspaceName: member.workspace.name },
+        {
+          username: member.user.username,
+          workspaceName: member.workspace.name,
+        },
       );
     }
 
-    await this.memberRepo.remove(member);
+    member.deletedAt = new Date();
+    await this.memberRepo.save(member);
   }
 
   async updateMemberRole(
@@ -317,10 +357,15 @@ export class WorkspaceMembersService {
     }
 
     if (member.role.slug === WorkspaceRole.OWNER) {
-      throw new ForbiddenException('Cannot change the role of the workspace Owner');
+      throw new ForbiddenException(
+        'Cannot change the role of the workspace Owner',
+      );
     }
 
-    const role = await this.rolesPermissionsService.findRoleBySlug(dto.role, workspaceId);
+    const role = await this.rolesPermissionsService.findRoleBySlug(
+      dto.role,
+      workspaceId,
+    );
     if (role.slug === WorkspaceRole.OWNER) {
       throw new ForbiddenException('Cannot set a member role to Owner');
     }
@@ -329,7 +374,9 @@ export class WorkspaceMembersService {
     member.role = role;
     const saved = await this.memberRepo.save(member);
 
-    const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+    const workspace = await this.workspaceRepo.findOne({
+      where: { id: workspaceId },
+    });
     await this.notificationsService.sendNotification(
       targetUserId,
       NotificationType.MEMBER_ROLE_CHANGED,
@@ -360,7 +407,9 @@ export class WorkspaceMembersService {
       throw new ForbiddenException('Cannot remove the workspace owner');
     }
 
-    const workspace = await this.workspaceRepo.findOne({ where: { id: workspaceId } });
+    const workspace = await this.workspaceRepo.findOne({
+      where: { id: workspaceId },
+    });
     await this.notificationsService.sendNotification(
       targetUserId,
       NotificationType.MEMBER_REMOVED,
@@ -369,10 +418,14 @@ export class WorkspaceMembersService {
       { workspaceName: workspace?.name },
     );
 
-    await this.memberRepo.remove(member);
+    member.deletedAt = new Date();
+    await this.memberRepo.save(member);
   }
 
-  async getWorkspaceMemberUserIds(workspaceId: string, excludeUserId?: string): Promise<string[]> {
+  async getWorkspaceMemberUserIds(
+    workspaceId: string,
+    excludeUserId?: string,
+  ): Promise<string[]> {
     const members = await this.memberRepo.find({
       where: { workspaceId, status: 'joined' },
       select: { userId: true },
@@ -382,7 +435,9 @@ export class WorkspaceMembersService {
     return ids;
   }
 
-  private async getWorkspaceAdminUserIds(workspaceId: string): Promise<string[]> {
+  private async getWorkspaceAdminUserIds(
+    workspaceId: string,
+  ): Promise<string[]> {
     const members = await this.memberRepo.find({
       where: { workspaceId, status: 'joined' },
       relations: { role: true },
@@ -392,24 +447,36 @@ export class WorkspaceMembersService {
       .map((m) => m.userId);
   }
 
-  async ensureMember(workspaceId: string, userId: string): Promise<WorkspaceMember> {
+  async ensureMember(
+    workspaceId: string,
+    userId: string,
+  ): Promise<WorkspaceMember> {
     const member = await this.memberRepo.findOne({
       where: { workspaceId, userId, status: 'joined' },
       relations: { role: true },
     });
-    if (!member) throw new ForbiddenException('You are not a member of this workspace');
+    if (!member)
+      throw new ForbiddenException('You are not a member of this workspace');
     return member;
   }
 
-  async ensurePermission(workspaceId: string, userId: string, permissionSlug: string): Promise<void> {
+  async ensurePermission(
+    workspaceId: string,
+    userId: string,
+    permissionSlug: string,
+  ): Promise<void> {
     const member = await this.memberRepo.findOne({
       where: { workspaceId, userId, status: 'joined' },
       relations: { role: { permissions: true } },
     });
-    if (!member) throw new ForbiddenException('You are not a member of this workspace');
-    const hasPerm = member.role?.permissions?.some(p => p.slug === permissionSlug) ?? false;
+    if (!member)
+      throw new ForbiddenException('You are not a member of this workspace');
+    const hasPerm =
+      member.role?.permissions?.some((p) => p.slug === permissionSlug) ?? false;
     if (!hasPerm) {
-      throw new ForbiddenException(`Permission denied: requires '${permissionSlug}'`);
+      throw new ForbiddenException(
+        `Permission denied: requires '${permissionSlug}'`,
+      );
     }
   }
 }

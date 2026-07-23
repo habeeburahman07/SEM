@@ -44,10 +44,13 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       // Verify token
-      const secret = this.configService.get<string>('JWT_SECRET', 'super-secret-key-12345');
+      const secret = this.configService.get<string>(
+        'JWT_SECRET',
+        'super-secret-key-12345',
+      );
       const payload = await this.jwtService.verifyAsync(token, { secret });
       client.data.user = payload;
-      
+
       const userId = payload.sub || payload.id;
       if (!userId) {
         throw new Error('User ID not found in token payload');
@@ -57,7 +60,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       await client.join(`user:${userId}`);
       this.logger.log(`Client authenticated: ${client.id} (User: ${userId})`);
     } catch (err) {
-      this.logger.error(`Authentication failed for client ${client.id}: ${err.message}`);
+      this.logger.error(
+        `Authentication failed for client ${client.id}: ${err.message}`,
+      );
       client.disconnect();
     }
   }
@@ -73,7 +78,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     if (data?.matchId) {
       await client.join(`match:${data.matchId}`);
-      this.logger.log(`Client ${client.id} subscribed to match: ${data.matchId}`);
+      this.logger.log(
+        `Client ${client.id} subscribed to match: ${data.matchId}`,
+      );
       return { status: 'ok', room: `match:${data.matchId}` };
     }
   }
@@ -85,7 +92,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     if (data?.matchId) {
       await client.leave(`match:${data.matchId}`);
-      this.logger.log(`Client ${client.id} unsubscribed from match: ${data.matchId}`);
+      this.logger.log(
+        `Client ${client.id} unsubscribed from match: ${data.matchId}`,
+      );
       return { status: 'ok', room: `match:${data.matchId}` };
     }
   }
@@ -97,7 +106,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     if (data?.workspaceId) {
       await client.join(`workspace:${data.workspaceId}`);
-      this.logger.log(`Client ${client.id} subscribed to workspace: ${data.workspaceId}`);
+      this.logger.log(
+        `Client ${client.id} subscribed to workspace: ${data.workspaceId}`,
+      );
       return { status: 'ok', room: `workspace:${data.workspaceId}` };
     }
   }
@@ -109,7 +120,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     if (data?.workspaceId) {
       await client.leave(`workspace:${data.workspaceId}`);
-      this.logger.log(`Client ${client.id} unsubscribed from workspace: ${data.workspaceId}`);
+      this.logger.log(
+        `Client ${client.id} unsubscribed from workspace: ${data.workspaceId}`,
+      );
       return { status: 'ok', room: `workspace:${data.workspaceId}` };
     }
   }

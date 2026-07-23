@@ -58,7 +58,10 @@ import { WorkspaceMembersService } from './members/members.service';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET', 'super-secret-key-12345'),
+        secret: configService.get<string>(
+          'JWT_SECRET',
+          'super-secret-key-12345',
+        ),
         signOptions: {
           expiresIn: configService.get<any>('JWT_EXPIRATION', '24h'),
         },

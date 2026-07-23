@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Notification, NotificationType, NOTIFICATION_ICONS } from '../entities/notification.entity';
+import {
+  Notification,
+  NotificationType,
+  NOTIFICATION_ICONS,
+} from '../entities/notification.entity';
 import { EventsGateway } from '../events.gateway';
 
 @Injectable()
@@ -20,7 +24,10 @@ export class NotificationsService {
   }
 
   async markNotificationsRead(userId: string): Promise<void> {
-    await this.notificationRepo.update({ userId, isRead: false }, { isRead: true });
+    await this.notificationRepo.update(
+      { userId, isRead: false },
+      { isRead: true },
+    );
   }
 
   /**

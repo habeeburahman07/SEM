@@ -8,7 +8,11 @@ export class RedisIoAdapter extends IoAdapter {
   private adapterConstructor: ReturnType<typeof createAdapter>;
   private readonly logger = new Logger(RedisIoAdapter.name);
 
-  async connectToRedis(host: string, port: number, password?: string): Promise<boolean> {
+  async connectToRedis(
+    host: string,
+    port: number,
+    password?: string,
+  ): Promise<boolean> {
     try {
       const pubClient = new Redis({
         host,
@@ -38,10 +42,14 @@ export class RedisIoAdapter extends IoAdapter {
       });
 
       this.adapterConstructor = createAdapter(pubClient, subClient);
-      this.logger.log('Connected to Redis successfully for Socket.IO clustering.');
+      this.logger.log(
+        'Connected to Redis successfully for Socket.IO clustering.',
+      );
       return true;
     } catch (err: any) {
-      this.logger.warn(`Failed to connect to Redis: ${err.message}. Real-time will fall back to single-instance adapter.`);
+      this.logger.warn(
+        `Failed to connect to Redis: ${err.message}. Real-time will fall back to single-instance adapter.`,
+      );
       return false;
     }
   }

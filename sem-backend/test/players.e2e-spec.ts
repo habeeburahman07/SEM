@@ -40,7 +40,10 @@ describe('Players Domain (e2e)', () => {
     const workspaceRes = await request(app.getHttpServer())
       .post('/workspaces')
       .set('Authorization', `Bearer ${jwtToken}`)
-      .send({ name: 'Players E2E Workspace', description: 'Testing player endpoints' })
+      .send({
+        name: 'Players E2E Workspace',
+        description: 'Testing player endpoints',
+      })
       .expect(201);
 
     workspaceId = workspaceRes.body.id;

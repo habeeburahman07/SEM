@@ -59,7 +59,9 @@ export class AuthController {
     return await this.authService.refresh(dto.refreshToken);
   }
 
-  @ApiOperation({ summary: 'Revoke the current refresh token (single-device logout)' })
+  @ApiOperation({
+    summary: 'Revoke the current refresh token (single-device logout)',
+  })
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   async logout(@Body() dto: RefreshTokenDto): Promise<void> {
@@ -69,7 +71,9 @@ export class AuthController {
   // ─── Authenticated endpoints ──────────────────────────────────────────────
 
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Revoke all refresh tokens for the current user (global logout)' })
+  @ApiOperation({
+    summary: 'Revoke all refresh tokens for the current user (global logout)',
+  })
   @UseGuards(JwtAuthGuard)
   @Post('logout-all')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -90,7 +94,9 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get the user profile with workspace and team details' })
+  @ApiOperation({
+    summary: 'Get the user profile with workspace and team details',
+  })
   @UseGuards(JwtAuthGuard)
   @Get('profile/details')
   async getProfileDetails(@CurrentUser() user: JwtPayloadUser) {

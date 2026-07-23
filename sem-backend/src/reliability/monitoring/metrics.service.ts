@@ -53,10 +53,14 @@ export class MetricsService {
         heapTotalMB: this.toMB(memUsage.heapTotal),
         rssMB: this.toMB(memUsage.rss),
         externalMB: this.toMB(memUsage.external),
-        heapUsedPercent: Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100),
+        heapUsedPercent: Math.round(
+          (memUsage.heapUsed / memUsage.heapTotal) * 100,
+        ),
         systemFreeMB: this.toMB(freeMemBytes),
         systemTotalMB: this.toMB(totalMemBytes),
-        systemUsedPercent: Math.round(((totalMemBytes - freeMemBytes) / totalMemBytes) * 100),
+        systemUsedPercent: Math.round(
+          ((totalMemBytes - freeMemBytes) / totalMemBytes) * 100,
+        ),
       },
       cpu: {
         model: os.cpus()[0]?.model ?? 'unknown',

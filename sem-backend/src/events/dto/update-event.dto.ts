@@ -1,4 +1,13 @@
-import { IsOptional, IsString, MaxLength, MinLength, IsDateString, IsIn, IsArray, IsUUID } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+  IsDateString,
+  IsIn,
+  IsArray,
+  IsUUID,
+} from 'class-validator';
 
 export class UpdateEventDto {
   @IsOptional()

@@ -36,7 +36,10 @@ class ErrorLogResponse {
   @ApiProperty({ example: 'HttpException', nullable: true })
   context: string | null;
 
-  @ApiProperty({ nullable: true, description: 'Full stack trace (server errors only)' })
+  @ApiProperty({
+    nullable: true,
+    description: 'Full stack trace (server errors only)',
+  })
   stack: string | null;
 
   @ApiProperty({ example: 'POST', nullable: true })
@@ -65,13 +68,22 @@ class ErrorLogResponse {
 }
 
 class ErrorStatsResponse {
-  @ApiProperty({ example: 12, description: 'Number of WARN events in the last 24h' })
+  @ApiProperty({
+    example: 12,
+    description: 'Number of WARN events in the last 24h',
+  })
   warn: number;
 
-  @ApiProperty({ example: 3, description: 'Number of ERROR events in the last 24h' })
+  @ApiProperty({
+    example: 3,
+    description: 'Number of ERROR events in the last 24h',
+  })
   error: number;
 
-  @ApiProperty({ example: 0, description: 'Number of CRITICAL events in the last 24h' })
+  @ApiProperty({
+    example: 0,
+    description: 'Number of CRITICAL events in the last 24h',
+  })
   critical: number;
 }
 

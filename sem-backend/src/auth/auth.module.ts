@@ -23,7 +23,10 @@ import { PermissionsGuard } from './guards/permissions.guard';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET', 'super-secret-key-12345'),
+        secret: configService.get<string>(
+          'JWT_SECRET',
+          'super-secret-key-12345',
+        ),
         signOptions: {
           expiresIn: configService.get<string>('JWT_EXPIRATION', '15m') as any,
         },

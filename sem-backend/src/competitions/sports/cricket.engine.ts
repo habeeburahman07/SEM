@@ -9,7 +9,11 @@ export class CricketEngine implements SportEngine {
     return config;
   }
 
-  getInitialLiveData(homeTeamId: string, awayTeamId: string, config?: Record<string, any>): Record<string, any> {
+  getInitialLiveData(
+    homeTeamId: string,
+    awayTeamId: string,
+    config?: Record<string, any>,
+  ): Record<string, any> {
     return {
       tossWinnerId: null,
       tossChoice: null,
@@ -37,7 +41,7 @@ export class CricketEngine implements SportEngine {
     winnerTeamId: string | null,
     loserTeamId: string | null,
   ): any[] {
-    const liveData = match.liveData as any;
+    const liveData = match.liveData;
     if (!liveData) return [];
 
     const inningsList = liveData.inningsData || [];
@@ -49,15 +53,25 @@ export class CricketEngine implements SportEngine {
       const username = mp.player?.user?.username;
       if (!username) continue;
 
-      const hasStats = inningsList.some((inn: any) => inn.batsmanStats?.[username] || inn.bowlerStats?.[username]);
+      const hasStats = inningsList.some(
+        (inn: any) =>
+          inn.batsmanStats?.[username] || inn.bowlerStats?.[username],
+      );
       if (!mp.isPlaying && !hasStats) continue;
 
       let rating = 5.0;
 
-      let batRuns = 0, batBalls = 0, batFours = 0, batSixes = 0;
+      let batRuns = 0,
+        batBalls = 0,
+        batFours = 0,
+        batSixes = 0;
       let bowledOut = false;
 
-      let bowlOvers = 0, bowlBalls = 0, bowlRunsConceded = 0, bowlWickets = 0, bowlMaidens = 0;
+      let bowlOvers = 0,
+        bowlBalls = 0,
+        bowlRunsConceded = 0,
+        bowlWickets = 0,
+        bowlMaidens = 0;
 
       for (const inn of inningsList) {
         const bStats = inn.batsmanStats?.[username];
@@ -77,7 +91,11 @@ export class CricketEngine implements SportEngine {
         }
         if (inn.ballsHistory) {
           for (const ball of inn.ballsHistory) {
-            if (ball.wicket && ball.striker === username && ball.wicketType !== 'Retired Hurt') {
+            if (
+              ball.wicket &&
+              ball.striker === username &&
+              ball.wicketType !== 'Retired Hurt'
+            ) {
               bowledOut = true;
             }
           }
@@ -103,7 +121,7 @@ export class CricketEngine implements SportEngine {
       rating += bowlMaidens * 0.5;
       rating -= bowlRunsConceded * 0.02;
 
-      const totalOvers = bowlOvers + (bowlBalls / 6);
+      const totalOvers = bowlOvers + bowlBalls / 6;
       if (totalOvers > 1.0) {
         const econ = bowlRunsConceded / totalOvers;
         if (econ < 6.0) rating += 0.5;
@@ -133,11 +151,29 @@ export class CricketEngine implements SportEngine {
     },
   ): Record<string, any> {
     const { userUsernameMap } = context;
-    const runs = new Map<string, { playerId: string; playerName: string; teamName: string; runs: number; innings: number }>();
-    const wickets = new Map<string, { playerId: string; playerName: string; teamName: string; wickets: number; innings: number }>();
+    const runs = new Map<
+      string,
+      {
+        playerId: string;
+        playerName: string;
+        teamName: string;
+        runs: number;
+        innings: number;
+      }
+    >();
+    const wickets = new Map<
+      string,
+      {
+        playerId: string;
+        playerName: string;
+        teamName: string;
+        wickets: number;
+        innings: number;
+      }
+    >();
 
     for (const m of completedMatches) {
-      const innings = (m.liveData as any)?.inningsData;
+      const innings = m.liveData?.inningsData;
       if (!Array.isArray(innings)) continue;
 
       for (const inn of innings) {
@@ -146,7 +182,11 @@ export class CricketEngine implements SportEngine {
           const playerRuns = batStats[username]?.runs ?? 0;
           if (playerRuns > 0) {
             if (!runs.has(username)) {
-              const info = userUsernameMap.get(username) ?? { playerId: username, playerName: username, teamName: 'Unknown' };
+              const info = userUsernameMap.get(username) ?? {
+                playerId: username,
+                playerName: username,
+                teamName: 'Unknown',
+              };
               runs.set(username, { ...info, runs: 0, innings: 0 });
             }
             const entry = runs.get(username)!;
@@ -160,7 +200,11 @@ export class CricketEngine implements SportEngine {
           const playerWickets = bowlStats[username]?.wickets ?? 0;
           if (playerWickets > 0) {
             if (!wickets.has(username)) {
-              const info = userUsernameMap.get(username) ?? { playerId: username, playerName: username, teamName: 'Unknown' };
+              const info = userUsernameMap.get(username) ?? {
+                playerId: username,
+                playerName: username,
+                teamName: 'Unknown',
+              };
               wickets.set(username, { ...info, wickets: 0, innings: 0 });
             }
             const entry = wickets.get(username)!;
@@ -172,8 +216,12 @@ export class CricketEngine implements SportEngine {
     }
 
     return {
-      topRuns: Array.from(runs.values()).sort((a, b) => b.runs - a.runs).slice(0, 10),
-      topWickets: Array.from(wickets.values()).sort((a, b) => b.wickets - a.wickets).slice(0, 10),
+      topRuns: Array.from(runs.values())
+        .sort((a, b) => b.runs - a.runs)
+        .slice(0, 10),
+      topWickets: Array.from(wickets.values())
+        .sort((a, b) => b.wickets - a.wickets)
+        .slice(0, 10),
     };
   }
 }

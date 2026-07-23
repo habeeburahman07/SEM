@@ -59,19 +59,26 @@ class CircuitBreakerInfo {
   @ApiProperty({
     example: null,
     nullable: true,
-    description: 'Earliest time a recovery probe will be attempted (OPEN → HALF_OPEN)',
+    description:
+      'Earliest time a recovery probe will be attempted (OPEN → HALF_OPEN)',
   })
   nextAttemptAt: Date | null;
 }
 
 class CircuitsStatusResponse {
-  @ApiProperty({ type: CircuitBreakerInfo, description: 'PostgreSQL database circuit' })
+  @ApiProperty({
+    type: CircuitBreakerInfo,
+    description: 'PostgreSQL database circuit',
+  })
   database: CircuitBreakerInfo;
 
   @ApiProperty({ type: CircuitBreakerInfo, description: 'Redis circuit' })
   redis: CircuitBreakerInfo;
 
-  @ApiProperty({ type: CircuitBreakerInfo, description: 'Cloudinary upload circuit' })
+  @ApiProperty({
+    type: CircuitBreakerInfo,
+    description: 'Cloudinary upload circuit',
+  })
   cloudinary: CircuitBreakerInfo;
 }
 
@@ -117,14 +124,17 @@ export class RecoveryAdminController {
   })
   @ApiResponse({ status: 401, description: 'Missing or invalid JWT' })
   @ApiResponse({ status: 403, description: 'Super-admin access required' })
-  getCircuits(): Record<string, {
-    state: CircuitState;
-    failureCount: number;
-    successCount: number;
-    lastFailureAt: Date | null;
-    lastSuccessAt: Date | null;
-    nextAttemptAt: Date | null;
-  }> {
+  getCircuits(): Record<
+    string,
+    {
+      state: CircuitState;
+      failureCount: number;
+      successCount: number;
+      lastFailureAt: Date | null;
+      lastSuccessAt: Date | null;
+      nextAttemptAt: Date | null;
+    }
+  > {
     return this.recoveryService.getCircuitStatus();
   }
 
@@ -165,6 +175,9 @@ export class RecoveryAdminController {
   })
   resetCircuit(@Param('name') name: string): CircuitResetResponse {
     this.recoveryService.resetCircuit(name);
-    return { message: `Circuit '${name}' reset to CLOSED`, timestamp: new Date().toISOString() };
+    return {
+      message: `Circuit '${name}' reset to CLOSED`,
+      timestamp: new Date().toISOString(),
+    };
   }
 }

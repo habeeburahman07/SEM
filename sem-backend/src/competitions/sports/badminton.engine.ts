@@ -11,7 +11,11 @@ export class BadmintonEngine implements SportEngine {
     return config;
   }
 
-  getInitialLiveData(homeTeamId: string, awayTeamId: string, config?: Record<string, any>): Record<string, any> {
+  getInitialLiveData(
+    homeTeamId: string,
+    awayTeamId: string,
+    config?: Record<string, any>,
+  ): Record<string, any> {
     return {
       currentSet: 1,
       setsScore: [{ home: 0, away: 0 }],
@@ -28,7 +32,7 @@ export class BadmintonEngine implements SportEngine {
     winnerTeamId: string | null,
     loserTeamId: string | null,
   ): any[] {
-    const liveData = match.liveData as any;
+    const liveData = match.liveData;
     if (!liveData) return [];
 
     const rallies = liveData.rallies || [];
@@ -39,7 +43,8 @@ export class BadmintonEngine implements SportEngine {
       if (mp.rating !== null) continue;
 
       let rating = 5.0;
-      let wonRallies = 0, lostRallies = 0;
+      let wonRallies = 0,
+        lostRallies = 0;
 
       const isHomeTeam = mp.teamId === match.homeTeamId;
 
@@ -78,24 +83,45 @@ export class BadmintonEngine implements SportEngine {
       userUsernameMap: Map<string, any>;
     },
   ): Record<string, any> {
-    const ralliesWon = new Map<string, { playerId: string; playerName: string; teamName: string; ralliesWon: number }>();
+    const ralliesWon = new Map<
+      string,
+      {
+        playerId: string;
+        playerName: string;
+        teamName: string;
+        ralliesWon: number;
+      }
+    >();
 
     for (const m of completedMatches) {
-      const rallies = (m.liveData as any)?.rallies || [];
-      const matchPlayersInMatch = allMatchPlayers.filter((mp) => mp.matchId === m.id);
+      const rallies = m.liveData?.rallies || [];
+      const matchPlayersInMatch = allMatchPlayers.filter(
+        (mp) => mp.matchId === m.id,
+      );
 
       for (const r of rallies) {
         if (r.winnerSide === 'none') continue;
 
-        const targetTeamId = r.winnerSide === 'home' ? m.homeTeamId : m.awayTeamId;
-        const winners = matchPlayersInMatch.filter((mp) => mp.teamId === targetTeamId);
+        const targetTeamId =
+          r.winnerSide === 'home' ? m.homeTeamId : m.awayTeamId;
+        const winners = matchPlayersInMatch.filter(
+          (mp) => mp.teamId === targetTeamId,
+        );
 
         for (const w of winners) {
           let entry = ralliesWon.get(w.playerId);
           if (!entry) {
-            const playerName = w.player?.user?.username ?? w.player?.jerseyNumber?.toString() ?? w.playerId;
+            const playerName =
+              w.player?.user?.username ??
+              w.player?.jerseyNumber?.toString() ??
+              w.playerId;
             const teamName = w.team?.name ?? 'Unknown';
-            entry = { playerId: w.playerId, playerName, teamName, ralliesWon: 0 };
+            entry = {
+              playerId: w.playerId,
+              playerName,
+              teamName,
+              ralliesWon: 0,
+            };
             ralliesWon.set(w.playerId, entry);
           }
           entry.ralliesWon++;
@@ -104,7 +130,9 @@ export class BadmintonEngine implements SportEngine {
     }
 
     return {
-      topRalliesWon: Array.from(ralliesWon.values()).sort((a, b) => b.ralliesWon - a.ralliesWon).slice(0, 10),
+      topRalliesWon: Array.from(ralliesWon.values())
+        .sort((a, b) => b.ralliesWon - a.ralliesWon)
+        .slice(0, 10),
     };
   }
 }

@@ -22,8 +22,16 @@ export class VenuesService {
     });
   }
 
-  async createVenue(workspaceId: string, dto: CreateVenueDto, userId: string): Promise<Venue> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'workspace.update');
+  async createVenue(
+    workspaceId: string,
+    dto: CreateVenueDto,
+    userId: string,
+  ): Promise<Venue> {
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'workspace.update',
+    );
     const venue = this.venueRepo.create({
       name: dto.name,
       location: dto.location ?? null,
@@ -40,8 +48,14 @@ export class VenuesService {
     dto: UpdateVenueDto,
     userId: string,
   ): Promise<Venue> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'workspace.update');
-    const venue = await this.venueRepo.findOne({ where: { id: venueId, workspaceId } });
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'workspace.update',
+    );
+    const venue = await this.venueRepo.findOne({
+      where: { id: venueId, workspaceId },
+    });
     if (!venue) {
       throw new NotFoundException('Venue not found in this workspace');
     }
@@ -56,12 +70,23 @@ export class VenuesService {
     return this.venueRepo.save(venue);
   }
 
-  async removeVenue(workspaceId: string, venueId: string, userId: string): Promise<void> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'workspace.update');
-    const venue = await this.venueRepo.findOne({ where: { id: venueId, workspaceId } });
+  async removeVenue(
+    workspaceId: string,
+    venueId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'workspace.update',
+    );
+    const venue = await this.venueRepo.findOne({
+      where: { id: venueId, workspaceId },
+    });
     if (!venue) {
       throw new NotFoundException('Venue not found in this workspace');
     }
-    await this.venueRepo.remove(venue);
+    venue.deletedAt = new Date();
+    await this.venueRepo.save(venue);
   }
 }

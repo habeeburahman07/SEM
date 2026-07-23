@@ -6,10 +6,7 @@ import { VenuesController } from './venues.controller';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Venue]),
-    WorkspacesModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Venue]), WorkspacesModule],
   controllers: [VenuesController],
   providers: [VenuesService],
   exports: [VenuesService],

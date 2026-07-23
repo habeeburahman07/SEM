@@ -68,16 +68,22 @@ export class CompetitionsService {
     eventId: string,
     competitionId: string,
   ): Promise<Competition> {
-    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    const event = await this.eventRepo.findOne({
+      where: { id: eventId, workspaceId },
+    });
     if (!event) {
-      throw new NotFoundException(`Event "${eventId}" not found in this workspace`);
+      throw new NotFoundException(
+        `Event "${eventId}" not found in this workspace`,
+      );
     }
     const competition = await this.competitionRepo.findOne({
       where: { id: competitionId, eventId },
       relations: { sport: true },
     });
     if (!competition) {
-      throw new NotFoundException(`Competition "${competitionId}" not found in this event`);
+      throw new NotFoundException(
+        `Competition "${competitionId}" not found in this event`,
+      );
     }
     return competition;
   }
@@ -89,19 +95,29 @@ export class CompetitionsService {
     stageId: string,
   ): Promise<CompetitionStage> {
     await this.validateCompetitionContext(workspaceId, eventId, competitionId);
-    const stage = await this.stageRepo.findOne({ where: { id: stageId, competitionId } });
+    const stage = await this.stageRepo.findOne({
+      where: { id: stageId, competitionId },
+    });
     if (!stage) {
-      throw new NotFoundException(`Stage "${stageId}" not found in this competition`);
+      throw new NotFoundException(
+        `Stage "${stageId}" not found in this competition`,
+      );
     }
     return stage;
   }
 
   // ─── Competitions CRUD ────────────────────────────────────────────────────
 
-  async getCompetitions(workspaceId: string, eventId: string, userId: string): Promise<Competition[]> {
+  async getCompetitions(
+    workspaceId: string,
+    eventId: string,
+    userId: string,
+  ): Promise<Competition[]> {
     await this.workspacesService.ensureMember(workspaceId, userId);
 
-    const eventExists = await this.eventRepo.exists({ where: { id: eventId, workspaceId } });
+    const eventExists = await this.eventRepo.exists({
+      where: { id: eventId, workspaceId },
+    });
     if (!eventExists) {
       throw new NotFoundException(`Event "${eventId}" not found in workspace`);
     }
@@ -112,7 +128,9 @@ export class CompetitionsService {
       order: { name: 'ASC' },
     });
 
-    const allStageIds = competitions.flatMap(c => (c.stages ?? []).map(s => s.id));
+    const allStageIds = competitions.flatMap((c) =>
+      (c.stages ?? []).map((s) => s.id),
+    );
     const allMatchesMap = new Map<string, any[]>();
 
     if (allStageIds.length > 0) {
@@ -126,7 +144,7 @@ export class CompetitionsService {
       }
     }
 
-    return competitions.map(comp => {
+    return competitions.map((comp) => {
       const compJson = JSON.parse(JSON.stringify(comp));
       for (const stage of compJson.stages ?? []) {
         stage.matches = allMatchesMap.get(stage.id) ?? [];
@@ -141,9 +159,15 @@ export class CompetitionsService {
     dto: CreateCompetitionDto,
     userId: string,
   ): Promise<Competition> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'competition.manage');
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'competition.manage',
+    );
 
-    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    const event = await this.eventRepo.findOne({
+      where: { id: eventId, workspaceId },
+    });
     if (!event) {
       throw new NotFoundException(`Event "${eventId}" not found in workspace`);
     }
@@ -162,18 +186,29 @@ export class CompetitionsService {
     });
 
     const saved = await this.competitionRepo.save(competition);
-    const found = await this.competitionRepo.findOne({ where: { id: saved.id }, relations: { sport: true } });
+    const found = await this.competitionRepo.findOne({
+      where: { id: saved.id },
+      relations: { sport: true },
+    });
     if (!found) {
       throw new NotFoundException(`Competition "${saved.id}" not found`);
     }
 
-    const memberIds = await this.workspacesService.getWorkspaceMemberUserIds(workspaceId, userId);
+    const memberIds = await this.workspacesService.getWorkspaceMemberUserIds(
+      workspaceId,
+      userId,
+    );
     await this.workspacesService.sendNotificationToMany(
       memberIds,
       NotificationType.COMPETITION_CREATED,
       `New competition "${found.name}" added to ${event.name}.`,
       workspaceId,
-      { eventId, competitionId: found.id, competitionName: found.name, eventName: event.name },
+      {
+        eventId,
+        competitionId: found.id,
+        competitionName: found.name,
+        eventName: event.name,
+      },
     );
 
     return found;
@@ -186,9 +221,15 @@ export class CompetitionsService {
     dto: UpdateCompetitionDto,
     userId: string,
   ): Promise<Competition> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'competition.manage');
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'competition.manage',
+    );
 
-    const eventExists = await this.eventRepo.exists({ where: { id: eventId, workspaceId } });
+    const eventExists = await this.eventRepo.exists({
+      where: { id: eventId, workspaceId },
+    });
     if (!eventExists) {
       throw new NotFoundException(`Event "${eventId}" not found in workspace`);
     }
@@ -198,11 +239,15 @@ export class CompetitionsService {
       relations: { sport: true },
     });
     if (!competition) {
-      throw new NotFoundException(`Competition "${competitionId}" not found in event`);
+      throw new NotFoundException(
+        `Competition "${competitionId}" not found in event`,
+      );
     }
 
     if (dto.sportId) {
-      const sport = await this.sportRepo.findOne({ where: { id: dto.sportId } });
+      const sport = await this.sportRepo.findOne({
+        where: { id: dto.sportId },
+      });
       if (!sport) {
         throw new NotFoundException(`Sport with ID "${dto.sportId}" not found`);
       }
@@ -212,24 +257,41 @@ export class CompetitionsService {
 
     if (dto.name !== undefined) competition.name = dto.name;
     if (dto.status !== undefined) competition.status = dto.status;
-    if (dto.pointsConfig !== undefined) competition.pointsConfig = dto.pointsConfig ?? null;
+    if (dto.pointsConfig !== undefined)
+      competition.pointsConfig = dto.pointsConfig ?? null;
 
     return this.competitionRepo.save(competition);
   }
 
-  async removeCompetition(workspaceId: string, eventId: string, competitionId: string, userId: string): Promise<void> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'competition.manage');
-    const eventExists = await this.eventRepo.exists({ where: { id: eventId, workspaceId } });
+  async removeCompetition(
+    workspaceId: string,
+    eventId: string,
+    competitionId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'competition.manage',
+    );
+    const eventExists = await this.eventRepo.exists({
+      where: { id: eventId, workspaceId },
+    });
     if (!eventExists) {
       throw new NotFoundException(`Event "${eventId}" not found in workspace`);
     }
 
-    const competition = await this.competitionRepo.findOne({ where: { id: competitionId, eventId } });
+    const competition = await this.competitionRepo.findOne({
+      where: { id: competitionId, eventId },
+    });
     if (!competition) {
-      throw new NotFoundException(`Competition "${competitionId}" not found in event`);
+      throw new NotFoundException(
+        `Competition "${competitionId}" not found in event`,
+      );
     }
 
-    await this.competitionRepo.remove(competition);
+    competition.deletedAt = new Date();
+    await this.competitionRepo.save(competition);
   }
 
   // ─── Competition Teams ───────────────────────────────────────────────────
@@ -246,11 +308,16 @@ export class CompetitionsService {
       relations: { teams: true },
     });
     if (!event) throw new NotFoundException(`Event not found`);
-    const competition = await this.competitionRepo.findOne({ where: { id: competitionId, eventId } });
-    if (!competition) throw new NotFoundException(`Competition "${competitionId}" not found`);
+    const competition = await this.competitionRepo.findOne({
+      where: { id: competitionId, eventId },
+    });
+    if (!competition)
+      throw new NotFoundException(`Competition "${competitionId}" not found`);
 
     const eventTeams = event.teams || [];
-    const uniqueTeams = Array.from(new Map(eventTeams.map((t) => [t.id, t])).values());
+    const uniqueTeams = Array.from(
+      new Map(eventTeams.map((t) => [t.id, t])).values(),
+    );
     return uniqueTeams.map((t) => ({
       id: `${competitionId}-${t.id}`,
       competitionId,
@@ -267,25 +334,47 @@ export class CompetitionsService {
     teamId: string,
     userId: string,
   ): Promise<CompetitionTeam> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'competition.manage');
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'competition.manage',
+    );
     await this.validateCompetitionContext(workspaceId, eventId, competitionId);
-    const team = await this.teamRepo.findOne({ where: { id: teamId, workspaceId } });
-    if (!team) throw new NotFoundException(`Team "${teamId}" not found in workspace`);
-    const existing = await this.competitionTeamRepo.findOne({ where: { competitionId, teamId } });
-    if (existing) throw new ConflictException(`Team is already enrolled in this competition`);
+    const team = await this.teamRepo.findOne({
+      where: { id: teamId, workspaceId },
+    });
+    if (!team)
+      throw new NotFoundException(`Team "${teamId}" not found in workspace`);
+    const existing = await this.competitionTeamRepo.findOne({
+      where: { competitionId, teamId },
+    });
+    if (existing)
+      throw new ConflictException(
+        `Team is already enrolled in this competition`,
+      );
     const entry = this.competitionTeamRepo.create({ competitionId, teamId });
     const saved = await this.competitionTeamRepo.save(entry);
-    const foundEntry = await this.competitionTeamRepo.findOne({ where: { id: saved.id }, relations: { team: true } });
+    const foundEntry = await this.competitionTeamRepo.findOne({
+      where: { id: saved.id },
+      relations: { team: true },
+    });
 
     if (foundEntry) {
-      const comp = await this.competitionRepo.findOne({ where: { id: competitionId } });
+      const comp = await this.competitionRepo.findOne({
+        where: { id: competitionId },
+      });
       const players = await this.workspacesService.getTeamPlayerUserIds(teamId);
       await this.workspacesService.sendNotificationToMany(
         players,
         NotificationType.TEAM_ADDED_TO_COMPETITION,
         `Your team ${foundEntry.team.name} has been registered for ${comp?.name ?? 'a competition'}.`,
         workspaceId,
-        { teamId, teamName: foundEntry.team.name, competitionId, competitionName: comp?.name },
+        {
+          teamId,
+          teamName: foundEntry.team.name,
+          competitionId,
+          competitionName: comp?.name,
+        },
       );
     }
 
@@ -299,15 +388,25 @@ export class CompetitionsService {
     teamId: string,
     userId: string,
   ): Promise<void> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'competition.manage');
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'competition.manage',
+    );
     await this.validateCompetitionContext(workspaceId, eventId, competitionId);
-    const entry = await this.competitionTeamRepo.findOne({ where: { competitionId, teamId } });
-    if (!entry) throw new NotFoundException(`Team is not enrolled in this competition`);
+    const entry = await this.competitionTeamRepo.findOne({
+      where: { competitionId, teamId },
+    });
+    if (!entry)
+      throw new NotFoundException(`Team is not enrolled in this competition`);
 
     const team = await this.teamRepo.findOne({ where: { id: teamId } });
-    const comp = await this.competitionRepo.findOne({ where: { id: competitionId } });
+    const comp = await this.competitionRepo.findOne({
+      where: { id: competitionId },
+    });
 
-    await this.competitionTeamRepo.remove(entry);
+    entry.deletedAt = new Date();
+    await this.competitionTeamRepo.save(entry);
 
     const players = await this.workspacesService.getTeamPlayerUserIds(teamId);
     await this.workspacesService.sendNotificationToMany(
@@ -315,7 +414,12 @@ export class CompetitionsService {
       NotificationType.TEAM_REMOVED_FROM_COMPETITION,
       `Your team ${team?.name ?? 'Unknown'} has been withdrawn from ${comp?.name ?? 'the competition'}.`,
       workspaceId,
-      { teamId, teamName: team?.name, competitionId, competitionName: comp?.name },
+      {
+        teamId,
+        teamName: team?.name,
+        competitionId,
+        competitionName: comp?.name,
+      },
     );
   }
 
@@ -327,7 +431,12 @@ export class CompetitionsService {
     competitionId: string,
     userId: string,
   ): Promise<{ stagesGenerated: number; matchesCreated: number }> {
-    return this.fixturesGeneratorService.generateFixtures(workspaceId, eventId, competitionId, userId);
+    return this.fixturesGeneratorService.generateFixtures(
+      workspaceId,
+      eventId,
+      competitionId,
+      userId,
+    );
   }
 
   // ─── Competition Stages ─────────────────────────────────────────────────
@@ -342,11 +451,18 @@ export class CompetitionsService {
 
     const compExists = await this.competitionRepo
       .createQueryBuilder('c')
-      .innerJoin('c.event', 'e', 'e.id = :eventId AND e.workspaceId = :workspaceId', { eventId, workspaceId })
+      .innerJoin(
+        'c.event',
+        'e',
+        'e.id = :eventId AND e.workspaceId = :workspaceId',
+        { eventId, workspaceId },
+      )
       .where('c.id = :competitionId', { competitionId })
       .getExists();
     if (!compExists) {
-      throw new NotFoundException(`Competition "${competitionId}" not found in event`);
+      throw new NotFoundException(
+        `Competition "${competitionId}" not found in event`,
+      );
     }
 
     return this.stageRepo.find({
@@ -362,17 +478,29 @@ export class CompetitionsService {
     dto: CreateStageDto,
     userId: string,
   ): Promise<CompetitionStage> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'competition.manage');
-    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'competition.manage',
+    );
+    const event = await this.eventRepo.findOne({
+      where: { id: eventId, workspaceId },
+    });
     if (!event) {
       throw new NotFoundException(`Event "${eventId}" not found in workspace`);
     }
-    const competition = await this.competitionRepo.findOne({ where: { id: competitionId, eventId } });
+    const competition = await this.competitionRepo.findOne({
+      where: { id: competitionId, eventId },
+    });
     if (!competition) {
-      throw new NotFoundException(`Competition "${competitionId}" not found in event`);
+      throw new NotFoundException(
+        `Competition "${competitionId}" not found in event`,
+      );
     }
 
-    const sequence = dto.sequence ?? (await this.stageRepo.count({ where: { competitionId } })) + 1;
+    const sequence =
+      dto.sequence ??
+      (await this.stageRepo.count({ where: { competitionId } })) + 1;
 
     const stage = this.stageRepo.create({
       name: dto.name,
@@ -393,19 +521,33 @@ export class CompetitionsService {
     dto: UpdateStageDto,
     userId: string,
   ): Promise<CompetitionStage> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'competition.manage');
-    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'competition.manage',
+    );
+    const event = await this.eventRepo.findOne({
+      where: { id: eventId, workspaceId },
+    });
     if (!event) {
       throw new NotFoundException(`Event "${eventId}" not found in workspace`);
     }
-    const competition = await this.competitionRepo.findOne({ where: { id: competitionId, eventId } });
+    const competition = await this.competitionRepo.findOne({
+      where: { id: competitionId, eventId },
+    });
     if (!competition) {
-      throw new NotFoundException(`Competition "${competitionId}" not found in event`);
+      throw new NotFoundException(
+        `Competition "${competitionId}" not found in event`,
+      );
     }
 
-    const stage = await this.stageRepo.findOne({ where: { id: stageId, competitionId } });
+    const stage = await this.stageRepo.findOne({
+      where: { id: stageId, competitionId },
+    });
     if (!stage) {
-      throw new NotFoundException(`Stage "${stageId}" not found in competition`);
+      throw new NotFoundException(
+        `Stage "${stageId}" not found in competition`,
+      );
     }
 
     if (dto.name !== undefined) stage.name = dto.name;
@@ -425,22 +567,37 @@ export class CompetitionsService {
     stageId: string,
     userId: string,
   ): Promise<void> {
-    await this.workspacesService.ensurePermission(workspaceId, userId, 'competition.manage');
-    const event = await this.eventRepo.findOne({ where: { id: eventId, workspaceId } });
+    await this.workspacesService.ensurePermission(
+      workspaceId,
+      userId,
+      'competition.manage',
+    );
+    const event = await this.eventRepo.findOne({
+      where: { id: eventId, workspaceId },
+    });
     if (!event) {
       throw new NotFoundException(`Event "${eventId}" not found in workspace`);
     }
-    const competition = await this.competitionRepo.findOne({ where: { id: competitionId, eventId } });
+    const competition = await this.competitionRepo.findOne({
+      where: { id: competitionId, eventId },
+    });
     if (!competition) {
-      throw new NotFoundException(`Competition "${competitionId}" not found in event`);
+      throw new NotFoundException(
+        `Competition "${competitionId}" not found in event`,
+      );
     }
 
-    const stage = await this.stageRepo.findOne({ where: { id: stageId, competitionId } });
+    const stage = await this.stageRepo.findOne({
+      where: { id: stageId, competitionId },
+    });
     if (!stage) {
-      throw new NotFoundException(`Stage "${stageId}" not found in competition`);
+      throw new NotFoundException(
+        `Stage "${stageId}" not found in competition`,
+      );
     }
 
-    await this.stageRepo.remove(stage);
+    stage.deletedAt = new Date();
+    await this.stageRepo.save(stage);
   }
 
   async resetStagesAndFixtures(
@@ -449,7 +606,12 @@ export class CompetitionsService {
     competitionId: string,
     userId: string,
   ): Promise<void> {
-    return this.fixturesGeneratorService.resetStagesAndFixtures(workspaceId, eventId, competitionId, userId);
+    return this.fixturesGeneratorService.resetStagesAndFixtures(
+      workspaceId,
+      eventId,
+      competitionId,
+      userId,
+    );
   }
 
   // ─── Matches ────────────────────────────────────────────────────────────
@@ -461,7 +623,13 @@ export class CompetitionsService {
     stageId: string,
     userId: string,
   ): Promise<Match[]> {
-    return this.matchLineupService.getMatches(workspaceId, eventId, competitionId, stageId, userId);
+    return this.matchLineupService.getMatches(
+      workspaceId,
+      eventId,
+      competitionId,
+      stageId,
+      userId,
+    );
   }
 
   async createMatch(
@@ -472,7 +640,14 @@ export class CompetitionsService {
     dto: CreateMatchDto,
     userId: string,
   ): Promise<Match> {
-    return this.matchLineupService.createMatch(workspaceId, eventId, competitionId, stageId, dto, userId);
+    return this.matchLineupService.createMatch(
+      workspaceId,
+      eventId,
+      competitionId,
+      stageId,
+      dto,
+      userId,
+    );
   }
 
   async updateMatch(
@@ -484,7 +659,15 @@ export class CompetitionsService {
     dto: UpdateMatchDto,
     userId: string,
   ): Promise<Match> {
-    return this.matchLineupService.updateMatch(workspaceId, eventId, competitionId, stageId, matchId, dto, userId);
+    return this.matchLineupService.updateMatch(
+      workspaceId,
+      eventId,
+      competitionId,
+      stageId,
+      matchId,
+      dto,
+      userId,
+    );
   }
 
   async removeMatch(
@@ -495,7 +678,14 @@ export class CompetitionsService {
     matchId: string,
     userId: string,
   ): Promise<void> {
-    return this.matchLineupService.removeMatch(workspaceId, eventId, competitionId, stageId, matchId, userId);
+    return this.matchLineupService.removeMatch(
+      workspaceId,
+      eventId,
+      competitionId,
+      stageId,
+      matchId,
+      userId,
+    );
   }
 
   // ─── Match Lineup ───────────────────────────────────────────────────────
@@ -508,7 +698,14 @@ export class CompetitionsService {
     matchId: string,
     userId: string,
   ): Promise<MatchPlayer[]> {
-    return this.matchLineupService.getMatchLineup(workspaceId, eventId, competitionId, stageId, matchId, userId);
+    return this.matchLineupService.getMatchLineup(
+      workspaceId,
+      eventId,
+      competitionId,
+      stageId,
+      matchId,
+      userId,
+    );
   }
 
   async saveMatchLineup(
@@ -517,10 +714,23 @@ export class CompetitionsService {
     competitionId: string,
     stageId: string,
     matchId: string,
-    lineups: { playerId: string; isPlaying: boolean; teamId: string; isGoalkeeper?: boolean }[],
+    lineups: {
+      playerId: string;
+      isPlaying: boolean;
+      teamId: string;
+      isGoalkeeper?: boolean;
+    }[],
     userId: string,
   ): Promise<MatchPlayer[]> {
-    return this.matchLineupService.saveMatchLineup(workspaceId, eventId, competitionId, stageId, matchId, lineups, userId);
+    return this.matchLineupService.saveMatchLineup(
+      workspaceId,
+      eventId,
+      competitionId,
+      stageId,
+      matchId,
+      lineups,
+      userId,
+    );
   }
 
   // ─── Player Ratings ─────────────────────────────────────────────────────
@@ -533,7 +743,14 @@ export class CompetitionsService {
     matchId: string,
     userId: string,
   ): Promise<MatchPlayer[]> {
-    return this.statisticsRatingsService.getMatchRatings(workspaceId, eventId, competitionId, stageId, matchId, userId);
+    return this.statisticsRatingsService.getMatchRatings(
+      workspaceId,
+      eventId,
+      competitionId,
+      stageId,
+      matchId,
+      userId,
+    );
   }
 
   async setMatchPlayerRatings(
@@ -545,7 +762,15 @@ export class CompetitionsService {
     ratings: any[],
     userId: string,
   ): Promise<MatchPlayer[]> {
-    return this.statisticsRatingsService.setMatchPlayerRatings(workspaceId, eventId, competitionId, stageId, matchId, ratings, userId);
+    return this.statisticsRatingsService.setMatchPlayerRatings(
+      workspaceId,
+      eventId,
+      competitionId,
+      stageId,
+      matchId,
+      ratings,
+      userId,
+    );
   }
 
   // ─── Competition Analytics ──────────────────────────────────────────────
@@ -568,7 +793,12 @@ export class CompetitionsService {
     totalMatches: number;
     minAppearancesRequired: number;
   }> {
-    return this.statisticsRatingsService.getCompetitionBestPlayer(workspaceId, eventId, competitionId, userId);
+    return this.statisticsRatingsService.getCompetitionBestPlayer(
+      workspaceId,
+      eventId,
+      competitionId,
+      userId,
+    );
   }
 
   async getCompetitionStats(
@@ -577,10 +807,17 @@ export class CompetitionsService {
     competitionId: string,
     userId: string,
   ): Promise<any> {
-    return this.statisticsRatingsService.getCompetitionStats(workspaceId, eventId, competitionId, userId);
+    return this.statisticsRatingsService.getCompetitionStats(
+      workspaceId,
+      eventId,
+      competitionId,
+      userId,
+    );
   }
 
-  async getCompetitionRankings(competitionId: string): Promise<Map<string, number>> {
+  async getCompetitionRankings(
+    competitionId: string,
+  ): Promise<Map<string, number>> {
     return this.bracketAdvancementService.getCompetitionRankings(competitionId);
   }
 }

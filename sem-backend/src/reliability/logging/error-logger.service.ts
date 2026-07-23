@@ -50,12 +50,21 @@ export class ErrorLoggerService {
     this.writeToWinston(severity, message, { ...options, stack });
 
     // 2. Persist to DB (only warn/error/critical — not noisy debug/info)
-    if ([ErrorSeverity.WARN, ErrorSeverity.ERROR, ErrorSeverity.CRITICAL].includes(severity)) {
+    if (
+      [
+        ErrorSeverity.WARN,
+        ErrorSeverity.ERROR,
+        ErrorSeverity.CRITICAL,
+      ].includes(severity)
+    ) {
       await this.persistToDb(message, stack, options, severity);
     }
   }
 
-  async getRecentErrors(limit = 50, severity?: ErrorSeverity): Promise<ErrorLog[]> {
+  async getRecentErrors(
+    limit = 50,
+    severity?: ErrorSeverity,
+  ): Promise<ErrorLog[]> {
     const qb = this.errorLogRepo
       .createQueryBuilder('log')
       .orderBy('log.createdAt', 'DESC')
@@ -76,7 +85,9 @@ export class ErrorLoggerService {
       .groupBy('log.severity')
       .getRawMany();
 
-    return Object.fromEntries(rows.map((r) => [r.severity, parseInt(r.count, 10)]));
+    return Object.fromEntries(
+      rows.map((r) => [r.severity, parseInt(r.count, 10)]),
+    );
   }
 
   // ─── Private Helpers ──────────────────────────────────────────────────────
@@ -105,11 +116,18 @@ export class ErrorLoggerService {
       await this.errorLogRepo.save(log);
     } catch (dbErr) {
       // Never let logging kill the app
-      this.nestLogger.error('Failed to persist error log to DB', dbErr instanceof Error ? dbErr.stack : String(dbErr));
+      this.nestLogger.error(
+        'Failed to persist error log to DB',
+        dbErr instanceof Error ? dbErr.stack : String(dbErr),
+      );
     }
   }
 
-  private writeToWinston(severity: ErrorSeverity, message: string, meta: any): void {
+  private writeToWinston(
+    severity: ErrorSeverity,
+    message: string,
+    meta: any,
+  ): void {
     const level = severity === ErrorSeverity.CRITICAL ? 'error' : severity;
     this.winston.log(level, message, meta);
   }
@@ -131,11 +149,7 @@ export class ErrorLoggerService {
       }),
     );
 
-    const fileFormat = combine(
-      timestamp(),
-      errors({ stack: true }),
-      json(),
-    );
+    const fileFormat = combine(timestamp(), errors({ stack: true }), json());
 
     return createLogger({
       level: process.env.LOG_LEVEL ?? 'info',

@@ -11,7 +11,13 @@ import { WorkspacesModule } from '../workspaces/workspaces.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Team, Player, Match, MatchPlayer, WorkspaceMember]),
+    TypeOrmModule.forFeature([
+      Team,
+      Player,
+      Match,
+      MatchPlayer,
+      WorkspaceMember,
+    ]),
     WorkspacesModule,
   ],
   controllers: [TeamsController],
