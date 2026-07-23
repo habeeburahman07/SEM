@@ -1,0 +1,833 @@
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+  <!-- Left Columns: Live Console Controls & Visuals -->
+  <div class="lg:col-span-2 flex flex-col gap-6">
+    <!-- Header Score Board -->
+              <div
+                class="bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-xl flex flex-col items-center justify-center gap-4 relative overflow-hidden">
+                @if (match().status === 'live') {
+                <div class="absolute inset-0 bg-violet-500/5 animate-pulse pointer-events-none"></div>
+                }
+
+                <div class="flex items-center justify-center gap-6 w-full relative z-10">
+                  <!-- Home Team name -->
+                  <div class="flex-1 flex items-center justify-end gap-3 text-right">
+                    <div class="min-w-0">
+                      <h3 class="text-lg font-black text-white uppercase tracking-wide truncate">{{ match().homeTeam?.name || 'Home' }}</h3>
+                      <!-- List goals details -->
+                      <div class="text-[10px] text-slate-400 mt-1 flex flex-col items-end">
+                        @for (ev of match().liveData?.events; track ev) {
+                        @if (ev.type === 'goal') {
+                        @let isHomeGoal = (ev.goalType === 'own_goal') ? (ev.teamId === match().awayTeamId) : (ev.teamId ===
+                        match().homeTeamId);
+                        @if (isHomeGoal) {
+                        <span>
+                          <i class="fi fi-rr-football text-violet-400"></i> {{ ev.minute }}'
+                          @if (ev.goalType === 'own_goal') {
+                          (OG - {{ ev.playerName || getPlayersForTeam(match().awayTeamId).find(p => p.userId ===
+                          ev.playerUserId)?.user?.username || 'Opponent' }})
+                          } @else {
+                          {{ ev.playerName || getPlayersForTeam(match().homeTeamId).find(p => p.userId ===
+                          ev.playerUserId)?.user?.username || 'Player' }}
+                          }
+                        </span>
+                        }
+                        }
+                        }
+                      </div>
+                    </div>
+                    <!-- Home Team Logo -->
+                    <div
+                      class="w-10 h-10 rounded-xl overflow-hidden bg-slate-950 border border-white/10 flex items-center justify-center flex-shrink-0"
+                      [style.background]="match().homeTeam?.logoUrl ? 'transparent' : (match().homeTeam ? avatarColor(match().homeTeam?.name || '') : 'transparent')">
+                      @if (match().homeTeam; as homeTeam) {
+                      @if (homeTeam.logoUrl) {
+                      <img [src]="homeTeam.logoUrl" alt="Logo" class="w-full h-full object-cover" />
+                      } @else {
+                      <span class="text-xs font-bold text-white">{{ initials(homeTeam.name) }}</span>
+                      }
+                      } @else {
+                      <span class="text-xs font-bold text-slate-500">HM</span>
+                      }
+                    </div>
+                  </div>
+
+                  <!-- Live Score Card -->
+                  <div
+                    class="px-6 py-3 bg-slate-950 border border-violet-500/20 rounded-2xl flex flex-col items-center justify-center gap-2 min-w-[120px]">
+                    <div class="flex items-center gap-4">
+                      <span class="text-3xl font-black text-white tracking-wider">{{ match().homeScore }}</span>
+                      <span class="text-sm font-bold text-slate-500">:</span>
+                      <span class="text-3xl font-black text-white tracking-wider">{{ match().awayScore }}</span>
+                    </div>
+                    @if (match().liveData?.shootoutHomeScore || match().liveData?.shootoutAwayScore
+                    || match().liveData?.currentHalf === 5) {
+                    <span
+                      class="text-[10px] font-extrabold text-violet-400 uppercase tracking-widest bg-violet-500/10 px-2 py-0.5 rounded-md border border-violet-500/20">
+                      Pen: {{ match().liveData?.shootoutHomeScore || 0 }} - {{ match().liveData?.shootoutAwayScore || 0 }}
+                    </span>
+                    }
+
+                    <!-- Format timer: mm:ss -->
+                    <span class="text-xs font-mono font-bold text-emerald-400 tracking-wider">
+                      {{ formatFootballTime(localElapsedSeconds()) }}
+                    </span>
+                    @if (match().liveData?.started) {
+                    <span class="text-[9px] font-extrabold text-slate-500 uppercase tracking-wider mt-0.5">
+                      {{ getFootballPeriodStatus(match()) }}
+                    </span>
+                    }
+                  </div>
+
+                  <!-- Away Team name -->
+                  <div class="flex-1 flex items-center justify-start gap-3 text-left">
+                    <!-- Away Team Logo -->
+                    <div
+                      class="w-10 h-10 rounded-xl overflow-hidden bg-slate-950 border border-white/10 flex items-center justify-center flex-shrink-0"
+                      [style.background]="match().awayTeam?.logoUrl ? 'transparent' : (match().awayTeam ? avatarColor(match().awayTeam?.name || '') : 'transparent')">
+                      @if (match().awayTeam; as awayTeam) {
+                      @if (awayTeam.logoUrl) {
+                      <img [src]="awayTeam.logoUrl" alt="Logo" class="w-full h-full object-cover" />
+                      } @else {
+                      <span class="text-xs font-bold text-white">{{ initials(awayTeam.name) }}</span>
+                      }
+                      } @else {
+                      <span class="text-xs font-bold text-slate-500">AW</span>
+                      }
+                    </div>
+                    <div class="min-w-0">
+                      <h3 class="text-lg font-black text-white uppercase tracking-wide truncate">{{ match().awayTeam?.name || 'Away' }}</h3>
+                      <div class="text-[10px] text-slate-400 mt-1 flex flex-col items-start">
+                        @for (ev of match().liveData?.events; track ev) {
+                        @if (ev.type === 'goal') {
+                        @let isAwayGoal = (ev.goalType === 'own_goal') ? (ev.teamId === match().homeTeamId) : (ev.teamId ===
+                        match().awayTeamId);
+                        @if (isAwayGoal) {
+                        <span>
+                          <i class="fi fi-rr-football text-violet-400"></i> {{ ev.minute }}'
+                          @if (ev.goalType === 'own_goal') {
+                          (OG - {{ ev.playerName || getPlayersForTeam(match().homeTeamId).find(p => p.userId ===
+                          ev.playerUserId)?.user?.username || 'Opponent' }})
+                          } @else {
+                          {{ ev.playerName || getPlayersForTeam(match().awayTeamId).find(p => p.userId ===
+                          ev.playerUserId)?.user?.username || 'Player' }}
+                          }
+                        </span>
+                        }
+                        }
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Status or Action Button at top of header -->
+                @if (match().venue) {
+                <div class="text-xs text-slate-400 flex items-center gap-1.5 mt-1 relative z-10">
+                  <i class="fi fi-rr-marker text-violet-400"></i>
+                  <span>{{ match().venue?.name }}</span>
+                  @if (match().venue?.location) {
+                  <span class="text-slate-500">({{ match().venue?.location }})</span>
+                  }
+                </div>
+                }
+
+                @if (match().status === 'scheduled') {
+                <span
+                  class="text-[10px] font-bold px-3 py-1 bg-slate-800 text-slate-300 rounded-full border border-white/10 uppercase tracking-widest mt-2">
+                  Upcoming Match
+                </span>
+                } @else if (match().status === 'live') {
+                <span
+                  class="text-[10px] font-bold px-3 py-1 bg-rose-500/10 text-rose-400 rounded-full border border-rose-500/20 uppercase tracking-widest mt-2 flex items-center gap-1.5">
+                  <span class="h-2 w-2 rounded-full bg-rose-500 animate-ping"></span> Live Match
+                </span>
+                } @else {
+                <span
+                  class="text-[10px] font-bold px-3 py-1 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20 uppercase tracking-widest mt-2">
+                  Completed
+                </span>
+                }
+              </div>
+    
+    @if (match().status !== 'completed' && canScore()) {
+      <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 flex flex-col gap-6">
+                @if (!match().liveData?.started) {
+                <!-- Football Match Configuration Panel -->
+                <div class="flex flex-col gap-4">
+                  <h4 class="text-sm font-bold text-white uppercase tracking-wider border-b border-white/5 pb-2">
+                    Football Match Settings</h4>
+                  <div class="flex flex-col gap-3">
+                    <div class="flex flex-col gap-1.5 text-left max-w-xs">
+                      <label class="text-[10px] font-bold text-slate-400 uppercase">Half Duration (Minutes)</label>
+                      <input #halfDuration type="number" [value]="$any(match()).config?.halfDuration || 45" min="1"
+                        max="90"
+                        class="bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 outline-none" />
+                    </div>
+
+                    @if (stage()?.type === 'knockout' || stage()?.type === 'group_knockout') {
+                    <div class="flex flex-col gap-2.5 text-left border-t border-white/5 pt-2 max-w-xs">
+                      <label class="text-[10px] font-bold text-slate-400 uppercase">Knockout Options</label>
+                      <div class="flex flex-col gap-2">
+                        <label class="text-xs text-white flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" [checked]="enableExtraTime()"
+                            (change)="enableExtraTime.set($any($event.target).checked)"
+                            class="accent-violet-500 rounded border-white/10" />
+                          Enable Extra Time
+                        </label>
+                        @if (enableExtraTime()) {
+                        <div class="flex flex-col gap-1 text-left pl-6 mt-1">
+                          <label class="text-[9px] font-bold text-slate-400 uppercase">Extra Time Half Duration
+                            (Mins)</label>
+                          <input #extraTimeHalfDurationInput type="number" [value]="extraTimeHalfDuration()"
+                            (input)="extraTimeHalfDuration.set(+extraTimeHalfDurationInput.value || 15)" min="1"
+                            max="45"
+                            class="bg-slate-950 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white placeholder-slate-600 outline-none w-32" />
+                        </div>
+                        }
+                        <label class="text-xs text-white flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" [checked]="enablePenaltyShootout()"
+                            (change)="enablePenaltyShootout.set($any($event.target).checked)"
+                            class="accent-violet-500 rounded border-white/10" />
+                          Enable Penalty Shootout
+                        </label>
+                      </div>
+                    </div>
+                    }
+                  </div>
+                  <button
+                    (click)="onStartFootballMatch(+halfDuration.value, enableExtraTime(), enablePenaltyShootout(), extraTimeHalfDuration())"
+                    class="w-full py-2 bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold rounded-xl cursor-pointer transition-all">
+                    Start Match
+                  </button>
+                </div>
+                } @else {
+                <div class="flex items-center justify-between border-b border-white/5 pb-4">
+                  <div class="flex flex-col gap-0.5">
+                    <h4 class="text-sm font-bold text-white uppercase tracking-wider">Football Live Console</h4>
+                    <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                      Status: {{ getFootballPeriodStatus(match()) }}
+                    </span>
+                  </div>
+                  @if (isFootballHalfTime(match())) {
+                  <button (click)="onStartSecondHalf()"
+                    class="px-4 py-2 text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition-all cursor-pointer flex items-center gap-2">
+                    <i class="fi fi-rr-play"></i> Start 2nd Half
+                  </button>
+                  } @else if (isFootballExtra1Pending(match())) {
+                  <button (click)="onStartFirstExtraHalf()"
+                    class="px-4 py-2 text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white rounded-xl transition-all cursor-pointer flex items-center gap-2">
+                    <i class="fi fi-rr-play"></i> Start 1st Extra Half
+                  </button>
+                  } @else if (match().liveData?.currentHalf === 3 && !match().liveData?.timerRunning) {
+                  <button (click)="onStartSecondExtraHalf()"
+                    class="px-4 py-2 text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition-all cursor-pointer flex items-center gap-2">
+                    <i class="fi fi-rr-play"></i> Start 2nd Extra Half
+                  </button>
+                  } @else if (isFootballShootoutPending(match())) {
+                  <button (click)="onStartPenaltyShootout()"
+                    class="px-4 py-2 text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition-all cursor-pointer flex items-center gap-2">
+                    <i class="fi fi-rr-play"></i> Start Penalty Shootout
+                  </button>
+                  } @else if (match().liveData?.currentHalf === 5) {
+                  <span class="text-xs text-violet-400 font-bold uppercase tracking-wider">Shootout Active</span>
+                  } @else if (isFootballFullTime(match())) {
+                  <span class="text-xs text-rose-400 font-bold uppercase tracking-wider">Full Time reached</span>
+                  } @else {
+                  <button (click)="onToggleFootballTimer()"
+                    class="px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2"
+                    [class]="match().liveData?.timerRunning ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'">
+                    @if (match().liveData?.timerRunning) {
+                    <i class="fi fi-rr-pause"></i> Pause Match
+                    } @else {
+                    <i class="fi fi-rr-play"></i> Resume Match
+                    }
+                  </button>
+                  }
+                </div>
+
+                <!-- Score Goal / Card forms for Home and Away Team -->
+                @if (match().liveData?.currentHalf !== 5) {
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                  <!-- Home Team Panel -->
+                  <div class="flex flex-col gap-4 p-4 rounded-xl bg-slate-950 border border-white/5">
+                    <h5 class="text-xs font-bold text-violet-400 uppercase tracking-wider">{{ match().homeTeam?.name }}
+                      Events</h5>
+
+                    <!-- Goal log -->
+                    <div class="flex flex-col gap-2">
+                      <label class="text-[10px] font-bold text-slate-400 uppercase">Log Goal</label>
+                      <div class="flex flex-col gap-2 bg-slate-900/40 p-2.5 rounded-xl border border-white/5">
+                        <div class="flex gap-2">
+                          <select #homeGoalType
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                            <option value="normal">Normal Goal</option>
+                            <option value="penalty">Penalty Goal</option>
+                            <option value="free_kick">Free Kick Goal</option>
+                            <option value="header">Header</option>
+                            <option value="volley">Volley</option>
+                            <option value="long_shot">Long Shot</option>
+                            <option value="own_goal">Own Goal</option>
+                          </select>
+                        </div>
+                        <div class="flex gap-2">
+                          <select #homeScorerSelect
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none"
+                            (change)="homeScorerCustomInput.value = ''">
+                            <option value="">Select Scorer</option>
+                            <option value="unregistered">Unregistered Player</option>
+                            @for (p of getPlayersForTeam(match().homeTeamId); track p.id) {
+                            <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                            }
+                          </select>
+                          <input #homeScorerCustomInput type="text" placeholder="Scorer Name"
+                            [class.hidden]="homeScorerSelect.value !== 'unregistered'"
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none" />
+                        </div>
+                        <div class="flex gap-2" [class.hidden]="homeGoalType.value === 'own_goal'">
+                          <select #homeAssistSelect
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none"
+                            (change)="homeAssistCustomInput.value = ''">
+                            <option value="">Select Assist (Opt)</option>
+                            <option value="unregistered">Unregistered Player</option>
+                            @for (p of getPlayersForTeam(match().homeTeamId); track p.id) {
+                            <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                            }
+                          </select>
+                          <input #homeAssistCustomInput type="text" placeholder="Assist Name"
+                            [class.hidden]="homeAssistSelect.value !== 'unregistered'"
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none" />
+                        </div>
+                        <div class="flex justify-end mt-1">
+                          <button
+                            (click)="onRecordFootballGoal({
+                                         teamId: match().homeTeamId!,
+                                         goalType: homeGoalType.value,
+                                         scorerId: homeScorerSelect.value,
+                                         scorerCustomName: homeScorerSelect.value === 'unregistered' ? homeScorerCustomInput.value : '',
+                                         assistId: homeGoalType.value !== 'own_goal' ? homeAssistSelect.value : '',
+                                         assistCustomName: (homeGoalType.value !== 'own_goal' && homeAssistSelect.value === 'unregistered') ? homeAssistCustomInput.value : ''
+                                       }); homeScorerSelect.value=''; homeScorerCustomInput.value=''; homeAssistSelect.value=''; homeAssistCustomInput.value=''; homeGoalType.value='normal'"
+                            [disabled]="homeGoalType.value !== 'own_goal' && (!homeScorerSelect.value || (homeScorerSelect.value === 'unregistered' && !homeScorerCustomInput.value))"
+                            class="px-3.5 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
+                            Goal
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Card log -->
+                    <div class="flex flex-col gap-2 pt-2 border-t border-white/5">
+                      <label class="text-[10px] font-bold text-slate-400 uppercase">Log Card</label>
+                      <div class="flex gap-2">
+                        <select #homeCardPlayer
+                          class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                          <option value="">Select Player</option>
+                          @for (p of getPlayersForTeam(match().homeTeamId); track p.id) {
+                          <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                          }
+                        </select>
+                        <select #homeCardType
+                          class="bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                          <option value="yellow">Yellow</option>
+                          <option value="red">Red</option>
+                        </select>
+                        <button
+                          (click)="onRecordFootballCard(match().homeTeamId!, homeCardPlayer.value, homeCardType.value === 'red' ? 'red' : 'yellow'); homeCardPlayer.value=''"
+                          [disabled]="!homeCardPlayer.value"
+                          class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
+                          Card
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Penalty log -->
+                    <div class="flex flex-col gap-2 pt-2 border-t border-white/5">
+                      <label class="text-[10px] font-bold text-slate-400 uppercase">Log Penalty</label>
+                      <div class="flex gap-2">
+                        <select #homePenaltyPlayer
+                          class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                          <option value="">Select Kicker</option>
+                          @for (p of getPlayersForTeam(match().homeTeamId); track p.id) {
+                          <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                          }
+                        </select>
+                        <select #homePenaltyOutcome
+                          class="bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                          <option value="scored">Scored</option>
+                          <option value="missed">Missed</option>
+                          <option value="saved">Saved</option>
+                          <option value="hit_post">Hit Post</option>
+                        </select>
+                        <button
+                          (click)="onRecordFootballPenalty(match().homeTeamId!, homePenaltyPlayer.value, $any(homePenaltyOutcome.value)); homePenaltyPlayer.value=''"
+                          [disabled]="!homePenaltyPlayer.value"
+                          class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
+                          Penalty
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Substitution log -->
+                    <div class="flex flex-col gap-2 pt-2 border-t border-white/5">
+                      <label class="text-[10px] font-bold text-slate-400 uppercase">Log Substitution</label>
+                      <div class="flex flex-col gap-2 bg-slate-900/40 p-2.5 rounded-xl border border-white/5">
+                        <div class="flex gap-2">
+                          <select #homeSubOut
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                            <option value="">Player Out</option>
+                            @for (p of getPlayersForTeam(match().homeTeamId); track p.id) {
+                            <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                            }
+                          </select>
+                          <select #homeSubIn
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                            <option value="">Player In</option>
+                            @for (p of getBenchPlayersForTeam(match().homeTeamId); track p.id) {
+                            <option [value]="p.userId" [class.hidden]="p.userId === homeSubOut.value">{{ p.user.username
+                              || p.id }}</option>
+                            }
+                          </select>
+                        </div>
+                        <div class="flex gap-2">
+                          <select #homeSubReason
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                            <option value="Tactical">Tactical</option>
+                            <option value="Injury">Injury</option>
+                            <option value="Red Card">Red Card</option>
+                            <option value="Fatigue">Fatigue</option>
+                          </select>
+                          <button
+                            (click)="onRecordFootballSubstitution(match().homeTeamId!, homeSubOut.value, homeSubIn.value, homeSubReason.value); homeSubOut.value=''; homeSubIn.value=''"
+                            [disabled]="!homeSubOut.value || !homeSubIn.value"
+                            class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
+                            Substitute
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+
+                  </div>
+
+                  <!-- Away Team Panel -->
+                  <div class="flex flex-col gap-4 p-4 rounded-xl bg-slate-950 border border-white/5">
+                    <h5 class="text-xs font-bold text-violet-400 uppercase tracking-wider">{{ match().awayTeam?.name }}
+                      Events</h5>
+
+                    <!-- Goal log -->
+                    <div class="flex flex-col gap-2">
+                      <label class="text-[10px] font-bold text-slate-400 uppercase">Log Goal</label>
+                      <div class="flex flex-col gap-2 bg-slate-900/40 p-2.5 rounded-xl border border-white/5">
+                        <div class="flex gap-2">
+                          <select #awayGoalType
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                            <option value="normal">Normal Goal</option>
+                            <option value="penalty">Penalty Goal</option>
+                            <option value="free_kick">Free Kick Goal</option>
+                            <option value="header">Header</option>
+                            <option value="volley">Volley</option>
+                            <option value="long_shot">Long Shot</option>
+                            <option value="own_goal">Own Goal</option>
+                          </select>
+                        </div>
+                        <div class="flex gap-2">
+                          <select #awayScorerSelect
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none"
+                            (change)="awayScorerCustomInput.value = ''">
+                            <option value="">Select Scorer</option>
+                            <option value="unregistered">Unregistered Player</option>
+                            @for (p of getPlayersForTeam(match().awayTeamId); track p.id) {
+                            <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                            }
+                          </select>
+                          <input #awayScorerCustomInput type="text" placeholder="Scorer Name"
+                            [class.hidden]="awayScorerSelect.value !== 'unregistered'"
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none" />
+                        </div>
+                        <div class="flex gap-2" [class.hidden]="awayGoalType.value === 'own_goal'">
+                          <select #awayAssistSelect
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none"
+                            (change)="awayAssistCustomInput.value = ''">
+                            <option value="">Select Assist (Opt)</option>
+                            <option value="unregistered">Unregistered Player</option>
+                            @for (p of getPlayersForTeam(match().awayTeamId); track p.id) {
+                            <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                            }
+                          </select>
+                          <input #awayAssistCustomInput type="text" placeholder="Assist Name"
+                            [class.hidden]="awayAssistSelect.value !== 'unregistered'"
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none" />
+                        </div>
+                        <div class="flex justify-end mt-1">
+                          <button
+                            (click)="onRecordFootballGoal({
+                                         teamId: match().awayTeamId!,
+                                         goalType: awayGoalType.value,
+                                         scorerId: awayScorerSelect.value,
+                                         scorerCustomName: awayScorerSelect.value === 'unregistered' ? awayScorerCustomInput.value : '',
+                                         assistId: awayGoalType.value !== 'own_goal' ? awayAssistSelect.value : '',
+                                         assistCustomName: (awayGoalType.value !== 'own_goal' && awayAssistSelect.value === 'unregistered') ? awayAssistCustomInput.value : ''
+                                       }); awayScorerSelect.value=''; awayScorerCustomInput.value=''; awayAssistSelect.value=''; awayAssistCustomInput.value=''; awayGoalType.value='normal'"
+                            [disabled]="awayGoalType.value !== 'own_goal' && (!awayScorerSelect.value || (awayScorerSelect.value === 'unregistered' && !awayScorerCustomInput.value))"
+                            class="px-3.5 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
+                            Goal
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Card log -->
+                    <div class="flex flex-col gap-2 pt-2 border-t border-white/5">
+                      <label class="text-[10px] font-bold text-slate-400 uppercase">Log Card</label>
+                      <div class="flex gap-2">
+                        <select #awayCardPlayer
+                          class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                          <option value="">Select Player</option>
+                          @for (p of getPlayersForTeam(match().awayTeamId); track p.id) {
+                          <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                          }
+                        </select>
+                        <select #awayCardType
+                          class="bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                          <option value="yellow">Yellow</option>
+                          <option value="red">Red</option>
+                        </select>
+                        <button
+                          (click)="onRecordFootballCard(match().awayTeamId!, awayCardPlayer.value, awayCardType.value === 'red' ? 'red' : 'yellow'); awayCardPlayer.value=''"
+                          [disabled]="!awayCardPlayer.value"
+                          class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
+                          Card
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Penalty log -->
+                    <div class="flex flex-col gap-2 pt-2 border-t border-white/5">
+                      <label class="text-[10px] font-bold text-slate-400 uppercase">Log Penalty</label>
+                      <div class="flex gap-2">
+                        <select #awayPenaltyPlayer
+                          class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                          <option value="">Select Kicker</option>
+                          @for (p of getPlayersForTeam(match().awayTeamId); track p.id) {
+                          <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                          }
+                        </select>
+                        <select #awayPenaltyOutcome
+                          class="bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                          <option value="scored">Scored</option>
+                          <option value="missed">Missed</option>
+                          <option value="saved">Saved</option>
+                          <option value="hit_post">Hit Post</option>
+                        </select>
+                        <button
+                          (click)="onRecordFootballPenalty(match().awayTeamId!, awayPenaltyPlayer.value, $any(awayPenaltyOutcome.value)); awayPenaltyPlayer.value=''"
+                          [disabled]="!awayPenaltyPlayer.value"
+                          class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
+                          Penalty
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Substitution log -->
+                    <div class="flex flex-col gap-2 pt-2 border-t border-white/5">
+                      <label class="text-[10px] font-bold text-slate-400 uppercase">Log Substitution</label>
+                      <div class="flex flex-col gap-2 bg-slate-900/40 p-2.5 rounded-xl border border-white/5">
+                        <div class="flex gap-2">
+                          <select #awaySubOut
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                            <option value="">Player Out</option>
+                            @for (p of getPlayersForTeam(match().awayTeamId); track p.id) {
+                            <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                            }
+                          </select>
+                          <select #awaySubIn
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                            <option value="">Player In</option>
+                            @for (p of getBenchPlayersForTeam(match().awayTeamId); track p.id) {
+                            <option [value]="p.userId" [class.hidden]="p.userId === awaySubOut.value">{{ p.user.username
+                              || p.id }}</option>
+                            }
+                          </select>
+                        </div>
+                        <div class="flex gap-2">
+                          <select #awaySubReason
+                            class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white outline-none">
+                            <option value="Tactical">Tactical</option>
+                            <option value="Injury">Injury</option>
+                            <option value="Red Card">Red Card</option>
+                            <option value="Fatigue">Fatigue</option>
+                          </select>
+                          <button
+                            (click)="onRecordFootballSubstitution(match().awayTeamId!, awaySubOut.value, awaySubIn.value, awaySubReason.value); awaySubOut.value=''; awaySubIn.value=''"
+                            [disabled]="!awaySubOut.value || !awaySubIn.value"
+                            class="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
+                            Substitute
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+
+                  </div>
+                </div>
+                } @else {
+                <!-- Penalty Shootout Console -->
+                <div class="bg-slate-950 p-6 rounded-2xl border border-violet-500/20 flex flex-col gap-6">
+                  <div class="flex items-center justify-between border-b border-white/10 pb-4">
+                    <div class="flex flex-col">
+                      <h4 class="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                        <i class="fi fi-rr-referee text-violet-400"></i> Penalty Shootout
+                      </h4>
+                      <span class="text-xs text-slate-400">Record shootout penalties alternately</span>
+                    </div>
+                    <div class="flex items-center gap-4 bg-slate-900 px-4 py-2 rounded-xl border border-white/5">
+                      <div class="text-center">
+                        <span class="text-[9px] font-bold text-slate-400 block uppercase">{{ match().homeTeam?.name
+                          }}</span>
+                        <span class="text-lg font-extrabold text-white">{{ match().liveData?.shootoutHomeScore || 0
+                          }}</span>
+                      </div>
+                      <div class="text-slate-600 font-bold text-xs">PK</div>
+                      <div class="text-center">
+                        <span class="text-[9px] font-bold text-slate-400 block uppercase">{{ match().awayTeam?.name
+                          }}</span>
+                        <span class="text-lg font-extrabold text-white">{{ match().liveData?.shootoutAwayScore || 0
+                          }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Home Team PK -->
+                    <div class="bg-slate-900/40 p-4 rounded-xl border border-white/5 flex flex-col gap-3">
+                      <h5 class="text-xs font-bold text-violet-400 uppercase tracking-wider">{{ match().homeTeam?.name }}
+                        Penalty</h5>
+                      <div class="flex flex-col gap-2">
+                        <select #homePKPlayer
+                          class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                          <option value="">Select Kicker</option>
+                          @for (p of getPlayersForTeam(match().homeTeamId); track p.id) {
+                          <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                          }
+                        </select>
+                        <select #homePKOutcome
+                          class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                          <option value="scored">Scored</option>
+                          <option value="missed">Missed</option>
+                          <option value="saved">Saved</option>
+                          <option value="hit_post">Hit Post</option>
+                        </select>
+                        <button
+                          (click)="onRecordFootballShootoutPenalty(match().homeTeamId!, homePKPlayer.value, $any(homePKOutcome.value)); homePKPlayer.value=''"
+                          [disabled]="!homePKPlayer.value"
+                          class="w-full py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
+                          Log Penalty
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Away Team PK -->
+                    <div class="bg-slate-900/40 p-4 rounded-xl border border-white/5 flex flex-col gap-3">
+                      <h5 class="text-xs font-bold text-violet-400 uppercase tracking-wider">{{ match().awayTeam?.name }}
+                        Penalty</h5>
+                      <div class="flex flex-col gap-2">
+                        <select #awayPKPlayer
+                          class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                          <option value="">Select Kicker</option>
+                          @for (p of getPlayersForTeam(match().awayTeamId); track p.id) {
+                          <option [value]="p.userId">{{ p.user.username || p.id }}</option>
+                          }
+                        </select>
+                        <select #awayPKOutcome
+                          class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                          <option value="scored">Scored</option>
+                          <option value="missed">Missed</option>
+                          <option value="saved">Saved</option>
+                          <option value="hit_post">Hit Post</option>
+                        </select>
+                        <button
+                          (click)="onRecordFootballShootoutPenalty(match().awayTeamId!, awayPKPlayer.value, $any(awayPKOutcome.value)); awayPKPlayer.value=''"
+                          [disabled]="!awayPKPlayer.value"
+                          class="w-full py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer">
+                          Log Penalty
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                }
+
+                <!-- End Match Controls -->
+                <div class="flex flex-col gap-2 pt-4 border-t border-white/5 mt-6 max-w-md">
+                  <label class="text-[10px] font-bold text-slate-400 uppercase">Complete Match & Record Result</label>
+                  <div class="flex gap-2">
+                    <select #matchResultSelect
+                      class="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none">
+                      <option value="">Select Match Result</option>
+                      <option value="Home Win">Home Win ({{ match().homeTeam?.name }})</option>
+                      <option value="Away Win">Away Win ({{ match().awayTeam?.name }})</option>
+                      <option value="Draw">Draw</option>
+                      <option value="Walkover (Home Win)">Walkover ({{ match().homeTeam?.name }} Win)</option>
+                      <option value="Walkover (Away Win)">Walkover ({{ match().awayTeam?.name }} Win)</option>
+                      <option value="Abandoned">Abandoned</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
+                    <button (click)="onEndMatchWithResult(matchResultSelect.value); matchResultSelect.value=''"
+                      [disabled]="!matchResultSelect.value"
+                      class="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer transition-all flex items-center gap-1.5 animate-pulse">
+                      <i class="fi fi-rr-flag-checkered"></i> Complete Match
+                    </button>
+                  </div>
+                </div>
+                }
+              </div>
+    }
+  </div>
+
+  <!-- Right Column: Live Feed / Statistics -->
+  <div class="flex flex-col gap-6 sticky top-24">
+    <div class="bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-xl flex flex-col gap-5">
+      <h3 class="text-sm font-bold text-white border-b border-white/5 pb-3">Live Feed & Log</h3>
+      <div class="flex flex-col gap-4 max-h-[350px] overflow-y-auto pr-1 custom-scrollbar">
+        @let evs = match().liveData?.events || [];
+                  @if (evs.length === 0) {
+                  <p class="text-xs text-slate-500 text-center py-4">No events logged yet.</p>
+                  }
+                  @for (e of evs; track e) {
+                  <div class="flex items-start gap-3 text-left">
+                    <span class="text-xs font-bold text-violet-400 w-8 flex-shrink-0">{{ e.minute }}'</span>
+                    <div class="flex-1 flex flex-col gap-0.5">
+                      @if (e.type === 'goal') {
+                      <span class="text-xs font-bold text-white flex items-center gap-1">
+                        <i class="fi fi-rr-football text-emerald-400"></i>
+                        @if (e.goalType === 'own_goal') {
+                        OWN GOAL!
+                        } @else if (e.goalType === 'penalty') {
+                        PENALTY GOAL!
+                        } @else if (e.goalType === 'free_kick') {
+                        FREE KICK GOAL!
+                        } @else if (e.goalType === 'header') {
+                        HEADER GOAL!
+                        } @else if (e.goalType === 'volley') {
+                        VOLLEY GOAL!
+                        } @else if (e.goalType === 'long_shot') {
+                        LONG SHOT GOAL!
+                        } @else {
+                        GOAL!
+                        }
+                      </span>
+                      <span class="text-[10px] text-slate-400">
+                        Scorer: {{ e.playerName || getPlayersForTeam(e.teamId).find(p => p.userId ===
+                        e.playerUserId)?.user?.username || 'Player' }}
+                        @if (e.goalType === 'own_goal') { (OG) }
+                        @if (e.assistPlayerUserId || e.assistPlayerName) {
+                        (Assist: {{ e.assistPlayerName || getPlayersForTeam(e.teamId).find(p => p.userId ===
+                        e.assistPlayerUserId)?.user?.username || 'Player' }})
+                        }
+                      </span>
+                      } @else if (e.type === 'card') {
+                      <span class="text-xs font-bold text-white flex items-center gap-1">
+                        <i
+                          [class]="e.cardType === 'yellow' ? 'fi fi-ss-square text-amber-400' : (e.cardType === 'second_yellow' ? 'fi fi-ss-square text-orange-500' : 'fi fi-ss-square text-rose-500')"></i>
+                        {{ e.cardType === 'yellow' ? 'Yellow Card' : (e.cardType === 'second_yellow' ? 'Second Yellow
+                        (Red)' : 'Red Card') }}
+                      </span>
+                      <span class="text-[10px] text-slate-400">
+                        Player: {{ getPlayersForTeam(e.teamId).find(p => p.userId === e.playerUserId)?.user?.username ||
+                        'Player' }}
+                      </span>
+                      } @else if (e.type === 'penalty') {
+                      <span class="text-xs font-bold text-white flex items-center gap-1">
+                        <i class="fi fi-rr-referee text-violet-400"></i> Penalty Kicked
+                      </span>
+                      <span class="text-[10px] text-slate-400">
+                        Kicker: {{ players().find(p => p.userId === e.playerUserId)?.user?.username || 'Player' }} -
+                        Outcome: <strong class="text-amber-400 uppercase">{{ e.outcome }}</strong>
+                      </span>
+                      } @else if (e.type === 'substitution') {
+                      <span class="text-xs font-bold text-white flex items-center gap-1">
+                        <i class="fi fi-rr-arrows-repeat text-blue-400"></i> Substitution
+                      </span>
+                      <span class="text-[10px] text-slate-400">
+                        OUT: {{ players().find(p => p.userId === e.playerOutId)?.user?.username || 'Player' }} <i class="fi fi-rr-arrow-right text-[10px]"></i>
+                        IN: {{ players().find(p => p.userId === e.playerInId)?.user?.username || 'Player' }}
+                        ({{ e.reason }})
+                      </span>
+                      } @else if (e.type === 'offside') {
+                      <span class="text-xs font-bold text-white flex items-center gap-1">
+                        <i class="fi fi-rr-flag text-amber-500"></i> Offside
+                      </span>
+                      <span class="text-[10px] text-slate-400">
+                        Player: {{ players().find(p => p.userId === e.playerUserId)?.user?.username || 'Player' }}
+                      </span>
+                      } @else if (e.type === 'foul') {
+                      <span class="text-xs font-bold text-white flex items-center gap-1">
+                        <i class="fi fi-rr-shield-exclamation text-red-500"></i> Foul Committed
+                      </span>
+                      <span class="text-[10px] text-slate-400">
+                        By: {{ players().find(p => p.userId === e.playerUserId)?.user?.username || 'Player' }}
+                        against {{ players().find(p => p.userId === e.opponentPlayerUserId)?.user?.username || 'Player'
+                        }}
+                        ({{ e.foulType }})
+                      </span>
+                      } @else if (e.type === 'free_kick') {
+                      <span class="text-xs font-bold text-white flex items-center gap-1">
+                        <i class="fi fi-rr-shoe text-indigo-400"></i> Free Kick Taken
+                      </span>
+                      <span class="text-[10px] text-slate-400">
+                        By: {{ players().find(p => p.userId === e.playerUserId)?.user?.username || 'Player' }}
+                        ({{ e.freeKickType }} kick) - Result: <strong class="text-indigo-300 uppercase">{{ e.result
+                          }}</strong>
+                      </span>
+                      } @else if (e.type === 'corner_kick') {
+                      <span class="text-xs font-bold text-white flex items-center gap-1">
+                        <i class="fi fi-rr-corner text-teal-400"></i> Corner Kick
+                      </span>
+                      <span class="text-[10px] text-slate-400">
+                        By: {{ players().find(p => p.userId === e.playerUserId)?.user?.username || 'Player' }}
+                        from the <span class="capitalize">{{ e.side }} side</span>
+                      </span>
+                      } @else if (e.type === 'throw_in') {
+                      <span class="text-xs font-bold text-white flex items-center gap-1">
+                        <i class="fi fi-rr-hands text-slate-400"></i> Throw In
+                      </span>
+                      <span class="text-[10px] text-slate-400">
+                        By: {{ players().find(p => p.userId === e.playerUserId)?.user?.username || 'Player' }}
+                      </span>
+                      } @else if (e.type === 'goal_kick') {
+                      <span class="text-xs font-bold text-white flex items-center gap-1">
+                        <i class="fi fi-rr-goal text-yellow-500"></i> Goal Kick
+                      </span>
+                      <span class="text-[10px] text-slate-400">
+                        Keeper: {{ players().find(p => p.userId === e.playerUserId)?.user?.username || 'Player' }}
+                      </span>
+                      } @else if (e.type === 'injury') {
+                      <span class="text-xs font-bold text-white flex items-center gap-1">
+                        <i class="fi fi-rr-heart-rate text-rose-400 animate-pulse"></i> Injury Timeout
+                      </span>
+                      <span class="text-[10px] text-slate-400">
+                        Player: {{ players().find(p => p.userId === e.playerUserId)?.user?.username || 'Player' }}
+                        (Severity: <strong class="text-red-400">{{ e.severity }}</strong>) -
+                        {{ e.substituted ? 'Substituted Off' : 'Remains on Pitch' }}
+                      </span>
+                      } @else if (e.type === 'shootout_penalty') {
+                      <span class="text-xs font-bold text-white flex items-center gap-1">
+                        <i class="fi fi-rr-referee text-violet-400"></i> Shootout Penalty #{{ e.order }}
+                      </span>
+                      <span class="text-[10px] text-slate-400">
+                        Kicker: {{ players().find(p => p.userId === e.playerUserId)?.user?.username || 'Player' }}
+                        (Team: <strong>{{ e.teamId === match().homeTeamId ? match().homeTeam?.name : match().awayTeam?.name
+                          }}</strong>) -
+                        Outcome: <strong class="uppercase"
+                          [class]="e.outcome === 'scored' ? 'text-emerald-400' : 'text-rose-400'">{{ e.outcome
+                          }}</strong>
+                      </span>
+                      }
+                  </div>
+                </div>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
