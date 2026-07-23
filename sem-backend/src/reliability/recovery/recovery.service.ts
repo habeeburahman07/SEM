@@ -46,13 +46,14 @@ export class RecoveryService implements OnModuleInit, OnApplicationShutdown {
   async onApplicationShutdown(signal?: string): Promise<void> {
     this.logger.warn(`Application shutting down (signal: ${signal ?? 'unknown'})`);
 
-    const gracePeriodMs = this.configService.get<number>('SHUTDOWN_GRACE_MS', 5000);
-    this.logger.log(`Waiting ${gracePeriodMs}ms for in-flight requests to drain…`);
-    await this.delay(gracePeriodMs);
-
-    if (this.dataSource.isInitialized) {
-      await this.dataSource.destroy();
-      this.logger.log('Database connections closed cleanly');
+    const defaultGrace = process.env.NODE_ENV === 'test' ? 0 : 5000;
+    let gracePeriodMs = this.configService.get<number>('SHUTDOWN_GRACE_MS', defaultGrace);
+    if (process.env.NODE_ENV === 'test') {
+      gracePeriodMs = 0;
+    }
+    if (gracePeriodMs > 0) {
+      this.logger.log(`Waiting ${gracePeriodMs}ms for in-flight requests to drain…`);
+      await this.delay(gracePeriodMs);
     }
   }
 
